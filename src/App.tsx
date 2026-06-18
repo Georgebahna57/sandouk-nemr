@@ -28,7 +28,7 @@ import {
 import type { FundId, TransactionFilters, ViewId } from './types';
 import type { User } from '@supabase/supabase-js';
 import { fetchFundWhatsAppPhones, type FundWhatsAppMap } from './lib/fundSettings';
-import { buildApprovalWhatsAppMessage, buildPendingWhatsAppMessage } from './lib/whatsapp';
+import { buildApprovalWhatsAppMessage } from './lib/whatsapp';
 
 const VIEWS: { id: ViewId; label: string; icon: typeof Wallet }[] = [
   { id: 'ledger', label: 'الصندوق', icon: Wallet },
@@ -149,13 +149,10 @@ export default function App({ user, onLogout }: Props) {
     if (destinations.length) {
       const ids = getOperationGroupIds(state.transactions, approvingTxId);
       const fundTxs = state.transactions.filter(t => ids.includes(t.id) && (t.ledger ?? 'fund') === 'fund');
-      const pendingOriginal = lead.pendingWhatsAppMessage
-        || buildPendingWhatsAppMessage(lead.fundId, fundTxs.length ? fundTxs : [lead], lead.createdByName);
       const message = buildApprovalWhatsAppMessage(
         lead,
-        pendingOriginal,
+        fundTxs.length ? fundTxs : [lead],
         approvalDetails,
-        profile?.displayName,
       );
       setWhatsappPrompt({
         message,

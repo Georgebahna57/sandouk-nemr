@@ -43,26 +43,18 @@ export function getApprovalStatusText(kind: Transaction['kind']): string {
 
 export function buildApprovalWhatsAppMessage(
   lead: Transaction,
-  pendingOriginalMessage?: string,
+  transactions: Transaction[],
   approvalDetails?: string,
-  approverName?: string,
 ): string {
-  const statusLine = `${getApprovalStatusText(lead.kind)} 👍`;
-  const lines: string[] = [statusLine];
+  const lines: string[] = [`${getApprovalStatusText(lead.kind)} 👍`];
 
-  if (pendingOriginalMessage?.trim()) {
-    lines.push('');
-    for (const row of pendingOriginalMessage.trim().split('\n')) {
-      lines.push(`> ${row}`);
-    }
+  const fundTxs = transactions.length ? transactions : [lead];
+  for (const tx of fundTxs) {
+    lines.push(`> • ${describeTransaction(tx)}`);
   }
 
   if (approvalDetails?.trim()) {
-    lines.push('');
     lines.push(`تفاصيل: ${approvalDetails.trim()}`);
-  }
-  if (approverName?.trim()) {
-    lines.push(`اعتمدها: ${approverName.trim()}`);
   }
 
   return lines.join('\n');
