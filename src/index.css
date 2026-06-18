@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", Tahoma, Arial, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: #0f172a;
+  color: #f1f5f9;
+  min-height: 100dvh;
+}
+
+input, select, textarea, button {
+  font-family: inherit;
+}
