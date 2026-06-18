@@ -9,6 +9,7 @@ import { TransactionFiltersBar } from './components/TransactionFiltersBar';
 import { TransactionForm } from './components/TransactionForm';
 import { TransactionList } from './components/TransactionList';
 import { AdminPanel } from './components/AdminPanel';
+import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund } from './config';
 import { useCloudStore } from './hooks/useCloudStore';
 import { usePermissions } from './hooks/usePermissions';
@@ -45,6 +46,7 @@ export default function App({ user, onLogout }: Props) {
   const [txFilters, setTxFilters] = useState<TransactionFilters>({});
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [fundWhatsApp, setFundWhatsApp] = useState<FundWhatsAppMap>({});
+  const [whatsappPrompt, setWhatsappPrompt] = useState<{ message: string; destinations: string[] } | null>(null);
 
   const {
     profile,
@@ -244,6 +246,7 @@ export default function App({ user, onLogout }: Props) {
                 counterpartyNames={accountNames}
                 whatsappDestinations={fundWhatsApp[fundId]}
                 actorName={profile?.displayName}
+                onPendingWhatsApp={setWhatsappPrompt}
               />
             )}
             <TransactionFiltersBar filters={txFilters} onChange={setTxFilters} />
@@ -274,6 +277,11 @@ export default function App({ user, onLogout }: Props) {
 
         {view === 'pending' && (
           <div className="space-y-4">
+            {isAdmin && !(fundWhatsApp[fundId]?.length) && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                ما في كروبات واتساب لـ {fund.name}. اضغط <strong>إدارة</strong> → واتساب قيد الانتظار → حط روابط الكروبات (سطر لكل كروب).
+              </div>
+            )}
             {!readOnly && (
               <TransactionForm
                 fundId={fundId}
@@ -282,6 +290,7 @@ export default function App({ user, onLogout }: Props) {
                 counterpartyNames={accountNames}
                 whatsappDestinations={fundWhatsApp[fundId]}
                 actorName={profile?.displayName}
+                onPendingWhatsApp={setWhatsappPrompt}
               />
             )}
             <TransactionList
@@ -319,6 +328,14 @@ export default function App({ user, onLogout }: Props) {
       <footer className="mt-8 text-center text-xs text-slate-600">
         البيانات محفوظة على السحابة — كل صندوق له حسابه الافتراضي
       </footer>
+
+      {whatsappPrompt && (
+        <PendingWhatsAppModal
+          message={whatsappPrompt.message}
+          destinations={whatsappPrompt.destinations}
+          onClose={() => setWhatsappPrompt(null)}
+        />
+      )}
     </div>
   );
 }

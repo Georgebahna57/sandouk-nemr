@@ -71,6 +71,15 @@ function buildDestinationUrl(destination: string, message: string): string {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
 
+export { buildDestinationUrl };
+
+export function getDestinationLabel(dest: string, index: number): string {
+  if (isWhatsAppGroupLink(dest)) return `كروب ${index + 1}`;
+  const phone = normalizeWhatsAppPhone(dest);
+  if (phone) return `رقم ${phone}`;
+  return `وجهة ${index + 1}`;
+}
+
 async function copyMessageForGroup(message: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(message);

@@ -126,7 +126,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
     try {
       await saveFundWhatsAppPhones(whatsappEdits);
       onWhatsAppSaved?.();
-      setSuccess('تم حفظ أرقام واتساب');
+      setSuccess(`تم حفظ ${Object.values(whatsappEdits).filter(v => v?.length).length} صندوق/صناديق`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل حفظ أرقام واتساب');
     } finally {

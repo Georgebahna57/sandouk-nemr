@@ -1,7 +1,7 @@
 import { Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CURRENCIES, getFundAccountName, getValueInputLabel, isWeightCurrency } from '../config';
-import { openPendingWhatsAppNotify } from '../lib/whatsapp';
+import { buildPendingWhatsAppMessage } from '../lib/whatsapp';
 import {
   calcExchangeAmount,
   createLinkedFundAccountOperation,
@@ -22,13 +22,14 @@ interface Props {
   counterpartyNames?: string[];
   whatsappDestinations?: string[];
   actorName?: string;
+  onPendingWhatsApp?: (payload: { message: string; destinations: string[] }) => void;
 }
 
 function assetOptionLabel(c: (typeof CURRENCIES)[number]) {
   return c.kind === 'weight' ? `${c.label} (وزن بالغرام)` : `${c.label} (${c.symbol})`;
 }
 
-export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappDestinations, actorName }: Props) {
+export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappDestinations, actorName, onPendingWhatsApp }: Props) {
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('in');
   const [lines, setLines] = useState(createDefaultLines);
@@ -129,15 +130,13 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     const wasPending = pending;
     const txs = Array.isArray(payload) ? payload : [payload];
     const targets = (whatsappDestinations ?? []).map(s => s.trim()).filter(Boolean);
-    const shouldOpenWhatsApp = wasPending && targets.length > 0;
-    const waWindows = shouldOpenWhatsApp
-      ? targets.map(() => window.open('about:blank', '_blank'))
-      : [];
+    const shouldNotifyWhatsApp = wasPending && targets.length > 0;
 
     try {
       await Promise.resolve(onAdd(payload));
-      if (shouldOpenWhatsApp) {
-        await openPendingWhatsAppNotify(targets, fundId, txs, actorName, waWindows);
+      if (shouldNotifyWhatsApp) {
+        const message = buildPendingWhatsAppMessage(fundId, txs, actorName);
+        onPendingWhatsApp?.({ message, destinations: targets });
       }
       reset();
       setOpen(false);
@@ -267,8 +266,11 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
         حطها بقيد الانتظار
         {pending && (whatsappDestinations?.length ?? 0) > 0 && (
           <span className="text-xs text-emerald-400">
-            — رح يفتح واتساب لـ {whatsappDestinations!.length} {whatsappDestinations!.length === 1 ? 'وجهة' : 'وجهات'} (كروب/رقم)
+            — بعد الحفظ رح تظهر أزرار لـ {whatsappDestinations!.length} كروب/رقم
           </span>
+        )}
+        {pending && !(whatsappDestinations?.length) && (
+          <span className="text-xs text-amber-400">— ما في كروبات مضبوطة لهالصندوق (من الإدارة)</span>
         )}
       </label>
 
