@@ -85,66 +85,30 @@ export function buildPendingWhatsAppMessage(
   return lines.join('\n');
 }
 
-function buildDestinationUrl(destination: string, message: string): string {
-  if (isWhatsAppGroupLink(destination)) {
-    return destination.trim().startsWith('http') ? destination.trim() : `https://${destination.trim()}`;
+/** يبني رابط whatsapp:// لفتح البرنامج مباشرة (بدون متصفح) */
+export function buildWhatsAppAppUrl(destination: string, message: string): string {
+  const text = encodeURIComponent(message);
+  if (!isWhatsAppGroupLink(destination)) {
+    const phone = normalizeWhatsAppPhone(destination);
+    if (phone) return `whatsapp://send?phone=${phone}&text=${text}`;
   }
-  const phone = normalizeWhatsAppPhone(destination);
-  if (phone) {
-    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-  }
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+  return `whatsapp://send?text=${text}`;
 }
 
-export { buildDestinationUrl };
+/** يفتح تطبيق واتساب على الجهاز */
+export function openWhatsAppApp(destination: string, message: string): void {
+  const url = buildWhatsAppAppUrl(destination, message);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+}
 
 export function getDestinationLabel(dest: string, index: number): string {
   if (isWhatsAppGroupLink(dest)) return `كروب ${index + 1}`;
   const phone = normalizeWhatsAppPhone(dest);
   if (phone) return `رقم ${phone}`;
   return `وجهة ${index + 1}`;
-}
-
-async function copyMessageForGroup(message: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(message);
-  } catch {
-    // على بعض الجوالات النسخ يحتاج إجراء يدوي
-  }
-}
-
-function navigateWindow(win: Window | null | undefined, url: string): void {
-  if (win && !win.closed) {
-    win.location.href = url;
-    return;
-  }
-  const opened = window.open(url, '_blank', 'noopener,noreferrer');
-  if (!opened) window.location.href = url;
-}
-
-/** يفتح كل وجهة (كروب أو رقم) — للكروبات ينسخ الرسالة تلقائياً */
-export async function openPendingWhatsAppNotify(
-  destinations: string[],
-  fundId: FundId,
-  transactions: Transaction[],
-  actorName?: string,
-  prefetchedWindows?: Array<Window | null>,
-): Promise<number> {
-  const message = buildPendingWhatsAppMessage(fundId, transactions, actorName);
-  const targets = destinations.map(d => d.trim()).filter(Boolean);
-  if (!message || !targets.length) return 0;
-
-  let opened = 0;
-  for (let i = 0; i < targets.length; i++) {
-    const dest = targets[i];
-    const win = prefetchedWindows?.[i] ?? null;
-
-    if (isWhatsAppGroupLink(dest)) {
-      await copyMessageForGroup(message);
-    }
-    navigateWindow(win ?? window.open('about:blank', '_blank'), buildDestinationUrl(dest, message));
-    opened++;
-  }
-
-  return opened;
 }

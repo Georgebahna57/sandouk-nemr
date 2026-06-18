@@ -1,9 +1,9 @@
 import { Copy, MessageCircle, X } from 'lucide-react';
 import { useState } from 'react';
 import {
-  buildDestinationUrl,
   getDestinationLabel,
   isWhatsAppGroupLink,
+  openWhatsAppApp,
 } from '../lib/whatsapp';
 
 interface Props {
@@ -38,8 +38,7 @@ export function PendingWhatsAppModal({ message, destinations, title, subtitle, o
         /* manual copy from textarea */
       }
     }
-    const url = buildDestinationUrl(dest, message);
-    window.location.href = url;
+    openWhatsAppApp(dest, message);
     setOpenedIndex(index);
   }
 
@@ -64,8 +63,8 @@ export function PendingWhatsAppModal({ message, destinations, title, subtitle, o
         {hasGroups && (
           <p className="mb-3 rounded-xl bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
             {subtitle?.includes('رد')
-              ? 'افتح الكروب → رد Reply على رسالة الانتظار → الصق الرسالة → إرسال'
-              : 'للكروبات: اضغط الزر → الصق الرسالة (Ctrl+V) → إرسال. كرّر لكل كروب.'}
+              ? 'يفتح واتساب على الجهاز — اختر الكروب ورد على رسالة الانتظار'
+              : 'يفتح واتساب على الجهاز — للكروبات اختر المجموعة ثم أرسل'}
           </p>
         )}
 
@@ -98,7 +97,7 @@ export function PendingWhatsAppModal({ message, destinations, title, subtitle, o
               }`}
             >
               <span>{getDestinationLabel(dest, index)}</span>
-              <span className="text-xs opacity-80">فتح ←</span>
+              <span className="text-xs opacity-80">واتساب ←</span>
             </button>
           ))}
         </div>
