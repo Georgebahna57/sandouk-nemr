@@ -66,6 +66,12 @@ export interface Transaction {
   exchangeToCurrency?: Currency;
   exchangeRate?: number;
   exchangeToAmount?: number;
+  /** نص رسالة واتساب عند الإرسال من قيد الانتظار */
+  pendingWhatsAppMessage?: string;
+  approvalDetails?: string;
+  approvedByName?: string;
+  approvedByEmail?: string;
+  approvedAt?: string;
 }
 
 export interface Bill {

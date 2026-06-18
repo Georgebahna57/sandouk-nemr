@@ -87,3 +87,10 @@ create policy "admin write fund_settings"
   on fund_settings for all to authenticated
   using (public.is_admin())
   with check (public.is_admin());
+
+-- 6) اعتماد قيد الانتظار + رسالة واتساب
+alter table transactions add column if not exists pending_whatsapp_message text;
+alter table transactions add column if not exists approval_details text;
+alter table transactions add column if not exists approved_by_name text;
+alter table transactions add column if not exists approved_by_email text;
+alter table transactions add column if not exists approved_at timestamptz;

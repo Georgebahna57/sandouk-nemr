@@ -9,10 +9,12 @@ import {
 interface Props {
   message: string;
   destinations: string[];
+  title?: string;
+  subtitle?: string;
   onClose: () => void;
 }
 
-export function PendingWhatsAppModal({ message, destinations, onClose }: Props) {
+export function PendingWhatsAppModal({ message, destinations, title, subtitle, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [openedIndex, setOpenedIndex] = useState<number | null>(null);
 
@@ -50,8 +52,8 @@ export function PendingWhatsAppModal({ message, destinations, onClose }: Props) 
           <div className="flex items-center gap-2">
             <MessageCircle className="text-emerald-400" size={22} />
             <div>
-              <h3 className="font-semibold text-white">إرسال على واتساب</h3>
-              <p className="text-xs text-slate-400">تم حفظ العملية بقيد الانتظار</p>
+              <h3 className="font-semibold text-white">{title ?? 'إرسال على واتساب'}</h3>
+              <p className="text-xs text-slate-400">{subtitle ?? 'تم حفظ العملية بقيد الانتظار'}</p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
@@ -61,7 +63,9 @@ export function PendingWhatsAppModal({ message, destinations, onClose }: Props) 
 
         {hasGroups && (
           <p className="mb-3 rounded-xl bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
-            للكروبات: اضغط الزر → الصق الرسالة (Ctrl+V) → إرسال. كرّر لكل كروب.
+            {subtitle?.includes('رد')
+              ? 'افتح الكروب → رد Reply على رسالة الانتظار → الصق الرسالة → إرسال'
+              : 'للكروبات: اضغط الزر → الصق الرسالة (Ctrl+V) → إرسال. كرّر لكل كروب.'}
           </p>
         )}
 

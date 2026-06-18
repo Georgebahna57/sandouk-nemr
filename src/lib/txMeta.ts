@@ -9,6 +9,11 @@ interface TxMeta {
   uid?: string;
   em?: string;
   nm?: string;
+  pwm?: string;
+  ad?: string;
+  abn?: string;
+  abe?: string;
+  aat?: string;
 }
 
 export function encodeNoteMeta(
@@ -20,6 +25,11 @@ export function encodeNoteMeta(
     createdByUserId?: string;
     createdByEmail?: string;
     createdByName?: string;
+    pendingWhatsAppMessage?: string;
+    approvalDetails?: string;
+    approvedByName?: string;
+    approvedByEmail?: string;
+    approvedAt?: string;
   },
 ): string | undefined {
   const payload: TxMeta = {};
@@ -29,6 +39,11 @@ export function encodeNoteMeta(
   if (meta.createdByUserId) payload.uid = meta.createdByUserId;
   if (meta.createdByEmail) payload.em = meta.createdByEmail;
   if (meta.createdByName) payload.nm = meta.createdByName;
+  if (meta.pendingWhatsAppMessage) payload.pwm = meta.pendingWhatsAppMessage;
+  if (meta.approvalDetails) payload.ad = meta.approvalDetails;
+  if (meta.approvedByName) payload.abn = meta.approvedByName;
+  if (meta.approvedByEmail) payload.abe = meta.approvedByEmail;
+  if (meta.approvedAt) payload.aat = meta.approvedAt;
 
   const hasMeta = Object.keys(payload).length > 0;
   const trimmed = userNote?.trim();
@@ -45,6 +60,11 @@ export function decodeNoteMeta(note?: string): {
   createdByUserId?: string;
   createdByEmail?: string;
   createdByName?: string;
+  pendingWhatsAppMessage?: string;
+  approvalDetails?: string;
+  approvedByName?: string;
+  approvedByEmail?: string;
+  approvedAt?: string;
 } {
   if (!note?.startsWith(META_PREFIX)) {
     return { userNote: note?.trim() || undefined };
@@ -64,6 +84,11 @@ export function decodeNoteMeta(note?: string): {
       createdByUserId: meta.uid,
       createdByEmail: meta.em,
       createdByName: meta.nm,
+      pendingWhatsAppMessage: meta.pwm,
+      approvalDetails: meta.ad,
+      approvedByName: meta.abn,
+      approvedByEmail: meta.abe,
+      approvedAt: meta.aat,
     };
   } catch {
     return { userNote: note.trim() || undefined };

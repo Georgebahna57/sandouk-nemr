@@ -50,9 +50,9 @@ export function describeTransaction(tx: Transaction): string {
   }
   if (tx.kind === 'exchange') return 'تبديل';
   const other = tx.counterparty?.trim();
-  if (tx.kind === 'payment') return other ? `مدفوع لـ ${other}` : 'مدفوع';
-  if (tx.intermediary) return other ? `مستلم من ${other} بيد ${tx.intermediary}` : `مستلم بيد ${tx.intermediary}`;
-  return other ? `مستلم من ${other}` : (isFundAccountName(tx.party) ? 'حركة صندوق' : 'حركة حساب');
+  if (tx.kind === 'payment') return other ? `دفع لـ ${other}` : 'دفع';
+  if (tx.intermediary) return other ? `استلام من ${other} بيد ${tx.intermediary}` : `استلام بيد ${tx.intermediary}`;
+  return other ? `استلام من ${other}` : (isFundAccountName(tx.party) ? 'حركة صندوق' : 'حركة حساب');
 }
 
 /** يحوّل الحركات القديمة (party = الطرف) إلى النموذج الجديد */

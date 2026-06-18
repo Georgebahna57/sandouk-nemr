@@ -57,6 +57,11 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
     exchangeToCurrency: (row.exchange_to_currency as Transaction['exchangeToCurrency']) || undefined,
     exchangeRate: row.exchange_rate != null ? Number(row.exchange_rate) : undefined,
     exchangeToAmount: row.exchange_to_amount != null ? Number(row.exchange_to_amount) : undefined,
+    pendingWhatsAppMessage: (row.pending_whatsapp_message as string) || decoded.pendingWhatsAppMessage || undefined,
+    approvalDetails: (row.approval_details as string) || decoded.approvalDetails || undefined,
+    approvedByName: (row.approved_by_name as string) || decoded.approvedByName || undefined,
+    approvedByEmail: (row.approved_by_email as string) || decoded.approvedByEmail || undefined,
+    approvedAt: (row.approved_at as string) || decoded.approvedAt || undefined,
   });
 }
 
@@ -111,6 +116,11 @@ function txToRow(tx: Transaction) {
     exchange_to_currency: tx.exchangeToCurrency ?? null,
     exchange_rate: tx.exchangeRate ?? null,
     exchange_to_amount: tx.exchangeToAmount ?? null,
+    pending_whatsapp_message: tx.pendingWhatsAppMessage ?? null,
+    approval_details: tx.approvalDetails ?? null,
+    approved_by_name: tx.approvedByName ?? null,
+    approved_by_email: tx.approvedByEmail ?? null,
+    approved_at: tx.approvedAt ?? null,
     created_at: tx.createdAt,
   };
 }
@@ -132,6 +142,11 @@ function legacyTxToRow(tx: Transaction) {
       createdByUserId: tx.createdByUserId,
       createdByEmail: tx.createdByEmail,
       createdByName: tx.createdByName,
+      pendingWhatsAppMessage: tx.pendingWhatsAppMessage,
+      approvalDetails: tx.approvalDetails,
+      approvedByName: tx.approvedByName,
+      approvedByEmail: tx.approvedByEmail,
+      approvedAt: tx.approvedAt,
     }) ?? null,
     status: tx.status,
     exchange_to_currency: tx.exchangeToCurrency ?? null,
@@ -216,8 +231,13 @@ export async function patchTransaction(id: string, patch: Partial<Transaction>) 
   if (patch.lastEditedByName !== undefined) row.last_edited_by_name = patch.lastEditedByName;
   if (patch.lastEditedByEmail !== undefined) row.last_edited_by_email = patch.lastEditedByEmail;
   if (patch.editHistory !== undefined) row.edit_history = patch.editHistory;
+  if (patch.pendingWhatsAppMessage !== undefined) row.pending_whatsapp_message = patch.pendingWhatsAppMessage;
+  if (patch.approvalDetails !== undefined) row.approval_details = patch.approvalDetails;
+  if (patch.approvedByName !== undefined) row.approved_by_name = patch.approvedByName;
+  if (patch.approvedByEmail !== undefined) row.approved_by_email = patch.approvedByEmail;
+  if (patch.approvedAt !== undefined) row.approved_at = patch.approvedAt;
   const { error } = await requireClient().from('transactions').update(row).eq('id', id);
-  if (error && isMissingColumnError(error) && patch.status !== undefined) {
+  if (error && isMissingColumnError(error)) {
     const { data, error: readErr } = await requireClient()
       .from('transactions')
       .select('note')
@@ -225,14 +245,25 @@ export async function patchTransaction(id: string, patch: Partial<Transaction>) 
       .single();
     if (readErr) throw formatDbError(readErr);
     const decoded = decodeNoteMeta((data?.note as string) || undefined);
-    const note = encodeNoteMeta(decoded.userNote, {
+    const note = encodeNoteMeta(patch.note ?? decoded.userNote, {
       ledger: patch.ledger ?? decoded.ledger,
       counterparty: patch.counterparty ?? decoded.counterparty,
       batchId: decoded.batchId,
+      createdByUserId: decoded.createdByUserId,
+      createdByEmail: decoded.createdByEmail,
+      createdByName: decoded.createdByName,
+      pendingWhatsAppMessage: patch.pendingWhatsAppMessage ?? decoded.pendingWhatsAppMessage,
+      approvalDetails: patch.approvalDetails ?? decoded.approvalDetails,
+      approvedByName: patch.approvedByName ?? decoded.approvedByName,
+      approvedByEmail: patch.approvedByEmail ?? decoded.approvedByEmail,
+      approvedAt: patch.approvedAt ?? decoded.approvedAt,
     });
+    const legacyUpdate: Record<string, unknown> = {};
+    if (patch.status !== undefined) legacyUpdate.status = patch.status;
+    if (note !== undefined) legacyUpdate.note = note;
     const { error: noteErr } = await requireClient()
       .from('transactions')
-      .update({ status: patch.status, note })
+      .update(legacyUpdate)
       .eq('id', id);
     if (noteErr) throw formatDbError(noteErr);
     return;

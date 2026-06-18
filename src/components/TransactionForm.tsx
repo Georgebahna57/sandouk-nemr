@@ -129,12 +129,16 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     const txs = Array.isArray(payload) ? payload : [payload];
     const targets = (whatsappDestinations ?? []).map(s => s.trim()).filter(Boolean);
     const shouldNotifyWhatsApp = wasPending && targets.length > 0;
+    const pendingMessage = wasPending ? buildPendingWhatsAppMessage(fundId, txs, actorName) : undefined;
+    const enriched = txs.map((t, i) => (
+      i === 0 && pendingMessage ? { ...t, pendingWhatsAppMessage: pendingMessage } : t
+    ));
+    const toSave = Array.isArray(payload) ? enriched : enriched[0];
 
     try {
-      await Promise.resolve(onAdd(payload));
-      if (shouldNotifyWhatsApp) {
-        const message = buildPendingWhatsAppMessage(fundId, txs, actorName);
-        onPendingWhatsApp?.({ message, destinations: targets });
+      await Promise.resolve(onAdd(toSave));
+      if (shouldNotifyWhatsApp && pendingMessage) {
+        onPendingWhatsApp?.({ message: pendingMessage, destinations: targets });
       }
       reset();
       setOpen(false);
@@ -171,11 +175,11 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       <div className="grid grid-cols-3 gap-2">
         <button type="button" onClick={() => { setDirection('in'); setIsExchange(false); }}
           className={`rounded-xl py-2 text-sm font-medium ${direction === 'in' && !isExchange ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
-          مقبوض
+          استلام
         </button>
         <button type="button" onClick={() => { setDirection('out'); setIsExchange(false); }}
           className={`rounded-xl py-2 text-sm font-medium ${direction === 'out' && !isExchange ? 'bg-rose-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
-          مدفوع
+          دفع
         </button>
         <button type="button" onClick={() => setIsExchange(true)}
           className={`rounded-xl py-2 text-sm font-medium ${isExchange ? 'bg-violet-600 text-white' : 'bg-slate-700 text-slate-300'}`}>

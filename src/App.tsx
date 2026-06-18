@@ -9,6 +9,7 @@ import { TransactionFiltersBar } from './components/TransactionFiltersBar';
 import { TransactionForm } from './components/TransactionForm';
 import { TransactionList } from './components/TransactionList';
 import { AdminPanel } from './components/AdminPanel';
+import { ApproveTransactionModal } from './components/ApproveTransactionModal';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund } from './config';
 import { useCloudStore } from './hooks/useCloudStore';
@@ -21,11 +22,13 @@ import {
   filterByFund,
   filterTransactions,
   formatDateAr,
+  getOperationGroupIds,
   todayIso,
 } from './lib/utils';
 import type { FundId, TransactionFilters, ViewId } from './types';
 import type { User } from '@supabase/supabase-js';
 import { fetchFundWhatsAppPhones, type FundWhatsAppMap } from './lib/fundSettings';
+import { buildApprovalWhatsAppMessage, buildPendingWhatsAppMessage } from './lib/whatsapp';
 
 const VIEWS: { id: ViewId; label: string; icon: typeof Wallet }[] = [
   { id: 'ledger', label: 'الصندوق', icon: Wallet },
@@ -46,7 +49,13 @@ export default function App({ user, onLogout }: Props) {
   const [txFilters, setTxFilters] = useState<TransactionFilters>({});
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [fundWhatsApp, setFundWhatsApp] = useState<FundWhatsAppMap>({});
-  const [whatsappPrompt, setWhatsappPrompt] = useState<{ message: string; destinations: string[] } | null>(null);
+  const [whatsappPrompt, setWhatsappPrompt] = useState<{
+    message: string;
+    destinations: string[];
+    title?: string;
+    subtitle?: string;
+  } | null>(null);
+  const [approvingTxId, setApprovingTxId] = useState<string | null>(null);
 
   const {
     profile,
@@ -121,6 +130,43 @@ export default function App({ user, onLogout }: Props) {
     () => accountSummaries.map(s => s.name),
     [accountSummaries],
   );
+
+  async function handleApproveConfirm(approvalDetails: string) {
+    if (!approvingTxId) return;
+    const lead = state.transactions.find(t => t.id === approvingTxId);
+    if (!lead) return;
+
+    const now = new Date().toISOString();
+    await updateTransaction(approvingTxId, {
+      status: 'posted',
+      approvalDetails: approvalDetails || undefined,
+      approvedByName: profile?.displayName,
+      approvedByEmail: user.email ?? undefined,
+      approvedAt: now,
+    });
+
+    const destinations = fundWhatsApp[lead.fundId] ?? [];
+    if (destinations.length) {
+      const ids = getOperationGroupIds(state.transactions, approvingTxId);
+      const fundTxs = state.transactions.filter(t => ids.includes(t.id) && (t.ledger ?? 'fund') === 'fund');
+      const pendingOriginal = lead.pendingWhatsAppMessage
+        || buildPendingWhatsAppMessage(lead.fundId, fundTxs.length ? fundTxs : [lead], lead.createdByName);
+      const message = buildApprovalWhatsAppMessage(
+        lead,
+        pendingOriginal,
+        approvalDetails,
+        profile?.displayName,
+      );
+      setWhatsappPrompt({
+        message,
+        destinations,
+        title: 'رد الاعتماد على واتساب',
+        subtitle: 'رد على رسالة الانتظار — الصق بالكروب واضغط إرسال',
+      });
+    }
+
+    setApprovingTxId(null);
+  }
 
   if (showAdmin && isAdmin) {
     return (
@@ -246,7 +292,11 @@ export default function App({ user, onLogout }: Props) {
                 counterpartyNames={accountNames}
                 whatsappDestinations={fundWhatsApp[fundId]}
                 actorName={profile?.displayName}
-                onPendingWhatsApp={setWhatsappPrompt}
+                onPendingWhatsApp={payload => setWhatsappPrompt({
+                  ...payload,
+                  title: 'إرسال على واتساب',
+                  subtitle: 'تم حفظ العملية بقيد الانتظار',
+                })}
               />
             )}
             <TransactionFiltersBar filters={txFilters} onChange={setTxFilters} />
@@ -290,13 +340,17 @@ export default function App({ user, onLogout }: Props) {
                 counterpartyNames={accountNames}
                 whatsappDestinations={fundWhatsApp[fundId]}
                 actorName={profile?.displayName}
-                onPendingWhatsApp={setWhatsappPrompt}
+                onPendingWhatsApp={payload => setWhatsappPrompt({
+                  ...payload,
+                  title: 'إرسال على واتساب',
+                  subtitle: 'تم حفظ العملية بقيد الانتظار',
+                })}
               />
             )}
             <TransactionList
               transactions={pending}
               showApprove={!readOnly}
-              onApprove={readOnly ? undefined : id => updateTransaction(id, { status: 'posted' })}
+              onApprove={readOnly ? undefined : id => setApprovingTxId(id)}
               onDelete={isAdmin ? deleteTransaction : undefined}
             />
           </div>
@@ -329,10 +383,22 @@ export default function App({ user, onLogout }: Props) {
         البيانات محفوظة على السحابة — كل صندوق له حسابه الافتراضي
       </footer>
 
+      {approvingTxId && (
+        <ApproveTransactionModal
+          leadId={approvingTxId}
+          allTransactions={state.transactions}
+          approverName={profile?.displayName}
+          onClose={() => setApprovingTxId(null)}
+          onApprove={handleApproveConfirm}
+        />
+      )}
+
       {whatsappPrompt && (
         <PendingWhatsAppModal
           message={whatsappPrompt.message}
           destinations={whatsappPrompt.destinations}
+          title={whatsappPrompt.title}
+          subtitle={whatsappPrompt.subtitle}
           onClose={() => setWhatsappPrompt(null)}
         />
       )}

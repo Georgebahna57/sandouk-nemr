@@ -97,7 +97,7 @@ export function TransactionList({ transactions, onDelete, onEdit, onApprove, sho
                   {kindIcon(lead.kind)}
                   <span className="truncate">
                     {isBatch
-                      ? `${lead.kind === 'payment' ? 'مدفوع' : 'مقبوض'} — ${txs.length} بنود`
+                      ? `${lead.kind === 'payment' ? 'دفع' : lead.kind === 'exchange' ? 'تبديل' : 'استلام'} — ${txs.length} بنود`
                       : describeTransaction(lead)}
                   </span>
                 </div>
@@ -116,6 +116,9 @@ export function TransactionList({ transactions, onDelete, onEdit, onApprove, sho
                   <p className="mt-1 text-xs text-violet-400">
                     ريت: {lead.exchangeRate.toLocaleString('ar-LB')}
                   </p>
+                )}
+                {lead.approvalDetails && (
+                  <p className="mt-1 text-xs text-emerald-400/90">تفاصيل الاعتماد: {lead.approvalDetails}</p>
                 )}
                 {lead.note && <p className="mt-1 text-xs text-slate-500">{lead.note}</p>}
                 <MetaLine tx={lead} />

@@ -35,6 +35,39 @@ export function destinationsToText(destinations: string[] | undefined): string {
   return (destinations ?? []).join('\n');
 }
 
+export function getApprovalStatusText(kind: Transaction['kind']): string {
+  if (kind === 'exchange') return 'تم التبديل';
+  if (kind === 'payment') return 'تم الدفع';
+  return 'تم الاستلام';
+}
+
+export function buildApprovalWhatsAppMessage(
+  lead: Transaction,
+  pendingOriginalMessage?: string,
+  approvalDetails?: string,
+  approverName?: string,
+): string {
+  const statusLine = `${getApprovalStatusText(lead.kind)} 👍`;
+  const lines: string[] = [statusLine];
+
+  if (pendingOriginalMessage?.trim()) {
+    lines.push('');
+    for (const row of pendingOriginalMessage.trim().split('\n')) {
+      lines.push(`> ${row}`);
+    }
+  }
+
+  if (approvalDetails?.trim()) {
+    lines.push('');
+    lines.push(`تفاصيل: ${approvalDetails.trim()}`);
+  }
+  if (approverName?.trim()) {
+    lines.push(`اعتمدها: ${approverName.trim()}`);
+  }
+
+  return lines.join('\n');
+}
+
 export function buildPendingWhatsAppMessage(
   fundId: FundId,
   transactions: Transaction[],
