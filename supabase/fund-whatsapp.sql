@@ -4,8 +4,16 @@
 create table if not exists fund_settings (
   fund_id text primary key,
   whatsapp_phone text,
+  whatsapp_destinations jsonb,
   updated_at timestamptz not null default now()
 );
+
+alter table fund_settings add column if not exists whatsapp_destinations jsonb;
+
+update fund_settings
+set whatsapp_destinations = jsonb_build_array(whatsapp_phone)
+where whatsapp_phone is not null
+  and (whatsapp_destinations is null or whatsapp_destinations = '[]'::jsonb);
 
 alter table fund_settings enable row level security;
 

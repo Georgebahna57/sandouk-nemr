@@ -20,7 +20,7 @@ interface Props {
   onAdd: (tx: Transaction | Transaction[]) => void | Promise<void>;
   defaultPending?: boolean;
   counterpartyNames?: string[];
-  whatsappPhone?: string;
+  whatsappDestinations?: string[];
   actorName?: string;
 }
 
@@ -28,7 +28,7 @@ function assetOptionLabel(c: (typeof CURRENCIES)[number]) {
   return c.kind === 'weight' ? `${c.label} (وزن بالغرام)` : `${c.label} (${c.symbol})`;
 }
 
-export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappPhone, actorName }: Props) {
+export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappDestinations, actorName }: Props) {
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('in');
   const [lines, setLines] = useState(createDefaultLines);
@@ -128,13 +128,16 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
 
     const wasPending = pending;
     const txs = Array.isArray(payload) ? payload : [payload];
-    const shouldOpenWhatsApp = wasPending && !!whatsappPhone?.trim();
-    const waWindow = shouldOpenWhatsApp ? window.open('about:blank', '_blank') : null;
+    const targets = (whatsappDestinations ?? []).map(s => s.trim()).filter(Boolean);
+    const shouldOpenWhatsApp = wasPending && targets.length > 0;
+    const waWindows = shouldOpenWhatsApp
+      ? targets.map(() => window.open('about:blank', '_blank'))
+      : [];
 
     try {
       await Promise.resolve(onAdd(payload));
       if (shouldOpenWhatsApp) {
-        openPendingWhatsAppNotify(whatsappPhone!, fundId, txs, actorName, waWindow);
+        await openPendingWhatsAppNotify(targets, fundId, txs, actorName, waWindows);
       }
       reset();
       setOpen(false);
@@ -262,8 +265,10 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       <label className="flex items-center gap-2 text-sm text-slate-300">
         <input type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} className="rounded" />
         حطها بقيد الانتظار
-        {pending && whatsappPhone && (
-          <span className="text-xs text-emerald-400">— رح يفتح واتساب بعد الحفظ</span>
+        {pending && (whatsappDestinations?.length ?? 0) > 0 && (
+          <span className="text-xs text-emerald-400">
+            — رح يفتح واتساب لـ {whatsappDestinations!.length} {whatsappDestinations!.length === 1 ? 'وجهة' : 'وجهات'} (كروب/رقم)
+          </span>
         )}
       </label>
 

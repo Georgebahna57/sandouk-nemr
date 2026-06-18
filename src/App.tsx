@@ -242,7 +242,7 @@ export default function App({ user, onLogout }: Props) {
                 fundId={fundId}
                 onAdd={addTransaction}
                 counterpartyNames={accountNames}
-                whatsappPhone={fundWhatsApp[fundId]}
+                whatsappDestinations={fundWhatsApp[fundId]}
                 actorName={profile?.displayName}
               />
             )}
@@ -280,7 +280,7 @@ export default function App({ user, onLogout }: Props) {
                 onAdd={addTransaction}
                 defaultPending
                 counterpartyNames={accountNames}
-                whatsappPhone={fundWhatsApp[fundId]}
+                whatsappDestinations={fundWhatsApp[fundId]}
                 actorName={profile?.displayName}
               />
             )}

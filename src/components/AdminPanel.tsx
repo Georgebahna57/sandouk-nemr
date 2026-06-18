@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Loader2, MessageCircle, Save, Shield } from 'lucide-react';
 import { FUNDS } from '../config';
 import { fetchFundWhatsAppPhones, saveFundWhatsAppPhones, type FundWhatsAppMap } from '../lib/fundSettings';
+import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
 import {
   fetchAllPermissions,
   fetchAllProfiles,
@@ -196,21 +197,31 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
           <MessageCircle size={18} className="text-emerald-400" />
           <div>
             <p className="font-medium text-slate-200">واتساب قيد الانتظار</p>
-            <p className="text-xs text-slate-500">رقم لكل صندوق — يفتح واتساب برسالة جاهزة بعد حفظ عملية pending</p>
+            <p className="text-xs text-slate-500">
+              سطر لكل كروب أو رقم — رابط الكروب من معلومات المجموعة → دعوة عبر رابط
+            </p>
           </div>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {FUNDS.map(fund => (
-            <div key={fund.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-900/50 px-3 py-2">
-              <span className="text-sm">{fund.name}</span>
-              <input
-                type="tel"
+            <div key={fund.id} className="rounded-xl bg-slate-900/50 px-3 py-2 space-y-1">
+              <span className="text-sm font-medium">{fund.name}</span>
+              <textarea
                 dir="ltr"
-                value={whatsappEdits[fund.id] ?? ''}
-                onChange={e => setWhatsappEdits(prev => ({ ...prev, [fund.id]: e.target.value }))}
-                placeholder="96170123456"
-                className="min-w-[10rem] flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm"
+                rows={3}
+                value={destinationsToText(whatsappEdits[fund.id])}
+                onChange={e => setWhatsappEdits(prev => ({
+                  ...prev,
+                  [fund.id]: parseWhatsAppDestinations(e.target.value),
+                }))}
+                placeholder={'https://chat.whatsapp.com/...\n96170123456\nhttps://chat.whatsapp.com/...'}
+                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs font-mono"
               />
+              {(whatsappEdits[fund.id]?.length ?? 0) > 0 && (
+                <p className="text-[10px] text-emerald-400">
+                  {whatsappEdits[fund.id]!.length} وجهة/كروب
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -221,7 +232,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
         >
           <Save size={14} />
-          حفظ أرقام واتساب
+          حفظ وجهات واتساب
         </button>
       </div>
 
