@@ -24,6 +24,7 @@ import {
 } from './lib/utils';
 import type { FundId, TransactionFilters, ViewId } from './types';
 import type { User } from '@supabase/supabase-js';
+import { fetchFundWhatsAppPhones, type FundWhatsAppMap } from './lib/fundSettings';
 
 const VIEWS: { id: ViewId; label: string; icon: typeof Wallet }[] = [
   { id: 'ledger', label: 'الصندوق', icon: Wallet },
@@ -43,6 +44,7 @@ export default function App({ user, onLogout }: Props) {
   const [view, setView] = useState<ViewId>('ledger');
   const [txFilters, setTxFilters] = useState<TransactionFilters>({});
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [fundWhatsApp, setFundWhatsApp] = useState<FundWhatsAppMap>({});
 
   const {
     profile,
@@ -72,6 +74,10 @@ export default function App({ user, onLogout }: Props) {
     email: user.email,
     displayName: profile?.displayName ?? user.email.split('@')[0] ?? 'مستخدم',
   } : undefined);
+
+  useEffect(() => {
+    fetchFundWhatsAppPhones().then(setFundWhatsApp);
+  }, [showAdmin]);
 
   const readOnly = !canEdit(fundId);
   const canManageAccounts = isAdmin || canEdit(fundId);
@@ -115,7 +121,12 @@ export default function App({ user, onLogout }: Props) {
   );
 
   if (showAdmin && isAdmin) {
-    return <AdminPanel onBack={() => setShowAdmin(false)} />;
+    return (
+      <AdminPanel
+        onBack={() => setShowAdmin(false)}
+        onWhatsAppSaved={() => fetchFundWhatsAppPhones().then(setFundWhatsApp)}
+      />
+    );
   }
 
   if (permsLoading || dataLoading) {
@@ -226,7 +237,15 @@ export default function App({ user, onLogout }: Props) {
       <main>
         {view === 'ledger' && (
           <div className="space-y-4">
-            {!readOnly && <TransactionForm fundId={fundId} onAdd={addTransaction} counterpartyNames={accountNames} />}
+            {!readOnly && (
+              <TransactionForm
+                fundId={fundId}
+                onAdd={addTransaction}
+                counterpartyNames={accountNames}
+                whatsappPhone={fundWhatsApp[fundId]}
+                actorName={profile?.displayName}
+              />
+            )}
             <TransactionFiltersBar filters={txFilters} onChange={setTxFilters} />
             <div>
               <h3 className="mb-2 text-sm font-medium text-slate-400">
@@ -255,7 +274,16 @@ export default function App({ user, onLogout }: Props) {
 
         {view === 'pending' && (
           <div className="space-y-4">
-            {!readOnly && <TransactionForm fundId={fundId} onAdd={addTransaction} defaultPending counterpartyNames={accountNames} />}
+            {!readOnly && (
+              <TransactionForm
+                fundId={fundId}
+                onAdd={addTransaction}
+                defaultPending
+                counterpartyNames={accountNames}
+                whatsappPhone={fundWhatsApp[fundId]}
+                actorName={profile?.displayName}
+              />
+            )}
             <TransactionList
               transactions={pending}
               showApprove={!readOnly}

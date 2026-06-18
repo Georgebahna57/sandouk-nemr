@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Loader2, Save, Shield } from 'lucide-react';
+import { ArrowRight, Loader2, MessageCircle, Save, Shield } from 'lucide-react';
 import { FUNDS } from '../config';
+import { fetchFundWhatsAppPhones, saveFundWhatsAppPhones, type FundWhatsAppMap } from '../lib/fundSettings';
 import {
   fetchAllPermissions,
   fetchAllProfiles,
@@ -17,6 +18,7 @@ import type { FundId } from '../types';
 
 interface Props {
   onBack: () => void;
+  onWhatsAppSaved?: () => void;
 }
 
 type PermissionMap = Record<string, Partial<Record<FundId, FundAccess>>>;
@@ -41,10 +43,11 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
+  const [whatsappEdits, setWhatsappEdits] = useState<FundWhatsAppMap>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,13 +62,15 @@ export function AdminPanel({ onBack }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const [allProfiles, allPerms] = await Promise.all([
+      const [allProfiles, allPerms, whatsappPhones] = await Promise.all([
         fetchAllProfiles(),
         fetchAllPermissions(),
+        fetchFundWhatsAppPhones(),
       ]);
       setProfiles(allProfiles);
       setPermissionMap(buildPermissionMap(allProfiles, allPerms));
       setNameEdits(Object.fromEntries(allProfiles.map(p => [p.id, p.displayName])));
+      setWhatsappEdits(whatsappPhones);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل التحميل');
     } finally {
@@ -108,6 +113,21 @@ export function AdminPanel({ onBack }: Props) {
       setSuccess('تم حفظ الاسم');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل حفظ الاسم');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveWhatsAppNumbers() {
+    setSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await saveFundWhatsAppPhones(whatsappEdits);
+      onWhatsAppSaved?.();
+      setSuccess('تم حفظ أرقام واتساب');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل حفظ أرقام واتساب');
     } finally {
       setSaving(false);
     }
@@ -170,6 +190,40 @@ export function AdminPanel({ onBack }: Props) {
           {error ?? success}
         </div>
       )}
+
+      <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <MessageCircle size={18} className="text-emerald-400" />
+          <div>
+            <p className="font-medium text-slate-200">واتساب قيد الانتظار</p>
+            <p className="text-xs text-slate-500">رقم لكل صندوق — يفتح واتساب برسالة جاهزة بعد حفظ عملية pending</p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {FUNDS.map(fund => (
+            <div key={fund.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-900/50 px-3 py-2">
+              <span className="text-sm">{fund.name}</span>
+              <input
+                type="tel"
+                dir="ltr"
+                value={whatsappEdits[fund.id] ?? ''}
+                onChange={e => setWhatsappEdits(prev => ({ ...prev, [fund.id]: e.target.value }))}
+                placeholder="96170123456"
+                className="min-w-[10rem] flex-1 rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm"
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={saveWhatsAppNumbers}
+          disabled={saving}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-60"
+        >
+          <Save size={14} />
+          حفظ أرقام واتساب
+        </button>
+      </div>
 
       <div className="space-y-4">
         {profiles.map(profile => {

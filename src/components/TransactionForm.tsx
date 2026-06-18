@@ -1,6 +1,7 @@
 import { Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CURRENCIES, getFundAccountName, getValueInputLabel, isWeightCurrency } from '../config';
+import { openPendingWhatsAppNotify } from '../lib/whatsapp';
 import {
   calcExchangeAmount,
   createLinkedFundAccountOperation,
@@ -16,16 +17,18 @@ import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './Amoun
 
 interface Props {
   fundId: FundId;
-  onAdd: (tx: Transaction | Transaction[]) => void;
+  onAdd: (tx: Transaction | Transaction[]) => void | Promise<void>;
   defaultPending?: boolean;
   counterpartyNames?: string[];
+  whatsappPhone?: string;
+  actorName?: string;
 }
 
 function assetOptionLabel(c: (typeof CURRENCIES)[number]) {
   return c.kind === 'weight' ? `${c.label} (وزن بالغرام)` : `${c.label} (${c.symbol})`;
 }
 
-export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [] }: Props) {
+export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappPhone, actorName }: Props) {
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('in');
   const [lines, setLines] = useState(createDefaultLines);
@@ -71,7 +74,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setLinkToAccount(true);
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     const shared = {
       fundId,
@@ -81,9 +84,11 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       status: (pending ? 'pending' : 'posted') as Transaction['status'],
     };
 
+    let payload: Transaction | Transaction[];
+
     if (isExchange) {
       if (!parsedAmount || !parsedRate || !toCurrency || currency === toCurrency) return;
-      onAdd(createTransaction({
+      payload = createTransaction({
         ...shared,
         ledger: 'fund',
         party: fundAccount,
@@ -94,21 +99,21 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
         exchangeToCurrency: toCurrency,
         exchangeRate: parsedRate,
         exchangeToAmount: exchangeResult,
-      }));
+      });
     } else {
       const items = parseAmountLines(lines);
       if (!items.length) return;
 
       if (linkToAccount && canLink) {
-        onAdd(createLinkedFundAccountOperation(
+        payload = createLinkedFundAccountOperation(
           shared,
           counterpartyTrimmed,
           direction,
           items,
           counterpartyTrimmed,
-        ));
+        );
       } else {
-        onAdd(createTransactionBatch(
+        payload = createTransactionBatch(
           {
             ...shared,
             ledger: 'fund',
@@ -117,12 +122,25 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
             counterparty: counterpartyTrimmed || undefined,
           },
           items,
-        ));
+        );
       }
     }
 
-    reset();
-    setOpen(false);
+    const wasPending = pending;
+    const txs = Array.isArray(payload) ? payload : [payload];
+    const shouldOpenWhatsApp = wasPending && !!whatsappPhone?.trim();
+    const waWindow = shouldOpenWhatsApp ? window.open('about:blank', '_blank') : null;
+
+    try {
+      await Promise.resolve(onAdd(payload));
+      if (shouldOpenWhatsApp) {
+        openPendingWhatsAppNotify(whatsappPhone!, fundId, txs, actorName, waWindow);
+      }
+      reset();
+      setOpen(false);
+    } catch {
+      // فشل الحفظ — لا نفتح واتساب
+    }
   }
 
   if (!open) {
@@ -244,6 +262,9 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       <label className="flex items-center gap-2 text-sm text-slate-300">
         <input type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} className="rounded" />
         حطها بقيد الانتظار
+        {pending && whatsappPhone && (
+          <span className="text-xs text-emerald-400">— رح يفتح واتساب بعد الحفظ</span>
+        )}
       </label>
 
       <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
