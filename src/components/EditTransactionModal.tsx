@@ -32,7 +32,6 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
   }, [allTransactions, leadId]);
 
   const lead = fundTxs[0];
-  const [date, setDate] = useState(lead?.date ?? '');
   const [counterparty, setCounterparty] = useState(lead?.counterparty ?? '');
   const [note, setNote] = useState(lead?.note ?? '');
   const [lines, setLines] = useState(() => (fundTxs.length ? txsToLines(fundTxs) : createDefaultLines()));
@@ -49,7 +48,6 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
     if (!parsed.length) return;
 
     const summaryParts: string[] = [];
-    if (date !== lead.date) summaryParts.push(`تاريخ: ${formatDateAr(lead.date)} → ${formatDateAr(date)}`);
     if ((counterparty || '') !== (lead.counterparty || '')) {
       summaryParts.push(`طرف: ${lead.counterparty || '—'} → ${counterparty || '—'}`);
     }
@@ -66,7 +64,6 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
       }
       updated.push({
         ...tx,
-        date,
         counterparty: counterparty.trim() || undefined,
         note: note.trim() || undefined,
         currency: item.currency,
@@ -80,7 +77,6 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
       if (!item) continue;
       updated.push({
         ...atx,
-        date,
         note: note.trim() || undefined,
         amount: item.amount,
         currency: item.currency,
@@ -111,16 +107,7 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
           <p className="text-xs text-emerald-400/80">مرتبطة بحساب — التعديل ينعكس على الصندوق والحساب</p>
         )}
 
-        <div>
-          <label className="mb-1 block text-xs text-slate-400">التاريخ</label>
-          <input
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
-            required
-          />
-        </div>
+        <p className="text-xs text-slate-500">تاريخ الحركة: {formatDateAr(lead.date)}</p>
 
         <AmountLinesEditor lines={lines} onChange={setLines} />
 

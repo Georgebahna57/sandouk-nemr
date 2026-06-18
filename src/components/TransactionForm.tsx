@@ -38,7 +38,6 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [counterparty, setCounterparty] = useState('');
   const [intermediary, setIntermediary] = useState('');
   const [note, setNote] = useState('');
-  const [txDate, setTxDate] = useState(todayIso());
   const [isExchange, setIsExchange] = useState(false);
   const [pending, setPending] = useState(defaultPending);
   const [toCurrency, setToCurrency] = useState<Currency>('LBP');
@@ -69,7 +68,6 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setCounterparty('');
     setIntermediary('');
     setNote('');
-    setTxDate(todayIso());
     setIsExchange(false);
     setPending(defaultPending);
     setLinkToAccount(true);
@@ -79,7 +77,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     e.preventDefault();
     const shared = {
       fundId,
-      date: txDate,
+      date: todayIso(),
       intermediary: intermediary.trim() || undefined,
       note: note.trim() || undefined,
       status: (pending ? 'pending' : 'posted') as Transaction['status'],
@@ -183,12 +181,6 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
           className={`rounded-xl py-2 text-sm font-medium ${isExchange ? 'bg-violet-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
           تبديل
         </button>
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs text-slate-400">تاريخ الحركة</label>
-        <input type="date" value={txDate} onChange={e => setTxDate(e.target.value)}
-          className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" required />
       </div>
 
       {isExchange ? (
