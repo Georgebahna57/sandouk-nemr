@@ -22,6 +22,21 @@ interface Props {
   onWhatsAppSaved?: () => void;
 }
 
+type FundWhatsAppTextMap = Partial<Record<FundId, string>>;
+
+function whatsappMapToText(map: FundWhatsAppMap): FundWhatsAppTextMap {
+  return Object.fromEntries(FUNDS.map(f => [f.id, destinationsToText(map[f.id])]));
+}
+
+function whatsappTextToMap(textMap: FundWhatsAppTextMap): FundWhatsAppMap {
+  const map: FundWhatsAppMap = {};
+  for (const fund of FUNDS) {
+    const list = parseWhatsAppDestinations(textMap[fund.id] ?? '');
+    if (list.length) map[fund.id] = list;
+  }
+  return map;
+}
+
 type PermissionMap = Record<string, Partial<Record<FundId, FundAccess>>>;
 
 function buildPermissionMap(
@@ -48,7 +63,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
-  const [whatsappEdits, setWhatsappEdits] = useState<FundWhatsAppMap>({});
+  const [whatsappEdits, setWhatsappEdits] = useState<FundWhatsAppTextMap>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +86,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
       setProfiles(allProfiles);
       setPermissionMap(buildPermissionMap(allProfiles, allPerms));
       setNameEdits(Object.fromEntries(allProfiles.map(p => [p.id, p.displayName])));
-      setWhatsappEdits(whatsappPhones);
+      setWhatsappEdits(whatsappMapToText(whatsappPhones));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل التحميل');
     } finally {
@@ -124,9 +139,10 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
     setError(null);
     setSuccess(null);
     try {
-      await saveFundWhatsAppPhones(whatsappEdits);
+      const map = whatsappTextToMap(whatsappEdits);
+      await saveFundWhatsAppPhones(map);
       onWhatsAppSaved?.();
-      setSuccess(`تم حفظ ${Object.values(whatsappEdits).filter(v => v?.length).length} صندوق/صناديق`);
+      setSuccess(`تم حفظ ${Object.keys(map).length} صندوق/صناديق`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل حفظ أرقام واتساب');
     } finally {
@@ -198,7 +214,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
           <div>
             <p className="font-medium text-slate-200">واتساب قيد الانتظار</p>
             <p className="text-xs text-slate-500">
-              سطر لكل كروب أو رقم — رابط الكروب من معلومات المجموعة → دعوة عبر رابط
+              سطر لكل كروب أو رقم — اضغط Enter لسطر جديد
             </p>
           </div>
         </div>
@@ -208,18 +224,18 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
               <span className="text-sm font-medium">{fund.name}</span>
               <textarea
                 dir="ltr"
-                rows={3}
-                value={destinationsToText(whatsappEdits[fund.id])}
+                rows={4}
+                value={whatsappEdits[fund.id] ?? ''}
                 onChange={e => setWhatsappEdits(prev => ({
                   ...prev,
-                  [fund.id]: parseWhatsAppDestinations(e.target.value),
+                  [fund.id]: e.target.value,
                 }))}
-                placeholder={'https://chat.whatsapp.com/...\n96170123456\nhttps://chat.whatsapp.com/...'}
-                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs font-mono"
+                placeholder={'https://chat.whatsapp.com/...\nhttps://chat.whatsapp.com/...\n96170123456'}
+                className="w-full resize-y rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs font-mono leading-relaxed"
               />
-              {(whatsappEdits[fund.id]?.length ?? 0) > 0 && (
+              {parseWhatsAppDestinations(whatsappEdits[fund.id] ?? '').length > 0 && (
                 <p className="text-[10px] text-emerald-400">
-                  {whatsappEdits[fund.id]!.length} وجهة/كروب
+                  {parseWhatsAppDestinations(whatsappEdits[fund.id] ?? '').length} وجهة/كروب
                 </p>
               )}
             </div>
