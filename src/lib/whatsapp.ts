@@ -41,23 +41,19 @@ export function getApprovalStatusText(kind: Transaction['kind']): string {
   return 'تم الاستلام';
 }
 
+/** سطر رسالة واتساب عند الاعتماد */
+export function getApprovalWhatsAppLine(kind: Transaction['kind']): string {
+  if (kind === 'exchange') return 'تم التبديل 👍👍';
+  if (kind === 'payment') return 'تم الدفع 👍';
+  return 'تم الاستلام 👍';
+}
+
 export function buildApprovalWhatsAppMessage(
   lead: Transaction,
-  transactions: Transaction[],
-  approvalDetails?: string,
+  _transactions: Transaction[],
+  _approvalDetails?: string,
 ): string {
-  const lines: string[] = [`${getApprovalStatusText(lead.kind)} 👍`];
-
-  const fundTxs = transactions.length ? transactions : [lead];
-  for (const tx of fundTxs) {
-    lines.push(`> • ${describeTransaction(tx)}`);
-  }
-
-  if (approvalDetails?.trim()) {
-    lines.push(`تفاصيل: ${approvalDetails.trim()}`);
-  }
-
-  return lines.join('\n');
+  return getApprovalWhatsAppLine(lead.kind);
 }
 
 export function buildPendingWhatsAppMessage(
