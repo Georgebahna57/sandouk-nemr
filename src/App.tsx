@@ -292,7 +292,9 @@ export default function App({ user, onLogout }: Props) {
                 onPendingWhatsApp={payload => setWhatsappPrompt({
                   ...payload,
                   title: 'إرسال على واتساب',
-                  subtitle: 'تم حفظ العملية بقيد الانتظار',
+                  subtitle: payload.message.startsWith('⏳')
+                    ? 'تم حفظ العملية بقيد الانتظار'
+                    : 'تم حفظ حركة الصندوق — أرسل الرسالة',
                 })}
               />
             )}
@@ -340,7 +342,9 @@ export default function App({ user, onLogout }: Props) {
                 onPendingWhatsApp={payload => setWhatsappPrompt({
                   ...payload,
                   title: 'إرسال على واتساب',
-                  subtitle: 'تم حفظ العملية بقيد الانتظار',
+                  subtitle: payload.message.startsWith('⏳')
+                    ? 'تم حفظ العملية بقيد الانتظار'
+                    : 'تم حفظ حركة الصندوق — أرسل الرسالة',
                 })}
               />
             )}
