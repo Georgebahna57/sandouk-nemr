@@ -1,7 +1,7 @@
 import { Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CURRENCIES, getFundAccountName, getValueInputLabel, isWeightCurrency } from '../config';
-import { buildPendingWhatsAppMessage } from '../lib/whatsapp';
+import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
   calcExchangeAmount,
   createLinkedFundAccountOperation,
@@ -40,6 +40,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [note, setNote] = useState('');
   const [isExchange, setIsExchange] = useState(false);
   const [pending, setPending] = useState(defaultPending);
+  const [sendWhatsApp, setSendWhatsApp] = useState(defaultPending);
   const [toCurrency, setToCurrency] = useState<Currency>('LBP');
   const [rate, setRate] = useState('');
   const [linkToAccount, setLinkToAccount] = useState(true);
@@ -70,6 +71,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setNote('');
     setIsExchange(false);
     setPending(defaultPending);
+    setSendWhatsApp(defaultPending);
     setLinkToAccount(true);
   }
 
@@ -128,17 +130,22 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     const wasPending = pending;
     const txs = Array.isArray(payload) ? payload : [payload];
     const targets = (whatsappDestinations ?? []).map(s => s.trim()).filter(Boolean);
-    const shouldNotifyWhatsApp = wasPending && targets.length > 0;
-    const pendingMessage = wasPending ? buildPendingWhatsAppMessage(fundId, txs, actorName) : undefined;
+    const shouldWhatsApp = sendWhatsApp && targets.length > 0;
+    const lead = txs[0];
+    const whatsappMessage = shouldWhatsApp
+      ? (wasPending
+        ? buildPendingWhatsAppMessage(fundId, txs, actorName)
+        : getApprovalWhatsAppLine(lead.kind))
+      : undefined;
     const enriched = txs.map((t, i) => (
-      i === 0 && pendingMessage ? { ...t, pendingWhatsAppMessage: pendingMessage } : t
+      i === 0 && wasPending && whatsappMessage ? { ...t, pendingWhatsAppMessage: whatsappMessage } : t
     ));
     const toSave = Array.isArray(payload) ? enriched : enriched[0];
 
     try {
       await Promise.resolve(onAdd(toSave));
-      if (shouldNotifyWhatsApp && pendingMessage) {
-        onPendingWhatsApp?.({ message: pendingMessage, destinations: targets });
+      if (shouldWhatsApp && whatsappMessage) {
+        onPendingWhatsApp?.({ message: whatsappMessage, destinations: targets });
       }
       reset();
       setOpen(false);
@@ -260,15 +267,19 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       <label className="flex items-center gap-2 text-sm text-slate-300">
         <input type="checkbox" checked={pending} onChange={e => setPending(e.target.checked)} className="rounded" />
         حطها بقيد الانتظار
-        {pending && (whatsappDestinations?.length ?? 0) > 0 && (
-          <span className="text-xs text-emerald-400">
-            — بعد الحفظ رح تظهر أزرار لـ {whatsappDestinations!.length} كروب/رقم
-          </span>
-        )}
-        {pending && !(whatsappDestinations?.length) && (
-          <span className="text-xs text-amber-400">— ما في كروبات مضبوطة لهالصندوق (من الإدارة)</span>
-        )}
       </label>
+
+      {(whatsappDestinations?.length ?? 0) > 0 ? (
+        <label className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
+          <input type="checkbox" checked={sendWhatsApp} onChange={e => setSendWhatsApp(e.target.checked)} className="rounded" />
+          أرسل رسالة على واتساب
+          <span className="text-xs text-emerald-400">
+            ({whatsappDestinations!.length} كروب/رقم — {pending ? 'رسالة انتظار' : 'تم الاستلام/الدفع/التبديل'})
+          </span>
+        </label>
+      ) : (
+        <p className="text-xs text-amber-400">ما في كروبات واتساب لهالصندوق — ضبطها من الإدارة</p>
+      )}
 
       <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
         حفظ على حساب الصندوق
