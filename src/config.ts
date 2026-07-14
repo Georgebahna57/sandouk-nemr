@@ -16,6 +16,7 @@ export const FUNDS: Fund[] = [
   { id: 'aura', name: 'صندوق اورا', shortName: 'اورا', accent: '#8b5cf6' },
   { id: 'zalqa', name: 'صندوق زلقا', shortName: 'زلقا', accent: '#10b981' },
   { id: 'george', name: 'صندوق جورج', shortName: 'جورج', accent: '#3b82f6' },
+  { id: 'marakiz', name: 'صندوق مراكز', shortName: 'مراكز', accent: '#06b6d4' },
 ];
 
 export const CURRENCIES: AssetConfig[] = [

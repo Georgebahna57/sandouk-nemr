@@ -146,6 +146,11 @@ create policy "perm insert customers"
   on customers for insert to authenticated
   with check (public.fund_permission(fund_id) = 'edit');
 
+create policy "perm update customers"
+  on customers for update to authenticated
+  using (public.fund_permission(fund_id) = 'edit')
+  with check (public.fund_permission(fund_id) = 'edit');
+
 create policy "perm delete customers"
   on customers for delete to authenticated
   using (public.fund_permission(fund_id) = 'edit');

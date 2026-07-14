@@ -8,18 +8,21 @@ interface Props {
   leadId: string;
   allTransactions: Transaction[];
   approverName?: string;
+  hasWhatsApp?: boolean;
   onClose: () => void;
-  onApprove: (approvalDetails: string) => void;
+  onApprove: (approvalDetails: string, sendWhatsApp: boolean) => void;
 }
 
 export function ApproveTransactionModal({
   leadId,
   allTransactions,
   approverName,
+  hasWhatsApp = false,
   onClose,
   onApprove,
 }: Props) {
   const [details, setDetails] = useState('');
+  const [sendWhatsApp, setSendWhatsApp] = useState(hasWhatsApp);
 
   const fundTxs = useMemo(() => {
     const lead = allTransactions.find(t => t.id === leadId);
@@ -42,7 +45,7 @@ export function ApproveTransactionModal({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    onApprove(details.trim());
+    onApprove(details.trim(), sendWhatsApp && hasWhatsApp);
   }
 
   return (
@@ -56,7 +59,9 @@ export function ApproveTransactionModal({
             <CheckCircle size={20} />
             <div>
               <h3 className="font-semibold text-white">اعتماد → الصندوق</h3>
-              <p className="text-xs text-slate-400">{getApprovalStatusText(lead.kind)} على واتساب بعد الحفظ</p>
+              <p className="text-xs text-slate-400">
+                {hasWhatsApp ? 'اختر إذا بدك تبعت واتساب بعد الاعتماد' : 'اعتماد بدون واتساب — ما في كروبات مضبوطة'}
+              </p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
@@ -72,6 +77,7 @@ export function ApproveTransactionModal({
                 : `${describeTransaction(tx)} — ${formatValueWithUnit(tx.amount, tx.currency)}`}
             </p>
           ))}
+          <p className="text-xs text-sky-400/90">ستُسجَّل بتاريخ اليوم في الصندوق</p>
         </div>
 
         <div>
@@ -87,11 +93,23 @@ export function ApproveTransactionModal({
           />
         </div>
 
+        {hasWhatsApp && (
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={sendWhatsApp}
+              onChange={e => setSendWhatsApp(e.target.checked)}
+              className="rounded"
+            />
+            أرسل رسالة واتساب ({getApprovalStatusText(lead.kind)})
+          </label>
+        )}
+
         <button
           type="submit"
           className="w-full rounded-xl bg-emerald-600 py-2.5 font-semibold text-white hover:bg-emerald-500"
         >
-          اعتماد وإرسال واتساب
+          {sendWhatsApp && hasWhatsApp ? 'اعتماد وإرسال واتساب' : 'اعتماد فقط'}
         </button>
       </form>
     </div>

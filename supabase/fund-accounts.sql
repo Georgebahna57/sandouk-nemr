@@ -13,9 +13,10 @@ set
     when 'aura' then 'صندوق اورا'
     when 'zalqa' then 'صندوق زلقا'
     when 'george' then 'صندوق جورج'
+    when 'marakiz' then 'صندوق مراكز'
     else t.party
   end,
   ledger = 'fund'
 where t.ledger = 'fund'
   and t.counterparty is null
-  and t.party not in ('صندوق نمر', 'صندوق تايغر', 'صندوق اورا', 'صندوق زلقا', 'صندوق جورج');
+  and t.party not in ('صندوق نمر', 'صندوق تايغر', 'صندوق اورا', 'صندوق زلقا', 'صندوق جورج', 'صندوق مراكز');

@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Clock, FileText, Eye, Loader2, LogOut, Settings, Users, Wallet } from 'lucide-react';
+import { BookOpen, Clock, FileText, Eye, Loader2, LogOut, Settings, Share2, Users, Wallet } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { CustomersPanel } from './components/CustomersPanel';
 import { EditTransactionModal } from './components/EditTransactionModal';
 import { FundSelector } from './components/FundSelector';
-import { TransactionFiltersBar } from './components/TransactionFiltersBar';
+import { TransactionFiltersBar, hasActiveTransactionFilters } from './components/TransactionFiltersBar';
 import { TransactionForm } from './components/TransactionForm';
 import { TransactionList } from './components/TransactionList';
 import { AdminPanel } from './components/AdminPanel';
 import { ApproveTransactionModal } from './components/ApproveTransactionModal';
+import { BalanceShareImageModal } from './components/BalanceShareImageModal';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund } from './config';
 import { useCloudStore } from './hooks/useCloudStore';
@@ -22,13 +23,21 @@ import {
   filterByFund,
   filterTransactions,
   formatDateAr,
+  getAvailableAccountNames,
   getOperationGroupIds,
   todayIso,
 } from './lib/utils';
 import type { FundId, TransactionFilters, ViewId } from './types';
 import type { User } from '@supabase/supabase-js';
 import { fetchFundWhatsAppPhones, type FundWhatsAppMap } from './lib/fundSettings';
-import { buildApprovalWhatsAppMessage } from './lib/whatsapp';
+import { fetchValuationRates, saveValuationRates } from './lib/appSettings';
+import type { ValuationRates } from './lib/valuationRates';
+import { loadValuationRatesLocal } from './lib/valuationRates';
+import { fetchAllProfiles } from './lib/profile';
+import type { UserProfile } from './lib/permissions';
+import { buildApprovalWhatsAppMessage, resolveShareDestinations } from './lib/whatsapp';
+import { isFeeAccountName } from './lib/fees';
+import type { BalanceSharePayload } from './lib/balanceShare';
 
 const VIEWS: { id: ViewId; label: string; icon: typeof Wallet }[] = [
   { id: 'ledger', label: 'الصندوق', icon: Wallet },
@@ -56,6 +65,13 @@ export default function App({ user, onLogout }: Props) {
     subtitle?: string;
   } | null>(null);
   const [approvingTxId, setApprovingTxId] = useState<string | null>(null);
+  const [balanceShare, setBalanceShare] = useState<{
+    payload: BalanceSharePayload;
+    destinations: string[];
+  } | null>(null);
+  const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
+  const [valuationRates, setValuationRates] = useState<ValuationRates>(() => loadValuationRatesLocal());
+  const [savingValuationRates, setSavingValuationRates] = useState(false);
 
   const {
     profile,
@@ -79,7 +95,11 @@ export default function App({ user, onLogout }: Props) {
     addBill,
     deleteBill,
     addCustomer,
+    updateCustomer,
     deleteCustomer,
+    addComment,
+    claimTransaction,
+    releaseClaim,
   } = useCloudStore(true, user.email ? {
     userId: user.id,
     email: user.email,
@@ -88,12 +108,20 @@ export default function App({ user, onLogout }: Props) {
 
   useEffect(() => {
     fetchFundWhatsAppPhones().then(setFundWhatsApp);
+    fetchValuationRates().then(setValuationRates);
   }, [showAdmin]);
+
+  useEffect(() => {
+    fetchAllProfiles()
+      .then(setTeamMembers)
+      .catch(() => setTeamMembers([]));
+  }, []);
 
   const readOnly = !canEdit(fundId);
   const canManageAccounts = isAdmin || canEdit(fundId);
   const fund = getFund(fundId);
   const today = todayIso();
+  const actorName = profile?.displayName ?? user.email?.split('@')[0] ?? 'مستخدم';
 
   useEffect(() => {
     if (visibleFunds.length === 0) return;
@@ -110,9 +138,20 @@ export default function App({ user, onLogout }: Props) {
   );
 
   const filteredPosted = useMemo(() => {
-    const matched = applyTransactionFilters(allPosted, txFilters);
+    const reviewing = hasActiveTransactionFilters(txFilters);
+    const effectiveFilters = reviewing
+      ? txFilters
+      : { dateFrom: today, dateTo: today };
+    const matched = applyTransactionFilters(allPosted, effectiveFilters);
     return expandFilteredTransactions(allPosted, matched);
-  }, [allPosted, txFilters]);
+  }, [allPosted, txFilters, today]);
+
+  const reviewingPosted = hasActiveTransactionFilters(txFilters);
+
+  const todayFundTx = useMemo(() => {
+    const matched = applyTransactionFilters(allPosted, { dateFrom: today, dateTo: today });
+    return expandFilteredTransactions(allPosted, matched);
+  }, [allPosted, today]);
 
   const pending = useMemo(
     () => filterTransactions(state.transactions, fundId, { status: 'pending' }),
@@ -127,18 +166,22 @@ export default function App({ user, onLogout }: Props) {
   );
 
   const accountNames = useMemo(
-    () => accountSummaries.map(s => s.name),
-    [accountSummaries],
+    () => getAvailableAccountNames(state.customers, fundId).filter(n => !isFeeAccountName(n)),
+    [state.customers, fundId],
   );
 
-  async function handleApproveConfirm(approvalDetails: string) {
+  async function handleApproveConfirm(approvalDetails: string, sendWhatsApp: boolean) {
     if (!approvingTxId) return;
     const lead = state.transactions.find(t => t.id === approvingTxId);
     if (!lead) return;
 
     const now = new Date().toISOString();
+    const executionDate = todayIso();
+    const orderedDate = lead.date !== executionDate ? lead.date : undefined;
     await updateTransaction(approvingTxId, {
       status: 'posted',
+      date: executionDate,
+      orderedDate,
       approvalDetails: approvalDetails || undefined,
       approvedByName: profile?.displayName,
       approvedByEmail: user.email ?? undefined,
@@ -146,7 +189,7 @@ export default function App({ user, onLogout }: Props) {
     });
 
     const destinations = fundWhatsApp[lead.fundId] ?? [];
-    if (destinations.length) {
+    if (sendWhatsApp && destinations.length) {
       const ids = getOperationGroupIds(state.transactions, approvingTxId);
       const fundTxs = state.transactions.filter(t => ids.includes(t.id) && (t.ledger ?? 'fund') === 'fund');
       const message = buildApprovalWhatsAppMessage(
@@ -165,11 +208,24 @@ export default function App({ user, onLogout }: Props) {
     setApprovingTxId(null);
   }
 
+  async function handleSaveValuationRates(rates: ValuationRates) {
+    setSavingValuationRates(true);
+    try {
+      await saveValuationRates(rates);
+      setValuationRates(rates);
+    } finally {
+      setSavingValuationRates(false);
+    }
+  }
+
   if (showAdmin && isAdmin) {
     return (
       <AdminPanel
         onBack={() => setShowAdmin(false)}
         onWhatsAppSaved={() => fetchFundWhatsAppPhones().then(setFundWhatsApp)}
+        valuationRates={valuationRates}
+        onSaveValuationRates={handleSaveValuationRates}
+        savingValuationRates={savingValuationRates}
       />
     );
   }
@@ -247,9 +303,9 @@ export default function App({ user, onLogout }: Props) {
       </section>
 
       <section className="mb-4">
-        <div className="mb-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold" style={{ color: fund.accent }}>{fund.name}</h2>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-sm font-semibold truncate" style={{ color: fund.accent }}>{fund.name}</h2>
             {readOnly && (
               <span className="flex items-center gap-1 rounded-md bg-slate-700 px-2 py-0.5 text-[10px] text-slate-400">
                 <Eye size={10} />
@@ -257,7 +313,27 @@ export default function App({ user, onLogout }: Props) {
               </span>
             )}
           </div>
-          <span className="text-xs text-slate-500">{formatDateAr(today)}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setBalanceShare({
+                payload: {
+                  kind: 'fund',
+                  fundId,
+                  balances,
+                  date: today,
+                  dailyTransactions: todayFundTx,
+                  pendingTransactions: pending,
+                },
+                destinations: resolveShareDestinations(undefined, fundWhatsApp[fundId]),
+              })}
+              className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20"
+            >
+              <Share2 size={12} />
+              مشاركة الرصيد
+            </button>
+            <span className="text-xs text-slate-500">{formatDateAr(today)}</span>
+          </div>
         </div>
         <BalanceCards balances={balances} />
       </section>
@@ -301,10 +377,16 @@ export default function App({ user, onLogout }: Props) {
             <TransactionFiltersBar filters={txFilters} onChange={setTxFilters} />
             <div>
               <h3 className="mb-2 text-sm font-medium text-slate-400">
-                كل عمليات الصندوق ({filteredPosted.length}{filteredPosted.length !== allPosted.length ? ` من ${allPosted.length}` : ''})
+                {reviewingPosted
+                  ? `نتائج البحث (${filteredPosted.length}${filteredPosted.length !== allPosted.length ? ` من ${allPosted.length}` : ''})`
+                  : `عمليات اليوم — ${formatDateAr(today)} (${filteredPosted.length})`}
               </h3>
+              {!reviewingPosted && filteredPosted.length === 0 && (
+                <p className="mb-2 text-xs text-slate-500">ما في عمليات اليوم. افتح «فلترة وبحث» لمراجعة أيام سابقة.</p>
+              )}
               <TransactionList
                 transactions={filteredPosted}
+                compact
                 onDelete={isAdmin ? deleteTransaction : undefined}
                 onEdit={isAdmin ? setEditingTxId : undefined}
               />
@@ -314,6 +396,7 @@ export default function App({ user, onLogout }: Props) {
 
         {editingTxId && (
           <EditTransactionModal
+            key={editingTxId}
             leadId={editingTxId}
             allTransactions={state.transactions}
             onClose={() => setEditingTxId(null)}
@@ -350,9 +433,18 @@ export default function App({ user, onLogout }: Props) {
             )}
             <TransactionList
               transactions={pending}
+              compact
               showApprove={!readOnly}
+              showCoordination
               onApprove={readOnly ? undefined : id => setApprovingTxId(id)}
               onDelete={isAdmin ? deleteTransaction : undefined}
+              onEdit={!readOnly ? setEditingTxId : undefined}
+              currentUserId={user.id}
+              teamMembers={teamMembers.map(m => ({ id: m.id, displayName: m.displayName }))}
+              onAddComment={readOnly ? undefined : addComment}
+              onClaim={readOnly ? undefined : claimTransaction}
+              onReleaseClaim={readOnly ? undefined : releaseClaim}
+              readOnly={readOnly}
             />
           </div>
         )}
@@ -360,11 +452,34 @@ export default function App({ user, onLogout }: Props) {
         {view === 'customers' && (
           <CustomersPanel
             summaries={accountSummaries}
+            customers={state.customers}
             transactions={state.transactions}
             fundId={fundId}
+            fundOptions={visibleFunds}
             onAddCustomer={canManageAccounts ? addCustomer : undefined}
+            onUpdateCustomer={canManageAccounts ? updateCustomer : undefined}
             onDeleteCustomer={canManageAccounts ? deleteCustomer : undefined}
             onAddTransaction={canManageAccounts ? addTransaction : undefined}
+            onDeleteTransaction={isAdmin ? deleteTransaction : undefined}
+            onEditTransaction={isAdmin ? setEditingTxId : undefined}
+            onShareAccount={summary => {
+              const customer = state.customers.find(
+                c => c.fundId === fundId && (c.id === summary.customerId || c.name === summary.name),
+              );
+              setBalanceShare({
+                payload: {
+                  kind: 'account',
+                  fundId,
+                  accountName: summary.name,
+                  balances: summary.balances,
+                  date: today,
+                },
+                destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[fundId]),
+              });
+            }}
+            valuationRates={valuationRates}
+            isAdmin={isAdmin}
+            actorName={actorName}
             readOnly={!canManageAccounts}
           />
         )}
@@ -384,13 +499,28 @@ export default function App({ user, onLogout }: Props) {
         البيانات محفوظة على السحابة — كل صندوق له حسابه الافتراضي
       </footer>
 
-      {approvingTxId && (
-        <ApproveTransactionModal
-          leadId={approvingTxId}
-          allTransactions={state.transactions}
-          approverName={profile?.displayName}
-          onClose={() => setApprovingTxId(null)}
-          onApprove={handleApproveConfirm}
+      {approvingTxId && (() => {
+        const approvingLead = state.transactions.find(t => t.id === approvingTxId);
+        const approvingDestinations = approvingLead
+          ? (fundWhatsApp[approvingLead.fundId] ?? [])
+          : [];
+        return (
+          <ApproveTransactionModal
+            leadId={approvingTxId}
+            allTransactions={state.transactions}
+            approverName={profile?.displayName}
+            hasWhatsApp={approvingDestinations.length > 0}
+            onClose={() => setApprovingTxId(null)}
+            onApprove={handleApproveConfirm}
+          />
+        );
+      })()}
+
+      {balanceShare && (
+        <BalanceShareImageModal
+          payload={balanceShare.payload}
+          destinations={balanceShare.destinations}
+          onClose={() => setBalanceShare(null)}
         />
       )}
 

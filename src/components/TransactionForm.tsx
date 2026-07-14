@@ -1,19 +1,28 @@
 import { Plus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { CURRENCIES, getFundAccountName, getValueInputLabel, isWeightCurrency } from '../config';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
   calcExchangeAmount,
   createLinkedFundAccountOperation,
+  createLinkedAccountFundExchange,
   createTransaction,
   createTransactionBatch,
   exchangeRateLabel,
   formatValueWithUnit,
+  formatIntermediary,
   inferKind,
   todayIso,
 } from '../lib/utils';
 import type { Currency, FundId, Transaction } from '../types';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
+import {
+  buildFeeFromEditor,
+  defaultFeeEditorValue,
+  FeeEditor,
+  type FeeEditorValue,
+} from './FeeEditor';
+import { extraFeeFieldsFromParsed, feeFieldsFromParsed, isShamelFeeEligible, sumAmountForCurrency } from '../lib/fees';
 
 interface Props {
   fundId: FundId;
@@ -29,14 +38,46 @@ function assetOptionLabel(c: (typeof CURRENCIES)[number]) {
   return c.kind === 'weight' ? `${c.label} (وزن بالغرام)` : `${c.label} (${c.symbol})`;
 }
 
+function LinkedAccountDirectionPicker({
+  direction,
+  onChange,
+}: {
+  direction: 'in' | 'out';
+  onChange: (d: 'in' | 'out') => void;
+}) {
+  return (
+    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
+      <p className="text-xs font-medium text-emerald-300/90">على الحساب:</p>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onChange('in')}
+          className={`rounded-lg py-2 text-sm font-medium ${direction === 'in' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+        >
+          إيداع
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('out')}
+          className={`rounded-lg py-2 text-sm font-medium ${direction === 'out' ? 'bg-rose-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+        >
+          سحب
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappDestinations, actorName, onPendingWhatsApp }: Props) {
   const [open, setOpen] = useState(false);
-  const [direction, setDirection] = useState<'in' | 'out'>('in');
+  const [direction, setDirection] = useState<'in' | 'out'>('out');
   const [lines, setLines] = useState(createDefaultLines);
   const [currency, setCurrency] = useState<Currency>('USD');
   const [amount, setAmount] = useState('');
   const [counterparty, setCounterparty] = useState('');
   const [intermediary, setIntermediary] = useState('');
+  const [feeEditor, setFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
+  const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [note, setNote] = useState('');
   const [isExchange, setIsExchange] = useState(false);
   const [pending, setPending] = useState(defaultPending);
@@ -44,6 +85,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [toCurrency, setToCurrency] = useState<Currency>('LBP');
   const [rate, setRate] = useState('');
   const [linkToAccount, setLinkToAccount] = useState(true);
+  const [accountDirection, setAccountDirection] = useState<'in' | 'out'>('out');
 
   const fundAccount = getFundAccountName(fundId);
   const parsedAmount = Number(amount.replace(/,/g, '')) || 0;
@@ -54,13 +96,12 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const toValueLabel = getValueInputLabel(toCurrency);
 
   const counterpartyTrimmed = counterparty.trim();
-  const canLink = useMemo(
-    () => !!counterpartyTrimmed && counterpartyNames.some(n => n === counterpartyTrimmed),
-    [counterpartyTrimmed, counterpartyNames],
-  );
+  const matchedAccount = counterpartyNames.find(n => n === counterpartyTrimmed);
+  const canLink = !!matchedAccount;
+  const shamelEligible = isShamelFeeEligible(matchedAccount ?? counterpartyTrimmed);
 
   function reset() {
-    setDirection('in');
+    setDirection('out');
     setLines(createDefaultLines());
     setCurrency('USD');
     setToCurrency('LBP');
@@ -68,19 +109,45 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setRate('');
     setCounterparty('');
     setIntermediary('');
+    setFeeEditor(defaultFeeEditorValue());
+    setExtraFeeEditor(defaultFeeEditorValue());
     setNote('');
     setIsExchange(false);
     setPending(defaultPending);
     setSendWhatsApp(defaultPending);
     setLinkToAccount(true);
+    setAccountDirection('out');
   }
+
+  function setFundDirection(next: 'in' | 'out') {
+    setDirection(next);
+    setAccountDirection(next);
+  }
+
+  const parsedLines = parseAmountLines(lines);
+  const feeBaseAmount = isExchange
+    ? (feeEditor.currency === currency ? parsedAmount : feeEditor.currency === toCurrency ? exchangeResult : 0)
+    : sumAmountForCurrency(parsedLines, feeEditor.currency);
+  const feeLineCurrencies = isExchange
+    ? [currency, toCurrency]
+    : [...new Set(parsedLines.map(item => item.currency))];
+
+  const extraFeeBaseAmount = isExchange
+    ? (extraFeeEditor.currency === currency ? parsedAmount : extraFeeEditor.currency === toCurrency ? exchangeResult : 0)
+    : sumAmountForCurrency(parsedLines, extraFeeEditor.currency);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
+    const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
+    const feeFields = feeFieldsFromParsed(parsedFee);
+    const extraFeeFields = extraFeeFieldsFromParsed(parsedExtraFee);
     const shared = {
       fundId,
       date: todayIso(),
-      intermediary: intermediary.trim() || undefined,
+      intermediary: formatIntermediary(intermediary),
+      ...feeFields,
+      ...extraFeeFields,
       note: note.trim() || undefined,
       status: (pending ? 'pending' : 'posted') as Transaction['status'],
     };
@@ -89,18 +156,28 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
 
     if (isExchange) {
       if (!parsedAmount || !parsedRate || !toCurrency || currency === toCurrency) return;
-      payload = createTransaction({
-        ...shared,
-        ledger: 'fund',
-        party: fundAccount,
-        currency,
-        kind: 'exchange',
-        amount: parsedAmount,
-        counterparty: counterpartyTrimmed || 'تبديل',
-        exchangeToCurrency: toCurrency,
-        exchangeRate: parsedRate,
-        exchangeToAmount: exchangeResult,
-      });
+      payload = linkToAccount && canLink && matchedAccount
+        ? createLinkedAccountFundExchange(
+          shared,
+          matchedAccount,
+          currency,
+          parsedAmount,
+          toCurrency,
+          parsedRate,
+          exchangeResult,
+        )
+        : createTransaction({
+          ...shared,
+          ledger: 'fund',
+          party: fundAccount,
+          currency,
+          kind: 'exchange',
+          amount: parsedAmount,
+          counterparty: counterpartyTrimmed || 'تبديل',
+          exchangeToCurrency: toCurrency,
+          exchangeRate: parsedRate,
+          exchangeToAmount: exchangeResult,
+        });
     } else {
       const items = parseAmountLines(lines);
       if (!items.length) return;
@@ -112,6 +189,8 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
           direction,
           items,
           counterpartyTrimmed,
+          accountDirection,
+          [parsedFee, parsedExtraFee],
         );
       } else {
         payload = createTransactionBatch(
@@ -180,11 +259,11 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <button type="button" onClick={() => { setDirection('in'); setIsExchange(false); }}
+        <button type="button" onClick={() => { setFundDirection('in'); setIsExchange(false); }}
           className={`rounded-xl py-2 text-sm font-medium ${direction === 'in' && !isExchange ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
           استلام
         </button>
-        <button type="button" onClick={() => { setDirection('out'); setIsExchange(false); }}
+        <button type="button" onClick={() => { setFundDirection('out'); setIsExchange(false); }}
           className={`rounded-xl py-2 text-sm font-medium ${direction === 'out' && !isExchange ? 'bg-rose-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
           دفع
         </button>
@@ -239,17 +318,57 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
           </div>
           <input type="text" placeholder="ملاحظة طرف (اختياري)" value={counterparty} onChange={e => setCounterparty(e.target.value)}
             className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" list="counterparty-names" />
+          {counterpartyNames.length > 0 && (
+            <select
+              value={matchedAccount ?? ''}
+              onChange={e => setCounterparty(e.target.value)}
+              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+            >
+              <option value="">اختر حساب موجود...</option>
+              {counterpartyNames.map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          )}
+          {canLink && (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-emerald-300/90">
+                <input type="checkbox" checked={linkToAccount} onChange={e => setLinkToAccount(e.target.checked)} className="rounded" />
+                نفّذ أيضاً على حساب {matchedAccount}
+              </label>
+              {linkToAccount && (
+                <LinkedAccountDirectionPicker direction={accountDirection} onChange={setAccountDirection} />
+              )}
+            </div>
+          )}
         </>
       ) : (
         <>
           <AmountLinesEditor lines={lines} onChange={setLines} />
-          <input type="text" placeholder="الطرف / الحساب" value={counterparty} onChange={e => setCounterparty(e.target.value)}
+          {counterpartyNames.length > 0 && (
+            <select
+              value={matchedAccount ?? ''}
+              onChange={e => setCounterparty(e.target.value)}
+              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+            >
+              <option value="">اختر حساب موجود...</option>
+              {counterpartyNames.map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          )}
+          <input type="text" placeholder="الطرف / الحساب (أو اكتب اسم جديد)" value={counterparty} onChange={e => setCounterparty(e.target.value)}
             className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" list="counterparty-names" />
           {canLink && (
-            <label className="flex items-center gap-2 text-sm text-emerald-300/90">
-              <input type="checkbox" checked={linkToAccount} onChange={e => setLinkToAccount(e.target.checked)} className="rounded" />
-              حدّث حساب {counterpartyTrimmed} مع الصندوق
-            </label>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-emerald-300/90">
+                <input type="checkbox" checked={linkToAccount} onChange={e => setLinkToAccount(e.target.checked)} className="rounded" />
+                نفّذ أيضاً على حساب {matchedAccount}
+              </label>
+              {linkToAccount && (
+                <LinkedAccountDirectionPicker direction={accountDirection} onChange={setAccountDirection} />
+              )}
+            </div>
           )}
         </>
       )}
@@ -260,6 +379,25 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
 
       <input type="text" placeholder="بيد (اختياري)" value={intermediary} onChange={e => setIntermediary(e.target.value)}
         className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
+
+      <FeeEditor
+        value={feeEditor}
+        onChange={setFeeEditor}
+        baseAmount={feeBaseAmount}
+        availableCurrencies={feeLineCurrencies.length ? feeLineCurrencies : undefined}
+      />
+
+      {shamelEligible && (
+        <FeeEditor
+          value={extraFeeEditor}
+          onChange={setExtraFeeEditor}
+          baseAmount={extraFeeBaseAmount}
+          availableCurrencies={feeLineCurrencies.length ? feeLineCurrencies : undefined}
+          title="عمولات شاملة"
+          hintOurs="تُخصم من مبلغ حساب الزبون وتُسجَّل على حساب «عمولات شاملة»"
+          hintCustomer="تُضاف على مبلغ حساب الزبون فقط — ما بتروح لـ «عمولات شاملة»"
+        />
+      )}
 
       <input type="text" placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)}
         className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />

@@ -6,6 +6,7 @@ interface TxMeta {
   l?: TransactionLedger;
   c?: string;
   b?: string;
+  li?: string;
   uid?: string;
   em?: string;
   nm?: string;
@@ -14,6 +15,9 @@ interface TxMeta {
   abn?: string;
   abe?: string;
   aat?: string;
+  od?: string;
+  fsi?: string;
+  xf?: string;
 }
 
 export function encodeNoteMeta(
@@ -22,6 +26,7 @@ export function encodeNoteMeta(
     ledger?: TransactionLedger;
     counterparty?: string;
     batchId?: string;
+    linkId?: string;
     createdByUserId?: string;
     createdByEmail?: string;
     createdByName?: string;
@@ -30,12 +35,16 @@ export function encodeNoteMeta(
     approvedByName?: string;
     approvedByEmail?: string;
     approvedAt?: string;
+    orderedDate?: string;
+    feeSourceId?: string;
+    extraFee?: string;
   },
 ): string | undefined {
   const payload: TxMeta = {};
   if (meta.ledger && meta.ledger !== 'fund') payload.l = meta.ledger;
   if (meta.counterparty) payload.c = meta.counterparty;
   if (meta.batchId) payload.b = meta.batchId;
+  if (meta.linkId) payload.li = meta.linkId;
   if (meta.createdByUserId) payload.uid = meta.createdByUserId;
   if (meta.createdByEmail) payload.em = meta.createdByEmail;
   if (meta.createdByName) payload.nm = meta.createdByName;
@@ -44,6 +53,9 @@ export function encodeNoteMeta(
   if (meta.approvedByName) payload.abn = meta.approvedByName;
   if (meta.approvedByEmail) payload.abe = meta.approvedByEmail;
   if (meta.approvedAt) payload.aat = meta.approvedAt;
+  if (meta.orderedDate) payload.od = meta.orderedDate;
+  if (meta.feeSourceId) payload.fsi = meta.feeSourceId;
+  if (meta.extraFee) payload.xf = meta.extraFee;
 
   const hasMeta = Object.keys(payload).length > 0;
   const trimmed = userNote?.trim();
@@ -57,6 +69,7 @@ export function decodeNoteMeta(note?: string): {
   ledger?: TransactionLedger;
   counterparty?: string;
   batchId?: string;
+  linkId?: string;
   createdByUserId?: string;
   createdByEmail?: string;
   createdByName?: string;
@@ -65,6 +78,9 @@ export function decodeNoteMeta(note?: string): {
   approvedByName?: string;
   approvedByEmail?: string;
   approvedAt?: string;
+  orderedDate?: string;
+  feeSourceId?: string;
+  extraFee?: string;
 } {
   if (!note?.startsWith(META_PREFIX)) {
     return { userNote: note?.trim() || undefined };
@@ -81,6 +97,7 @@ export function decodeNoteMeta(note?: string): {
       ledger: meta.l,
       counterparty: meta.c,
       batchId: meta.b,
+      linkId: meta.li,
       createdByUserId: meta.uid,
       createdByEmail: meta.em,
       createdByName: meta.nm,
@@ -89,6 +106,9 @@ export function decodeNoteMeta(note?: string): {
       approvedByName: meta.abn,
       approvedByEmail: meta.abe,
       approvedAt: meta.aat,
+      orderedDate: meta.od,
+      feeSourceId: meta.fsi,
+      extraFee: meta.xf,
     };
   } catch {
     return { userNote: note.trim() || undefined };

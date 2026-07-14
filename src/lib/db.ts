@@ -1,8 +1,10 @@
 import { supabase } from './supabase';
-import type { AppState, Bill, Customer, Transaction, TransactionEditRecord } from '../types';
+import type { AppState, Bill, Customer, FundId, Transaction, TransactionComment, TransactionEditRecord, TransactionLedger } from '../types';
 import { formatDbError } from './dbErrors';
 import { decodeNoteMeta, encodeNoteMeta } from './txMeta';
-import { normalizeTransaction } from './utils';
+import { feeToDbValue, extraFeeToDbValue } from './fees';
+import { formatIntermediary, normalizeTransaction } from './utils';
+import { decodeCustomerNote, encodeCustomerNote } from './customerMeta';
 
 function requireClient() {
   if (!supabase) throw new Error('Supabase غير مُعدّ');
@@ -16,7 +18,12 @@ function isMissingColumnError(error: { message?: string; code?: string }): boole
     || msg.includes('ledger')
     || msg.includes('counterparty')
     || msg.includes('batch_id')
+    || msg.includes('link_id')
     || msg.includes('created_by')
+    || msg.includes('comments')
+    || msg.includes('claimed_by')
+    || msg.includes('fee')
+    || msg.includes('shared_fund_ids')
     || msg.includes('could not find')
   );
 }
@@ -27,6 +34,21 @@ function parseEditHistory(raw: unknown): TransactionEditRecord[] | undefined {
   return undefined;
 }
 
+function parseComments(raw: unknown): TransactionComment[] | undefined {
+  if (!raw) return undefined;
+  if (Array.isArray(raw)) return raw as TransactionComment[];
+  return undefined;
+}
+
+function resolveTransactionLedger(
+  rowLedger: unknown,
+  decodedLedger?: TransactionLedger,
+): TransactionLedger {
+  if (decodedLedger === 'account') return 'account';
+  if (rowLedger === 'account' || rowLedger === 'fund') return rowLedger;
+  return decodedLedger ?? 'fund';
+}
+
 function mapTransaction(row: Record<string, unknown>): Transaction {
   const rawNote = (row.note as string) || undefined;
   const decoded = decodeNoteMeta(rawNote);
@@ -34,19 +56,22 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
   return normalizeTransaction({
     id: row.id as string,
     fundId: row.fund_id as Transaction['fundId'],
-    ledger: (row.ledger as Transaction['ledger']) ?? decoded.ledger ?? 'fund',
+    ledger: resolveTransactionLedger(row.ledger, decoded.ledger),
     date: row.date as string,
     currency: row.currency as Transaction['currency'],
     kind: row.kind as Transaction['kind'],
     amount: Number(row.amount),
     party: row.party as string,
     counterparty: (row.counterparty as string) || decoded.counterparty || undefined,
-    intermediary: (row.intermediary as string) || undefined,
+    intermediary: formatIntermediary(row.intermediary as string | undefined),
+    fee: (row.fee as string) || undefined,
+    extraFee: decoded.extraFee || undefined,
     note: decoded.userNote,
+    feeSourceId: decoded.feeSourceId || undefined,
     status: row.status as Transaction['status'],
     createdAt: row.created_at as string,
     batchId: (row.batch_id as string) || decoded.batchId || undefined,
-    linkId: (row.link_id as string) || undefined,
+    linkId: (row.link_id as string) || decoded.linkId || undefined,
     createdByUserId: (row.created_by_id as string) || decoded.createdByUserId || undefined,
     createdByEmail: (row.created_by_email as string) || decoded.createdByEmail || undefined,
     createdByName: (row.created_by_name as string) || decoded.createdByName || undefined,
@@ -62,6 +87,11 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
     approvedByName: (row.approved_by_name as string) || decoded.approvedByName || undefined,
     approvedByEmail: (row.approved_by_email as string) || decoded.approvedByEmail || undefined,
     approvedAt: (row.approved_at as string) || decoded.approvedAt || undefined,
+    orderedDate: (row.ordered_date as string) || decoded.orderedDate || undefined,
+    claimedByUserId: (row.claimed_by_id as string) || undefined,
+    claimedByName: (row.claimed_by_name as string) || undefined,
+    claimedAt: (row.claimed_at as string) || undefined,
+    comments: parseComments(row.comments),
   });
 }
 
@@ -78,16 +108,53 @@ function mapBill(row: Record<string, unknown>): Bill {
   };
 }
 
+function parseSharedFundIds(row: Record<string, unknown>): FundId[] | undefined {
+  const raw = row.shared_fund_ids;
+  if (Array.isArray(raw)) {
+    const ids = raw.filter((id): id is FundId => typeof id === 'string' && id.length > 0);
+    return ids.length ? ids : undefined;
+  }
+  return undefined;
+}
+
 function mapCustomer(row: Record<string, unknown>): Customer | null {
   if (!row.fund_id) return null;
+  const rawNote = (row.note as string) || undefined;
+  const decoded = decodeCustomerNote(rawNote);
   return {
     id: row.id as string,
     fundId: row.fund_id as Customer['fundId'],
     name: row.name as string,
     phone: (row.phone as string) || undefined,
-    note: (row.note as string) || undefined,
+    note: decoded.userNote,
+    reconciliation: decoded.reconciliation,
+    sharedFundIds: parseSharedFundIds(row),
     createdAt: row.created_at as string,
   };
+}
+
+function txNoteMeta(tx: Transaction) {
+  return {
+    ledger: tx.ledger !== 'fund' ? tx.ledger : undefined,
+    counterparty: tx.counterparty,
+    batchId: tx.batchId,
+    linkId: tx.linkId,
+    feeSourceId: tx.feeSourceId,
+    extraFee: extraFeeToDbValue(tx),
+    createdByUserId: tx.createdByUserId,
+    createdByEmail: tx.createdByEmail,
+    createdByName: tx.createdByName,
+    pendingWhatsAppMessage: tx.pendingWhatsAppMessage,
+    approvalDetails: tx.approvalDetails,
+    approvedByName: tx.approvedByName,
+    approvedByEmail: tx.approvedByEmail,
+    approvedAt: tx.approvedAt,
+    orderedDate: tx.orderedDate,
+  };
+}
+
+function txNoteToDb(tx: Transaction): string | null {
+  return encodeNoteMeta(tx.note, txNoteMeta(tx)) ?? null;
 }
 
 function txToRow(tx: Transaction) {
@@ -101,8 +168,9 @@ function txToRow(tx: Transaction) {
     amount: tx.amount,
     party: tx.party,
     counterparty: tx.counterparty ?? null,
-    intermediary: tx.intermediary ?? null,
-    note: tx.note ?? null,
+    intermediary: formatIntermediary(tx.intermediary) ?? null,
+    fee: feeToDbValue(tx),
+    note: txNoteToDb(tx),
     status: tx.status,
     batch_id: tx.batchId ?? null,
     link_id: tx.linkId ?? null,
@@ -121,11 +189,16 @@ function txToRow(tx: Transaction) {
     approved_by_name: tx.approvedByName ?? null,
     approved_by_email: tx.approvedByEmail ?? null,
     approved_at: tx.approvedAt ?? null,
+    ordered_date: tx.orderedDate ?? null,
+    claimed_by_id: tx.claimedByUserId ?? null,
+    claimed_by_name: tx.claimedByName ?? null,
+    claimed_at: tx.claimedAt ?? null,
+    comments: tx.comments?.length ? tx.comments : null,
     created_at: tx.createdAt,
   };
 }
 
-function legacyTxToRow(tx: Transaction) {
+function minimalTxToRow(tx: Transaction) {
   return {
     id: tx.id,
     fund_id: tx.fundId,
@@ -134,20 +207,8 @@ function legacyTxToRow(tx: Transaction) {
     kind: tx.kind,
     amount: tx.amount,
     party: tx.party,
-    intermediary: tx.intermediary ?? null,
-    note: encodeNoteMeta(tx.note, {
-      ledger: tx.ledger,
-      counterparty: tx.counterparty,
-      batchId: tx.batchId,
-      createdByUserId: tx.createdByUserId,
-      createdByEmail: tx.createdByEmail,
-      createdByName: tx.createdByName,
-      pendingWhatsAppMessage: tx.pendingWhatsAppMessage,
-      approvalDetails: tx.approvalDetails,
-      approvedByName: tx.approvedByName,
-      approvedByEmail: tx.approvedByEmail,
-      approvedAt: tx.approvedAt,
-    }) ?? null,
+    intermediary: formatIntermediary(tx.intermediary) ?? null,
+    note: txNoteToDb(tx),
     status: tx.status,
     exchange_to_currency: tx.exchangeToCurrency ?? null,
     exchange_rate: tx.exchangeRate ?? null,
@@ -175,17 +236,17 @@ function customerToRow(customer: Customer) {
     fund_id: customer.fundId,
     name: customer.name,
     phone: customer.phone ?? null,
-    note: customer.note ?? null,
+    note: encodeCustomerNote(customer.note, { reconciliation: customer.reconciliation }) ?? null,
+    shared_fund_ids: customer.sharedFundIds?.length ? customer.sharedFundIds : [],
     created_at: customer.createdAt,
   };
 }
 
 async function upsertTxRows(txs: Transaction[]) {
   const client = requireClient();
-  const fullRows = txs.map(txToRow);
-  let { error } = await client.from('transactions').upsert(fullRows);
+  let { error } = await client.from('transactions').upsert(txs.map(txToRow));
   if (error && isMissingColumnError(error)) {
-    ({ error } = await client.from('transactions').upsert(txs.map(legacyTxToRow)));
+    ({ error } = await client.from('transactions').upsert(txs.map(minimalTxToRow)));
   }
   if (error) throw formatDbError(error);
 }
@@ -236,6 +297,14 @@ export async function patchTransaction(id: string, patch: Partial<Transaction>) 
   if (patch.approvedByName !== undefined) row.approved_by_name = patch.approvedByName;
   if (patch.approvedByEmail !== undefined) row.approved_by_email = patch.approvedByEmail;
   if (patch.approvedAt !== undefined) row.approved_at = patch.approvedAt;
+  if (patch.orderedDate !== undefined) row.ordered_date = patch.orderedDate;
+  if (patch.fee !== undefined || patch.feeMode !== undefined) {
+    row.fee = feeToDbValue(patch as Transaction) ?? null;
+  }
+  if ('claimedByUserId' in patch) row.claimed_by_id = patch.claimedByUserId ?? null;
+  if ('claimedByName' in patch) row.claimed_by_name = patch.claimedByName ?? null;
+  if ('claimedAt' in patch) row.claimed_at = patch.claimedAt ?? null;
+  if (patch.comments !== undefined) row.comments = patch.comments?.length ? patch.comments : null;
   const { error } = await requireClient().from('transactions').update(row).eq('id', id);
   if (error && isMissingColumnError(error)) {
     const { data, error: readErr } = await requireClient()
@@ -249,6 +318,7 @@ export async function patchTransaction(id: string, patch: Partial<Transaction>) 
       ledger: patch.ledger ?? decoded.ledger,
       counterparty: patch.counterparty ?? decoded.counterparty,
       batchId: decoded.batchId,
+      linkId: decoded.linkId,
       createdByUserId: decoded.createdByUserId,
       createdByEmail: decoded.createdByEmail,
       createdByName: decoded.createdByName,
@@ -257,6 +327,8 @@ export async function patchTransaction(id: string, patch: Partial<Transaction>) 
       approvedByName: patch.approvedByName ?? decoded.approvedByName,
       approvedByEmail: patch.approvedByEmail ?? decoded.approvedByEmail,
       approvedAt: patch.approvedAt ?? decoded.approvedAt,
+      orderedDate: patch.orderedDate ?? decoded.orderedDate,
+      feeSourceId: patch.feeSourceId ?? decoded.feeSourceId,
     });
     const legacyUpdate: Record<string, unknown> = {};
     if (patch.status !== undefined) legacyUpdate.status = patch.status;
@@ -297,7 +369,12 @@ export async function removeBill(id: string) {
 }
 
 export async function upsertCustomer(customer: Customer) {
-  const { error } = await requireClient().from('customers').upsert(customerToRow(customer));
+  const row = customerToRow(customer);
+  let { error } = await requireClient().from('customers').upsert(row);
+  if (error && isMissingColumnError(error) && 'shared_fund_ids' in row) {
+    const { shared_fund_ids: _omit, ...legacyRow } = row;
+    ({ error } = await requireClient().from('customers').upsert(legacyRow));
+  }
   if (error) throw formatDbError(error);
 }
 

@@ -1,7 +1,20 @@
 import { Pencil, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { getFundAccountName } from '../config';
-import { formatDateAr } from '../lib/utils';
+import { buildPendingWhatsAppMessage } from '../lib/whatsapp';
+import { formatDateAr, formatFee, formatIntermediary, inferKind, getOperationGroupIds } from '../lib/utils';
+import { feeEditorFromParsed, buildFeeFromEditor, FeeEditor } from './FeeEditor';
+import {
+  accountAmountAfterFee,
+  accountGrossAmount,
+  extraFeeFieldsFromParsed,
+  feeFieldsFromParsed,
+  formatExtraFee,
+  isShamelFeeEligible,
+  resolveTransactionExtraFee,
+  resolveTransactionFee,
+  sumAmountForCurrency,
+} from '../lib/fees';
 import type { Transaction } from '../types';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
 import type { AmountLine } from './AmountLinesEditor';
@@ -22,36 +35,144 @@ function txsToLines(txs: Transaction[]): AmountLine[] {
 }
 
 export function EditTransactionModal({ leadId, allTransactions, onSave, onClose }: Props) {
+  const clicked = useMemo(
+    () => allTransactions.find(t => t.id === leadId),
+    [allTransactions, leadId],
+  );
+
   const fundTxs = useMemo(() => {
-    const lead = allTransactions.find(t => t.id === leadId);
-    if (!lead) return [];
-    const sameBatch = lead.batchId
-      ? allTransactions.filter(t => t.batchId === lead.batchId && t.ledger === 'fund')
-      : [lead];
-    return sameBatch.filter(t => t.ledger === 'fund' && t.kind !== 'exchange');
-  }, [allTransactions, leadId]);
+    if (!clicked) return [];
+    const opIds = new Set(getOperationGroupIds(allTransactions, leadId));
+    return allTransactions.filter(
+      t => opIds.has(t.id) && (t.ledger ?? 'fund') === 'fund' && t.kind !== 'exchange',
+    );
+  }, [allTransactions, leadId, clicked]);
 
   const lead = fundTxs[0];
-  const [counterparty, setCounterparty] = useState(lead?.counterparty ?? '');
-  const [note, setNote] = useState(lead?.note ?? '');
-  const [lines, setLines] = useState(() => (fundTxs.length ? txsToLines(fundTxs) : createDefaultLines()));
+  const linkedAccountTxs = useMemo(() => {
+    const anchor = lead ?? clicked;
+    if (!anchor) return [];
+    const opIds = new Set(getOperationGroupIds(allTransactions, anchor.id));
+    return allTransactions.filter(
+      t => opIds.has(t.id) && t.ledger === 'account' && !t.feeSourceId,
+    );
+  }, [allTransactions, lead, clicked]);
 
-  if (!lead || lead.kind === 'exchange') return null;
+  const isAccountOnly = !lead && clicked?.ledger === 'account' && !clicked.feeSourceId;
 
-  const linkedAccountTxs = lead.linkId
-    ? allTransactions.filter(t => t.linkId === lead.linkId && t.ledger === 'account')
-    : [];
+  const isPending = (lead ?? clicked)?.status === 'pending';
+  const displayTx = lead ?? clicked!;
+  const [direction, setDirection] = useState<'in' | 'out'>(() => (
+    lead?.kind === 'payment' ? 'out' : 'in'
+  ));
+  const [accountDirection, setAccountDirection] = useState<'in' | 'out'>(() => {
+    const linked = linkedAccountTxs[0];
+    return linked?.kind === 'payment' ? 'out' : 'in';
+  });
+  const [counterparty, setCounterparty] = useState(lead?.counterparty ?? clicked?.party ?? '');
+  const [intermediary, setIntermediary] = useState(lead?.intermediary ?? clicked?.intermediary ?? '');
+  const [feeEditor, setFeeEditor] = useState(() => feeEditorFromParsed(resolveTransactionFee(lead ?? clicked)));
+  const [extraFeeEditor, setExtraFeeEditor] = useState(() => feeEditorFromParsed(resolveTransactionExtraFee(lead ?? clicked)));
+  const [note, setNote] = useState(lead?.note ?? clicked?.note ?? '');
+  const [lines, setLines] = useState(() => {
+    if (fundTxs.length) return txsToLines(fundTxs);
+    if (clicked && isAccountOnly) {
+      const fees = [resolveTransactionFee(clicked), resolveTransactionExtraFee(clicked)];
+      const gross = accountGrossAmount(clicked.amount, fees, clicked.currency);
+      return [{ id: clicked.id, currency: clicked.currency, amount: String(gross) }];
+    }
+    return createDefaultLines();
+  });
+
+  const lineCurrencies = useMemo(
+    () => [...new Set(parseAmountLines(lines).map(item => item.currency))],
+    [lines],
+  );
+
+  const shamelEligible = isShamelFeeEligible(
+    linkedAccountTxs[0]?.party ?? (isAccountOnly ? clicked?.party : undefined) ?? counterparty.trim() ?? lead?.counterparty,
+  );
+
+  if ((!lead && !isAccountOnly) || (lead?.kind === 'exchange') || (clicked?.kind === 'exchange')) return null;
+
+  function accountNetAmount(
+    gross: number,
+    currency: Transaction['currency'],
+    fees: (ReturnType<typeof buildFeeFromEditor> | undefined)[],
+  ): number {
+    return fees.reduce(
+      (amount, fee) => accountAmountAfterFee(amount, fee, currency),
+      gross,
+    );
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = parseAmountLines(lines);
     if (!parsed.length) return;
 
+    if (isAccountOnly && clicked) {
+      const item = parsed[0];
+      const feeBaseAmount = sumAmountForCurrency(parsed, feeEditor.currency);
+      const extraFeeBaseAmount = sumAmountForCurrency(parsed, extraFeeEditor.currency);
+      const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
+      const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
+      const feeFields = feeFieldsFromParsed(parsedFee);
+      const extraFeeFields = extraFeeFieldsFromParsed(parsedExtraFee);
+      const formattedFee = formatFee(feeFields.fee);
+      const formattedExtraFee = formatExtraFee(extraFeeFields.extraFee);
+      const grossAmount = item?.amount ?? clicked.amount;
+      const netAmount = accountNetAmount(
+        grossAmount,
+        item?.currency ?? clicked.currency,
+        [parsedFee, parsedExtraFee],
+      );
+      const summaryParts: string[] = [];
+      if (item && (clicked.amount !== netAmount || clicked.currency !== item.currency)) {
+        summaryParts.push(`${clicked.currency}: ${clicked.amount} → ${netAmount}`);
+      }
+      if ((note || '') !== (clicked.note || '')) summaryParts.push('تعديل ملاحظة');
+      if ((formattedFee || '') !== (formatFee(clicked.fee) || '')) summaryParts.push('تعديل أجور/عمولة');
+      if ((formattedExtraFee || '') !== (formatExtraFee(clicked.extraFee) || '')) summaryParts.push('تعديل عمولات شاملة');
+      onSave([{
+        ...clicked,
+        note: note.trim() || undefined,
+        currency: item?.currency ?? clicked.currency,
+        amount: netAmount,
+        ...feeFields,
+        ...extraFeeFields,
+      }], summaryParts.join(' | ') || 'تعديل');
+      return;
+    }
+
+    if (!lead) return;
+
+    const feeBaseAmount = sumAmountForCurrency(parsed, feeEditor.currency);
+    const extraFeeBaseAmount = sumAmountForCurrency(parsed, extraFeeEditor.currency);
+    const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
+    const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
+    const feeFields = feeFieldsFromParsed(parsedFee);
+    const extraFeeFields = extraFeeFieldsFromParsed(parsedExtraFee);
+    const formattedFee = formatFee(feeFields.fee);
+    const formattedExtraFee = formatExtraFee(extraFeeFields.extraFee);
+
     const summaryParts: string[] = [];
+    const fundKind = inferKind(direction, false);
+    const accountKind = linkedAccountTxs.length
+      ? inferKind(accountDirection, false)
+      : fundKind;
+    const formattedIntermediary = formatIntermediary(intermediary);
+
+    if (lead.kind !== fundKind) {
+      summaryParts.push(`${lead.kind === 'payment' ? 'دفع' : 'استلام'} → ${fundKind === 'payment' ? 'دفع' : 'استلام'}`);
+    }
     if ((counterparty || '') !== (lead.counterparty || '')) {
       summaryParts.push(`طرف: ${lead.counterparty || '—'} → ${counterparty || '—'}`);
     }
     if ((note || '') !== (lead.note || '')) summaryParts.push('تعديل ملاحظة');
+    if ((formattedIntermediary || '') !== (lead.intermediary || '')) summaryParts.push('تعديل بيد');
+    if ((formattedFee || '') !== (formatFee(lead.fee) || '')) summaryParts.push('تعديل أجور/عمولة');
+    if ((formattedExtraFee || '') !== (formatExtraFee(lead.extraFee) || '')) summaryParts.push('تعديل عمولات شاملة');
 
     const updated: Transaction[] = [];
 
@@ -64,7 +185,11 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
       }
       updated.push({
         ...tx,
+        kind: fundKind,
         counterparty: counterparty.trim() || undefined,
+        intermediary: formattedIntermediary,
+        ...feeFields,
+        ...extraFeeFields,
         note: note.trim() || undefined,
         currency: item.currency,
         amount: item.amount,
@@ -75,12 +200,35 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
       const idx = fundTxs.findIndex(f => f.currency === atx.currency);
       const item = idx >= 0 ? parsed[idx] : parsed[0];
       if (!item) continue;
+      const accountAmount = accountNetAmount(
+        item.amount,
+        item.currency,
+        [parsedFee, parsedExtraFee],
+      );
       updated.push({
         ...atx,
+        kind: accountKind,
+        intermediary: formattedIntermediary,
         note: note.trim() || undefined,
-        amount: item.amount,
+        amount: accountAmount,
         currency: item.currency,
       });
+    }
+
+    if (isPending) {
+      const fundGroup = updated.filter(t => t.ledger === 'fund');
+      const fundLead = fundGroup[0];
+      if (fundLead) {
+        const message = buildPendingWhatsAppMessage(
+          fundLead.fundId,
+          fundGroup,
+          fundLead.createdByName,
+        );
+        const leadIdx = updated.findIndex(t => t.id === fundLead.id);
+        if (leadIdx >= 0) {
+          updated[leadIdx] = { ...updated[leadIdx], pendingWhatsAppMessage: message };
+        }
+      }
     }
 
     onSave(updated, summaryParts.join(' | ') || 'تعديل');
@@ -102,22 +250,95 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
           </button>
         </div>
 
-        <p className="text-xs text-slate-500">{getFundAccountName(lead.fundId)}</p>
-        {lead.linkId && (
+        <p className="text-xs text-slate-500">{getFundAccountName(displayTx.fundId)}</p>
+        {lead?.linkId && (
           <p className="text-xs text-emerald-400/80">مرتبطة بحساب — التعديل ينعكس على الصندوق والحساب</p>
         )}
 
-        <p className="text-xs text-slate-500">تاريخ الحركة: {formatDateAr(lead.date)}</p>
+        <p className="text-xs text-slate-500">تاريخ الحركة: {formatDateAr(displayTx.date)}</p>
+
+        {isPending && (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setDirection('in')}
+              className={`rounded-xl py-2 text-sm font-medium ${direction === 'in' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+            >
+              استلام
+            </button>
+            <button
+              type="button"
+              onClick={() => setDirection('out')}
+              className={`rounded-xl py-2 text-sm font-medium ${direction === 'out' ? 'bg-rose-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+            >
+              دفع
+            </button>
+          </div>
+        )}
+
+        {isPending && linkedAccountTxs.length > 0 && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
+            <p className="text-xs font-medium text-emerald-300/90">على الحساب:</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAccountDirection('in')}
+                className={`rounded-xl py-2 text-sm font-medium ${accountDirection === 'in' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+              >
+                إيداع
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountDirection('out')}
+                className={`rounded-xl py-2 text-sm font-medium ${accountDirection === 'out' ? 'bg-rose-600 text-white' : 'bg-slate-700 text-slate-300'}`}
+              >
+                سحب
+              </button>
+            </div>
+          </div>
+        )}
 
         <AmountLinesEditor lines={lines} onChange={setLines} />
 
-        <input
-          type="text"
-          placeholder="الطرف (اختياري)"
-          value={counterparty}
-          onChange={e => setCounterparty(e.target.value)}
-          className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+        {!isAccountOnly && (
+          <input
+            type="text"
+            placeholder="الطرف (اختياري)"
+            value={counterparty}
+            onChange={e => setCounterparty(e.target.value)}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+          />
+        )}
+
+        {!isAccountOnly && (
+          <input
+            type="text"
+            placeholder="بيد (اختياري)"
+            value={intermediary}
+            onChange={e => setIntermediary(e.target.value)}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+          />
+        )}
+
+        <FeeEditor
+          value={feeEditor}
+          onChange={setFeeEditor}
+          baseAmount={sumAmountForCurrency(parseAmountLines(lines), feeEditor.currency)}
+          availableCurrencies={lineCurrencies.length ? lineCurrencies : undefined}
+          compact
         />
+        {shamelEligible && (
+          <FeeEditor
+            value={extraFeeEditor}
+            onChange={setExtraFeeEditor}
+            baseAmount={sumAmountForCurrency(parseAmountLines(lines), extraFeeEditor.currency)}
+            availableCurrencies={lineCurrencies.length ? lineCurrencies : undefined}
+            compact
+            title="عمولات شاملة"
+            hintOurs="تُخصم من مبلغ حساب الزبون وتُسجَّل على حساب «عمولات شاملة»"
+            hintCustomer="تُضاف على مبلغ حساب الزبون فقط — ما بتروح لـ «عمولات شاملة»"
+          />
+        )}
 
         <input
           type="text"
@@ -127,10 +348,10 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
           className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
         />
 
-        {lead.editHistory && lead.editHistory.length > 0 && (
+        {displayTx.editHistory && displayTx.editHistory.length > 0 && (
           <div className="rounded-xl bg-slate-800/80 p-3 text-xs text-slate-500 space-y-1">
             <p className="font-medium text-slate-400">سجل التعديلات</p>
-            {[...lead.editHistory].reverse().slice(0, 5).map((h, i) => (
+            {[...displayTx.editHistory].reverse().slice(0, 5).map((h, i) => (
               <p key={i}>
                 {formatDateAr(h.at.slice(0, 10))} — {h.byName ?? h.byEmail ?? '؟'}: {h.summary}
               </p>

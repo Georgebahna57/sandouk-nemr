@@ -32,17 +32,10 @@ export function BalanceCards({ balances }: Props) {
                 : 'border-rose-500/30 bg-rose-500/10'
             }`}
           >
-            <div className="flex items-center justify-between gap-1">
-              <p className="text-xs text-slate-400">
-                {c.label}
-                {isWeight && <span className="text-slate-500"> · وزن</span>}
-              </p>
-              <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
-                isSurplus ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-              }`}>
-                {isSurplus ? 'زايد' : 'ناقص'}
-              </span>
-            </div>
+            <p className="text-xs text-slate-400">
+              {c.label}
+              {isWeight && <span className="text-slate-500"> · وزن</span>}
+            </p>
             <p className={`mt-1 text-xl font-bold tabular-nums ${isSurplus ? 'text-emerald-400' : 'text-rose-400'}`}>
               {isWeight
                 ? <>{formatAmount(Math.abs(b.balance), c.id)} <span className="text-sm">غ</span></>

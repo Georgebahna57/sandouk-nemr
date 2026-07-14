@@ -1,6 +1,7 @@
-import { getFund } from '../config';
-import type { FundId, Transaction } from '../types';
-import { describeTransaction, formatDateAr } from './utils';
+import { CURRENCIES, getCurrencyLabel, getFund, isWeightCurrency } from '../config';
+import type { CustomerBalances, FundBalances, FundId, Transaction } from '../types';
+import { describeTransaction, formatAmount, formatDateAr, formatFee, formatIntermediary, formatValueWithUnit, todayIso } from './utils';
+import { formatTransactionFees } from './fees';
 
 /** يحوّل الرقم لصيغة wa.me (أرقام فقط مع رمز الدولة) */
 export function normalizeWhatsAppPhone(raw: string): string | null {
@@ -74,11 +75,91 @@ export function buildPendingWhatsAppMessage(
     lines.push(`• ${describeTransaction(tx)}`);
   }
 
-  if (lead.intermediary) lines.push(`بيد: ${lead.intermediary}`);
+  const via = formatIntermediary(lead.intermediary);
+  if (via) lines.push(`بيد: ${via}`);
+  const fee = formatTransactionFees(lead) ?? formatFee(lead.fee);
+  if (fee) lines.push(`أجور/عمولة: ${fee}`);
   if (lead.note) lines.push(`ملاحظة: ${lead.note}`);
   if (actorName) lines.push(`أضافها: ${actorName}`);
 
   return lines.join('\n');
+}
+
+function balanceStatusLabel(balance: number): string {
+  if (balance > 0) return 'زايد';
+  if (balance < 0) return 'ناقص';
+  return 'متعادل';
+}
+
+/** رسالة رصيد الصندوق — نهاية اليوم */
+export function buildFundBalanceWhatsAppMessage(
+  fundId: FundId,
+  balances: FundBalances,
+  dateIso?: string,
+): string {
+  const fund = getFund(fundId);
+  const lines: string[] = [
+    `📊 رصيد ${fund.name}`,
+    `التاريخ: ${formatDateAr(dateIso ?? todayIso())}`,
+    '',
+  ];
+
+  let hasBalance = false;
+  for (const c of CURRENCIES) {
+    const b = balances[c.id];
+    if (b.balance === 0) continue;
+    hasBalance = true;
+    const amount = formatAmount(Math.abs(b.balance), c.id);
+    const status = balanceStatusLabel(b.balance);
+    if (isWeightCurrency(c.id)) {
+      lines.push(`• ${c.label}: ${b.balance < 0 ? '-' : ''}${amount} غ (${status})`);
+    } else {
+      lines.push(`• ${c.label}: ${b.balance < 0 ? '-' : ''}${amount} ${c.symbol} (${status})`);
+    }
+  }
+
+  if (!hasBalance) lines.push('لا يوجد رصيد');
+  return lines.join('\n');
+}
+
+/** رسالة مطابقة حساب زبون */
+export function buildAccountBalanceWhatsAppMessage(
+  fundId: FundId,
+  accountName: string,
+  balances: CustomerBalances,
+  dateIso?: string,
+): string {
+  const fund = getFund(fundId);
+  const lines: string[] = [
+    `📋 مطابقة حساب — ${accountName}`,
+    `الصندوق: ${fund.name}`,
+    `التاريخ: ${formatDateAr(dateIso ?? todayIso())}`,
+    '',
+  ];
+
+  let hasActivity = false;
+  for (const c of CURRENCIES) {
+    const b = balances[c.id];
+    if (b.receipts === 0 && b.payments === 0) continue;
+    hasActivity = true;
+    lines.push(`• ${getCurrencyLabel(c.id)}:`);
+    lines.push(`  وارد: ${formatValueWithUnit(b.receipts, c.id)}`);
+    lines.push(`  صادر: ${formatValueWithUnit(b.payments, c.id)}`);
+    lines.push(`  رصيد: ${formatValueWithUnit(b.balance, c.id)}`);
+  }
+
+  if (!hasActivity) lines.push('لا يوجد حركة على الحساب');
+  return lines.join('\n');
+}
+
+/** وجهات الإرسال: رقم الزبون أولاً، وإلا كروبات الصندوق، وإلا واتساب بدون رقم */
+export function resolveShareDestinations(
+  preferredPhone?: string,
+  fallbackDestinations?: string[],
+): string[] {
+  if (preferredPhone?.trim()) return [preferredPhone.trim()];
+  const list = (fallbackDestinations ?? []).map(s => s.trim()).filter(Boolean);
+  return list.length ? list : [''];
 }
 
 /** يبني رابط whatsapp:// لفتح البرنامج مباشرة (بدون متصفح) */
@@ -103,6 +184,7 @@ export function openWhatsAppApp(destination: string, message: string): void {
 }
 
 export function getDestinationLabel(dest: string, index: number): string {
+  if (!dest.trim()) return 'اختر جهة على واتساب';
   if (isWhatsAppGroupLink(dest)) return `كروب ${index + 1}`;
   const phone = normalizeWhatsAppPhone(dest);
   if (phone) return `رقم ${phone}`;

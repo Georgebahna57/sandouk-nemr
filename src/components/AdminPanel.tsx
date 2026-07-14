@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Loader2, MessageCircle, Save, Shield } from 'lucide-react';
+import { ArrowRight, Coins, Loader2, MessageCircle, Save, Shield } from 'lucide-react';
 import { FUNDS } from '../config';
 import { fetchFundWhatsAppPhones, saveFundWhatsAppPhones, type FundWhatsAppMap } from '../lib/fundSettings';
 import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
+import { ValuationRatesEditor } from './ValuationRatesEditor';
+import type { ValuationRates } from '../lib/valuationRates';
 import {
   fetchAllPermissions,
   fetchAllProfiles,
@@ -20,6 +22,9 @@ import type { FundId } from '../types';
 interface Props {
   onBack: () => void;
   onWhatsAppSaved?: () => void;
+  valuationRates: ValuationRates;
+  onSaveValuationRates: (rates: ValuationRates) => void | Promise<void>;
+  savingValuationRates?: boolean;
 }
 
 type FundWhatsAppTextMap = Partial<Record<FundId, string>>;
@@ -59,7 +64,7 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
@@ -111,7 +116,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
     setSuccess(null);
     try {
       await saveUserFundPermissions(userId, permissionMap[userId] ?? {});
-      setSuccess('تم حفظ الصلاحيات');
+      setSuccess('تم حفظ أسعار التقييم — تنطبق على كل الحسابات');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل الحفظ');
     } finally {
@@ -164,6 +169,18 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
     }
   }
 
+  async function saveValuationRatesHandler(rates: ValuationRates) {
+    setError(null);
+    setSuccess(null);
+    try {
+      await onSaveValuationRates(rates);
+      setSuccess('تم حفظ أسعار التقييم — تنطبق على كل الحسابات');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل حفظ الأسعار');
+      throw err;
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
@@ -207,6 +224,23 @@ export function AdminPanel({ onBack, onWhatsAppSaved }: Props) {
           {error ?? success}
         </div>
       )}
+
+      <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Coins size={18} className="text-amber-400" />
+          <div>
+            <p className="font-medium text-slate-200">أسعار التقييم — لكل المشروع</p>
+            <p className="text-xs text-slate-500">
+              عدّلها هون مرة كل فترة — كل الحسابات بكل الصناديق تستخدم نفس الأسعار
+            </p>
+          </div>
+        </div>
+        <ValuationRatesEditor
+          rates={valuationRates}
+          onSave={saveValuationRatesHandler}
+          saving={savingValuationRates}
+        />
+      </div>
 
       <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
         <div className="mb-3 flex items-center gap-2">

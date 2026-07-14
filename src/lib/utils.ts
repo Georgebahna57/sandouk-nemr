@@ -1,4 +1,5 @@
 import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFundAccountName, isFundAccountName, isWeightCurrency } from '../config';
+import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
 import type {
   AppState,
   Currency,
@@ -16,6 +17,26 @@ import type {
 } from '../types';
 
 const STORAGE_KEY = 'sandouk-nemr-v1';
+
+/** أرقام إنجليزية (0–9) في كل الواجهة */
+export const NUMBER_LOCALE = 'en-US';
+
+export function formatIntermediary(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+export function formatFee(value?: string): string | undefined {
+  const parsed = parseStoredFee(value);
+  if (parsed?.display) return parsed.display;
+  return value?.trim() || undefined;
+}
+
+export function parseMentions(text: string): string[] {
+  const matches = text.match(/@([^\s@]+)/g);
+  if (!matches) return [];
+  return [...new Set(matches.map(m => m.slice(1).trim()).filter(Boolean))];
+}
 
 export function loadState(): AppState {
   try {
@@ -45,27 +66,64 @@ export function calcExchangeAmount(fromAmount: number, rate: number): number {
 }
 
 export function describeTransaction(tx: Transaction): string {
+  const via = formatIntermediary(tx.intermediary);
+  const viaSuffix = via ? ` بيد ${via}` : '';
   if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount && tx.exchangeRate) {
-    return `تبديل ${formatValueWithUnit(tx.amount, tx.currency)} → ${formatValueWithUnit(tx.exchangeToAmount, tx.exchangeToCurrency)}`;
+    return `تبديل ${formatValueWithUnit(tx.amount, tx.currency)} → ${formatValueWithUnit(tx.exchangeToAmount, tx.exchangeToCurrency)}${viaSuffix}`;
   }
-  if (tx.kind === 'exchange') return 'تبديل';
+  if (tx.kind === 'exchange') return via ? `تبديل${viaSuffix}` : 'تبديل';
+  if (tx.ledger === 'account' && !isFeeAccountName(tx.party)) {
+    const other = tx.counterparty?.trim();
+    if (tx.kind === 'payment') {
+      return other ? `سحب → ${other}${viaSuffix}` : via ? `سحب${viaSuffix}` : 'سحب';
+    }
+    return other ? `إيداع ← ${other}${viaSuffix}` : via ? `إيداع${viaSuffix}` : 'إيداع';
+  }
   const other = tx.counterparty?.trim();
-  if (tx.kind === 'payment') return other ? `دفع لـ ${other}` : 'دفع';
-  if (tx.intermediary) return other ? `استلام من ${other} بيد ${tx.intermediary}` : `استلام بيد ${tx.intermediary}`;
+  if (tx.kind === 'payment') {
+    if (other) return `دفع لـ ${other}${viaSuffix}`;
+    return via ? `دفع${viaSuffix}` : 'دفع';
+  }
+  if (via) return other ? `استلام من ${other} بيد ${via}` : `استلام بيد ${via}`;
   return other ? `استلام من ${other}` : (isFundAccountName(tx.party) ? 'حركة صندوق' : 'حركة حساب');
+}
+
+/** يكمّل «بيد» وغيرها من حركة الصندوق المربوطة للعرض */
+export function enrichAccountTransactionForDisplay(tx: Transaction, all: Transaction[]): Transaction {
+  if (tx.ledger !== 'account' || isAutoFeeTransaction(tx)) return tx;
+  if (tx.intermediary?.trim()) return tx;
+  if (!tx.linkId) return tx;
+  const fundPeer = all.find(t => t.linkId === tx.linkId && t.ledger === 'fund');
+  if (!fundPeer?.intermediary) return tx;
+  return { ...tx, intermediary: fundPeer.intermediary };
+}
+
+export function enrichAccountTransactionsForDisplay(
+  accountTxs: Transaction[],
+  all: Transaction[],
+): Transaction[] {
+  return accountTxs.map(tx => enrichAccountTransactionForDisplay(tx, all));
 }
 
 /** يحوّل الحركات القديمة (party = الطرف) إلى النموذج الجديد */
 export function normalizeTransaction(tx: Transaction): Transaction {
-  if (tx.ledger === 'account') return tx;
-  if (isFundAccountName(tx.party) || tx.counterparty) {
-    return { ...tx, ledger: tx.ledger ?? 'fund' };
+  const intermediary = formatIntermediary(tx.intermediary);
+  const withFee = attachExtraFeeFields(attachFeeFields({ ...tx, intermediary }));
+  const base = intermediary !== tx.intermediary || withFee.fee !== tx.fee || withFee.extraFee !== tx.extraFee
+    ? withFee
+    : tx;
+  if (base.ledger === 'account') return base;
+  if (!isFundAccountName(base.party) && isCustomerAccountName(base.party)) {
+    return { ...base, ledger: 'account' };
+  }
+  if (isFundAccountName(base.party) || base.counterparty) {
+    return { ...base, ledger: base.ledger ?? 'fund' };
   }
   return {
-    ...tx,
+    ...base,
     ledger: 'fund',
-    counterparty: tx.party,
-    party: getFundAccountName(tx.fundId),
+    counterparty: base.party,
+    party: getFundAccountName(base.fundId),
   };
 }
 
@@ -74,7 +132,7 @@ export function normalizeTransactions(transactions: Transaction[]): Transaction[
 }
 
 export function formatWeight(grams: number): string {
-  return grams.toLocaleString('ar-LB', {
+  return grams.toLocaleString(NUMBER_LOCALE, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -83,7 +141,7 @@ export function formatWeight(grams: number): string {
 export function formatAmount(amount: number, currency: Currency): string {
   if (isWeightCurrency(currency)) return formatWeight(amount);
   const noDecimals = currency === 'LBP' || currency === 'SYP';
-  return amount.toLocaleString('ar-LB', {
+  return amount.toLocaleString(NUMBER_LOCALE, {
     minimumFractionDigits: noDecimals ? 0 : 0,
     maximumFractionDigits: noDecimals ? 0 : 0,
   });
@@ -102,6 +160,13 @@ export function todayIso(): string {
 export function formatDateAr(iso: string): string {
   const [y, m, d] = iso.split('-');
   return `${d} - ${m} - ${y}`;
+}
+
+/** ملاحظة عندما نُفّذ الطلب بتاريخ مختلف عن إنشائه */
+export function getOrderedDateNote(tx: Transaction): string | undefined {
+  const ordered = tx.orderedDate ?? tx.createdAt?.slice(0, 10);
+  if (!ordered || ordered === tx.date) return undefined;
+  return `أُنشئ الطلب بتاريخ ${formatDateAr(ordered)}`;
 }
 
 export function filterByFund<T extends { fundId: FundId }>(items: T[], fundId: FundId): T[] {
@@ -187,6 +252,73 @@ export function computeAccountBalances(
   return balances;
 }
 
+export function isAccountInFund(customer: Customer, fundId: FundId): boolean {
+  return customer.fundId === fundId || (customer.sharedFundIds?.includes(fundId) ?? false);
+}
+
+export function accountFundScope(homeFundId: FundId, sharedFundIds?: FundId[]): Set<FundId> {
+  return new Set([homeFundId, ...(sharedFundIds ?? [])]);
+}
+
+export function findCustomerForAccount(
+  customers: Customer[],
+  name: string,
+  fundId: FundId,
+): Customer | undefined {
+  const trimmed = name.trim();
+  return customers.find(c => c.name === trimmed && isAccountInFund(c, fundId));
+}
+
+/** حسابات هذا الصندوق + الحسابات المشتركة معه */
+export function getAvailableAccountNames(customers: Customer[], fundId: FundId): string[] {
+  const names = new Set<string>();
+  for (const c of customers) {
+    if (!isCustomerAccountName(c.name)) continue;
+    if (isAccountInFund(c, fundId)) names.add(c.name.trim());
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, 'ar'));
+}
+
+export function accountExistsInFund(
+  customers: Customer[],
+  fundId: FundId,
+  name: string,
+  excludeCustomerId?: string,
+): boolean {
+  const trimmed = name.trim();
+  if (!isCustomerAccountName(trimmed)) return false;
+  return customers.some(c => (
+    c.id !== excludeCustomerId
+    && c.name === trimmed
+    && isAccountInFund(c, fundId)
+  ));
+}
+
+/** تحديث اسم الحساب في الحركات المرتبطة */
+export function applyCustomerRename(
+  transactions: Transaction[],
+  oldName: string,
+  newName: string,
+  homeFundId: FundId,
+  sharedFundIds?: FundId[],
+): { transactions: Transaction[]; changed: Transaction[] } {
+  const scope = accountFundScope(homeFundId, sharedFundIds);
+  const changed: Transaction[] = [];
+  const updated = transactions.map(tx => {
+    if (!scope.has(tx.fundId)) return tx;
+    let next = tx;
+    if ((tx.ledger ?? 'fund') === 'account' && tx.party === oldName) {
+      next = { ...next, party: newName };
+    }
+    if ((tx.ledger ?? 'fund') === 'fund' && tx.counterparty === oldName) {
+      next = { ...next, counterparty: newName };
+    }
+    if (next !== tx) changed.push(next);
+    return next;
+  });
+  return { transactions: updated, changed };
+}
+
 export function isCustomerAccountName(name: string): boolean {
   const trimmed = name.trim();
   if (!trimmed || isFundAccountName(trimmed)) return false;
@@ -199,16 +331,17 @@ export function buildAccountSummaries(
   fundId: FundId,
 ): CustomerSummary[] {
   const names = new Set<string>();
-  const fundCustomers = customers.filter(c => c.fundId === fundId);
+  const relevantCustomers = customers.filter(c => isAccountInFund(c, fundId));
 
-  for (const c of fundCustomers) {
+  for (const c of relevantCustomers) {
     if (isCustomerAccountName(c.name)) names.add(c.name.trim());
   }
+  for (const feeAccount of ALL_FEE_ACCOUNTS) names.add(feeAccount);
   for (const tx of transactions) {
     if (
-      tx.fundId === fundId
-      && (tx.ledger ?? 'fund') === 'account'
+      (tx.ledger ?? 'fund') === 'account'
       && isCustomerAccountName(tx.party)
+      && (tx.fundId === fundId || !!findCustomerForAccount(customers, tx.party, fundId))
     ) {
       names.add(tx.party.trim());
     }
@@ -220,11 +353,19 @@ export function buildAccountSummaries(
       const b = balances[c.id];
       return b.receipts !== 0 || b.payments !== 0;
     });
-    const customer = fundCustomers.find(c => c.name === name);
-    return { name, customerId: customer?.id, balances, hasActivity };
+    const customer = findCustomerForAccount(customers, name, fundId)
+      ?? relevantCustomers.find(c => c.name === name);
+    return {
+      name,
+      customerId: customer?.id,
+      sharedFundIds: customer?.sharedFundIds,
+      reconciliation: customer?.reconciliation,
+      balances,
+      hasActivity,
+    };
   });
 
-  return summaries.filter(s => s.hasActivity || s.customerId);
+  return summaries.filter(s => s.hasActivity || s.customerId || isFeeAccountName(s.name));
 }
 
 /** @deprecated use computeAccountBalances */
@@ -280,23 +421,28 @@ export function createTransactionBatch(
   }));
 }
 
-/** حركة صندوق + حركة حساب الطرف بعملية واحدة */
-export function createLinkedFundAccountOperation(
+/** حركة صندوق + حركة حساب مربوطة */
+function createLinkedFundAccountPair(
   shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty'>,
   accountName: string,
-  direction: 'in' | 'out',
+  fundKind: TransactionKind,
+  accountKind: TransactionKind,
   items: { currency: Currency; amount: number }[],
   counterparty?: string,
+  customerFees?: (ParsedFee | undefined)[],
+  accountFundId?: FundId,
 ): Transaction[] {
   const linkId = crypto.randomUUID();
-  const fundKind = inferKind(direction, false);
-  const accountKind: TransactionKind = fundKind === 'receipt' ? 'payment' : 'receipt';
-  const fundAccount = getFundAccountName(shared.fundId);
+  const fundFundId = shared.fundId;
+  const acctFundId = accountFundId ?? fundFundId;
+  const fundAccount = getFundAccountName(fundFundId);
   const multi = items.length > 1;
+  const accountItems = adjustAccountItemsForFees(items, customerFees ?? []);
 
   const fundTxs = createTransactionBatch(
     {
       ...shared,
+      fundId: fundFundId,
       ledger: 'fund',
       party: fundAccount,
       kind: fundKind,
@@ -309,17 +455,178 @@ export function createLinkedFundAccountOperation(
   const accountTxs = createTransactionBatch(
     {
       ...shared,
+      fundId: acctFundId,
       ledger: 'account',
       party: accountName,
       kind: accountKind,
       counterparty: undefined,
-      intermediary: undefined,
+      fee: undefined,
+      feeMode: undefined,
+      feeRate: undefined,
+      feeSide: undefined,
+      feeAmount: undefined,
+      feeCurrency: undefined,
+      extraFee: undefined,
+      extraFeeMode: undefined,
+      extraFeeRate: undefined,
+      extraFeeSide: undefined,
+      extraFeeAmount: undefined,
+      extraFeeCurrency: undefined,
+    },
+    accountItems,
+    { batchId: multi ? crypto.randomUUID() : undefined, linkId },
+  );
+
+  return [...fundTxs, ...accountTxs];
+}
+
+/** حركة صندوق + حركة حساب — من منظور الصندوق */
+export function createLinkedFundAccountOperation(
+  shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty'>,
+  accountName: string,
+  direction: 'in' | 'out',
+  items: { currency: Currency; amount: number }[],
+  counterparty?: string,
+  accountDirection?: 'in' | 'out',
+  customerFees?: (ParsedFee | undefined)[],
+): Transaction[] {
+  const fundKind = inferKind(direction, false);
+  const accountKind = inferKind(accountDirection ?? direction, false);
+  return createLinkedFundAccountPair(
+    shared,
+    accountName,
+    fundKind,
+    accountKind,
+    items,
+    counterparty || accountName,
+    customerFees,
+  );
+}
+
+/** حركة حساب + صندوق — الاتجاه من منظور الحساب */
+export function createLinkedAccountFundOperation(
+  shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty'>,
+  accountName: string,
+  accountDirection: 'in' | 'out',
+  items: { currency: Currency; amount: number }[],
+  fundDirection?: 'in' | 'out',
+  customerFees?: (ParsedFee | undefined)[],
+  accountFundId?: FundId,
+): Transaction[] {
+  const accountKind = inferKind(accountDirection, false);
+  const fundKind = inferKind(fundDirection ?? accountDirection, false);
+  return createLinkedFundAccountPair(
+    shared,
+    accountName,
+    fundKind,
+    accountKind,
+    items,
+    accountName,
+    customerFees,
+    accountFundId,
+  );
+}
+
+/** ترحيل بين حسابين — حركة على حساب المصدر + حساب الوجهة */
+export function createLinkedAccountAccountOperation(
+  shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty'>,
+  fromAccount: string,
+  toAccount: string,
+  fromDirection: 'in' | 'out',
+  items: { currency: Currency; amount: number }[],
+  toDirection?: 'in' | 'out',
+  customerFees?: (ParsedFee | undefined)[],
+): Transaction[] {
+  const linkId = crypto.randomUUID();
+  const multi = items.length > 1;
+  const fromKind = inferKind(fromDirection, false);
+  const targetDirection = toDirection ?? (fromDirection === 'in' ? 'out' : 'in');
+  const toKind = inferKind(targetDirection, false);
+  const fromItems = adjustAccountItemsForFees(items, customerFees ?? []);
+
+  const fromTxs = createTransactionBatch(
+    {
+      ...shared,
+      ledger: 'account',
+      party: fromAccount,
+      kind: fromKind,
+      counterparty: toAccount,
+    },
+    fromItems,
+    { batchId: multi ? crypto.randomUUID() : undefined, linkId },
+  );
+
+  const toTxs = createTransactionBatch(
+    {
+      ...shared,
+      ledger: 'account',
+      party: toAccount,
+      kind: toKind,
+      counterparty: fromAccount,
+      fee: undefined,
+      feeMode: undefined,
+      feeRate: undefined,
+      feeSide: undefined,
+      feeAmount: undefined,
+      feeCurrency: undefined,
+      extraFee: undefined,
+      extraFeeMode: undefined,
+      extraFeeRate: undefined,
+      extraFeeSide: undefined,
+      extraFeeAmount: undefined,
+      extraFeeCurrency: undefined,
     },
     items,
     { batchId: multi ? crypto.randomUUID() : undefined, linkId },
   );
 
-  return [...fundTxs, ...accountTxs];
+  return [...fromTxs, ...toTxs];
+}
+
+/** تبديل داخل الحساب مع نفس التبديل على الصندوق */
+export function createLinkedAccountFundExchange(
+  shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty' | 'currency' | 'amount'>,
+  accountName: string,
+  fromCurrency: Currency,
+  fromAmount: number,
+  toCurrency: Currency,
+  rate: number,
+  toAmount: number,
+  accountFundId?: FundId,
+): Transaction[] {
+  const linkId = crypto.randomUUID();
+  const fundFundId = shared.fundId;
+  const acctFundId = accountFundId ?? fundFundId;
+  const fundAccount = getFundAccountName(fundFundId);
+  const base = {
+    ...shared,
+    kind: 'exchange' as const,
+    currency: fromCurrency,
+    amount: fromAmount,
+    exchangeToCurrency: toCurrency,
+    exchangeRate: rate,
+    exchangeToAmount: toAmount,
+    linkId,
+  };
+
+  return [
+    createTransaction({
+      ...base,
+      fundId: fundFundId,
+      ledger: 'fund',
+      party: fundAccount,
+      counterparty: accountName,
+    }),
+    createTransaction({
+      ...base,
+      fundId: acctFundId,
+      ledger: 'account',
+      party: accountName,
+      counterparty: undefined,
+      intermediary: undefined,
+      fee: undefined,
+    }),
+  ];
 }
 
 export function getOperationGroupIds(transactions: Transaction[], id: string): string[] {
@@ -327,12 +634,142 @@ export function getOperationGroupIds(transactions: Transaction[], id: string): s
   if (!target) return [id];
 
   if (target.linkId) {
-    return transactions.filter(tx => tx.linkId === target.linkId).map(tx => tx.id);
+    const linked = transactions.filter(tx => tx.linkId === target.linkId).map(tx => tx.id);
+    if (linked.length) return linked;
   }
+
   if (target.batchId) {
-    return transactions.filter(tx => tx.batchId === target.batchId).map(tx => tx.id);
+    const batched = transactions.filter(tx => tx.batchId === target.batchId).map(tx => tx.id);
+    if (batched.length) return batched;
   }
+
   return [id];
+}
+
+function collectOrphanFeesForAccountDelete(
+  transactions: Transaction[],
+  id: string,
+  groupIds: string[],
+): string[] {
+  const target = transactions.find(t => t.id === id);
+  if (!target || target.ledger !== 'account' || isFeeAccountName(target.party)) return [];
+
+  const hasFundPeer = target.linkId
+    ? transactions.some(t => t.linkId === target.linkId && t.ledger === 'fund')
+    : false;
+  if (hasFundPeer) return [];
+
+  const groupTxs = transactions.filter(t => groupIds.includes(t.id) && t.ledger === 'account');
+  const feeAccounts = [resolveFeeAccountName(target.party), SHAMEL_FEE_ACCOUNT];
+  const dates = new Set(groupTxs.map(t => t.date));
+
+  return transactions
+    .filter(t =>
+      isAutoFeeTransaction(t)
+      && feeAccounts.includes(t.party)
+      && t.feeSourceId
+      && !transactions.some(f => f.id === t.feeSourceId)
+      && dates.has(t.date),
+    )
+    .map(t => t.id);
+}
+
+/** حذف العملية + المربوطة بالحساب + أجور «لنا» التلقائية */
+export function getDeletionGroupIds(transactions: Transaction[], id: string): string[] {
+  const groupIds = getOperationGroupIds(transactions, id);
+  const feeIds = collectAutoFeeRemovalIds(transactions, groupIds);
+  const orphanFeeIds = collectOrphanFeesForAccountDelete(transactions, id, groupIds);
+  return [...new Set([...groupIds, ...feeIds, ...orphanFeeIds])];
+}
+
+/** عمليات حساب/أجور بقيت بعد حذف حركة الصندوق المربوطة */
+export function findOrphanedLinkedTransactionIds(transactions: Transaction[]): string[] {
+  const fundLinkIds = new Set(
+    transactions.filter(t => t.ledger === 'fund' && t.linkId).map(t => t.linkId!),
+  );
+  const fundIds = new Set(transactions.filter(t => t.ledger === 'fund').map(t => t.id));
+  const orphanIds: string[] = [];
+
+  for (const tx of transactions) {
+    if (tx.ledger !== 'account') continue;
+    if (tx.linkId && !fundLinkIds.has(tx.linkId)) {
+      orphanIds.push(tx.id);
+      continue;
+    }
+    if (isAutoFeeTransaction(tx) && tx.feeSourceId && !fundIds.has(tx.feeSourceId)) {
+      orphanIds.push(tx.id);
+    }
+  }
+
+  return [...new Set(orphanIds)];
+}
+
+export function purgeOrphanedLinkedTransactions(transactions: Transaction[]): {
+  transactions: Transaction[];
+  removeIds: string[];
+} {
+  const removeIds = findOrphanedLinkedTransactionIds(transactions);
+  if (!removeIds.length) return { transactions, removeIds };
+  const drop = new Set(removeIds);
+  return {
+    transactions: transactions.filter(tx => !drop.has(tx.id)),
+    removeIds,
+  };
+}
+
+/** يحدّث حركات الحساب القديمة لتنسخ «بيد» من الصندوق المربوط */
+export function backfillLinkedAccountFields(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const fundByLink = new Map<string, Transaction>();
+  for (const t of transactions) {
+    if (t.ledger === 'fund' && t.linkId && t.intermediary?.trim()) {
+      if (!fundByLink.has(t.linkId)) fundByLink.set(t.linkId, t);
+    }
+  }
+
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (tx.ledger !== 'account' || tx.feeSourceId || isFeeAccountName(tx.party)) return tx;
+    if (tx.intermediary?.trim() || !tx.linkId) return tx;
+    const fund = fundByLink.get(tx.linkId);
+    if (!fund?.intermediary) return tx;
+    const updated = { ...tx, intermediary: fund.intermediary };
+    changed.push(updated);
+    return updated;
+  });
+
+  return { transactions: next, changed };
+}
+
+export function collectAutoFeeRemovalIds(
+  transactions: Transaction[],
+  deletedIds: string[],
+): string[] {
+  const leadIds = new Set<string>();
+  for (const id of deletedIds) {
+    for (const opId of getOperationGroupIds(transactions, id)) {
+      const tx = transactions.find(t => t.id === opId);
+      if (!tx || tx.kind === 'exchange') continue;
+      if (tx.ledger === 'fund') {
+        leadIds.add(tx.id);
+        continue;
+      }
+      if (
+        tx.ledger === 'account'
+        && !isFeeAccountName(tx.party)
+        && !tx.feeSourceId
+      ) {
+        const opIds = getOperationGroupIds(transactions, tx.id);
+        const hasFund = transactions.some(t => opIds.includes(t.id) && t.ledger === 'fund');
+        if (!hasFund) leadIds.add(tx.id);
+      }
+    }
+  }
+  return transactions
+    .filter(t => isAutoFeeTransaction(t) && t.feeSourceId && leadIds.has(t.feeSourceId))
+    .map(t => t.id);
 }
 
 /** @deprecated use getOperationGroupIds */
