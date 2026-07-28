@@ -69,7 +69,7 @@ export function describeTransaction(tx: Transaction): string {
   const via = formatIntermediary(tx.intermediary);
   const viaSuffix = via ? ` بيد ${via}` : '';
   if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount && tx.exchangeRate) {
-    return `تبديل ${formatValueWithUnit(tx.amount, tx.currency)} → ${formatValueWithUnit(tx.exchangeToAmount, tx.exchangeToCurrency)}${viaSuffix}`;
+    return `تبديل — دفع ${formatValueWithUnit(tx.amount, tx.currency)} · استلم ${formatValueWithUnit(tx.exchangeToAmount, tx.exchangeToCurrency)}${viaSuffix}`;
   }
   if (tx.kind === 'exchange') return via ? `تبديل${viaSuffix}` : 'تبديل';
   if (tx.ledger === 'account' && !isFeeAccountName(tx.party)) {
@@ -190,18 +190,34 @@ export function filterTransactions(
   });
 }
 
+function applyExchangeToCurrencyBalances(
+  balances: FundBalances | CustomerBalances,
+  fromCurrency: Currency,
+  fromAmount: number,
+  toCurrency: Currency,
+  toAmount: number,
+) {
+  const fromBucket = balances[fromCurrency];
+  const toBucket = balances[toCurrency];
+  if (fromBucket) {
+    fromBucket.payments += fromAmount;
+    fromBucket.balance = fromBucket.receipts - fromBucket.payments;
+  }
+  if (toBucket) {
+    toBucket.receipts += toAmount;
+    toBucket.balance = toBucket.receipts - toBucket.payments;
+  }
+}
+
 function applyTransactionToFundBalance(balances: FundBalances, tx: Transaction) {
   if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount) {
-    const fromBucket = balances[tx.currency];
-    const toBucket = balances[tx.exchangeToCurrency];
-    if (fromBucket) {
-      fromBucket.payments += tx.amount;
-      fromBucket.balance = fromBucket.receipts - fromBucket.payments;
-    }
-    if (toBucket) {
-      toBucket.receipts += tx.exchangeToAmount;
-      toBucket.balance = toBucket.receipts - toBucket.payments;
-    }
+    applyExchangeToCurrencyBalances(
+      balances,
+      tx.currency,
+      tx.amount,
+      tx.exchangeToCurrency,
+      tx.exchangeToAmount,
+    );
     return;
   }
 
@@ -216,7 +232,16 @@ function applyTransactionToFundBalance(balances: FundBalances, tx: Transaction) 
 }
 
 function applyTransactionToCustomerBalance(balances: CustomerBalances, tx: Transaction) {
-  if (tx.kind === 'exchange') return;
+  if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount) {
+    applyExchangeToCurrencyBalances(
+      balances,
+      tx.currency,
+      tx.amount,
+      tx.exchangeToCurrency,
+      tx.exchangeToAmount,
+    );
+    return;
+  }
 
   const bucket = balances[tx.currency];
   if (!bucket) return;
@@ -245,8 +270,7 @@ export function computeAccountBalances(
     tx => tx.fundId === fundId
       && tx.status === 'posted'
       && (tx.ledger ?? 'fund') === 'account'
-      && tx.party === accountName
-      && tx.kind !== 'exchange',
+      && tx.party === accountName,
   );
   for (const tx of posted) applyTransactionToCustomerBalance(balances, tx);
   return balances;

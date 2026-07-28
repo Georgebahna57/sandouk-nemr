@@ -1,15 +1,12 @@
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
-import { CURRENCIES, getFund, getValueInputLabel, isWeightCurrency } from '../config';
+import { getFund } from '../config';
 import {
-  calcExchangeAmount,
   createLinkedAccountAccountOperation,
   createLinkedAccountFundExchange,
   createLinkedAccountFundOperation,
   createTransaction,
   createTransactionBatch,
-  exchangeRateLabel,
-  formatValueWithUnit,
   inferKind,
   todayIso,
 } from '../lib/utils';
@@ -20,8 +17,9 @@ import {
   isShamelFeeEligible,
   sumAmountForCurrency,
 } from '../lib/fees';
-import type { Currency, Fund, FundId, Transaction } from '../types';
+import type { Fund, FundId, Transaction } from '../types';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
+import { defaultExchangeFieldValues, ExchangeFields, parseExchangeFieldValues, type ExchangeFieldValues } from './ExchangeFields';
 import {
   buildFeeFromEditor,
   defaultFeeEditorValue,
@@ -37,10 +35,6 @@ interface Props {
   fundOptions?: Fund[];
   otherAccountNames?: string[];
   onAdd: (tx: Transaction | Transaction[]) => void;
-}
-
-function assetOptionLabel(c: (typeof CURRENCIES)[number]) {
-  return c.kind === 'weight' ? `${c.label} (وزن بالغرام)` : `${c.label} (${c.symbol})`;
 }
 
 export function AccountTransactionForm({
@@ -62,30 +56,27 @@ export function AccountTransactionForm({
   const [fundDirection, setFundDirection] = useState<'in' | 'out'>('out');
   const [targetAccount, setTargetAccount] = useState('');
   const [targetDirection, setTargetDirection] = useState<'in' | 'out'>('in');
-  const [currency, setCurrency] = useState<Currency>('USD');
-  const [amount, setAmount] = useState('');
-  const [toCurrency, setToCurrency] = useState<Currency>('LBP');
-  const [rate, setRate] = useState('');
+  const [exchangeFields, setExchangeFields] = useState<ExchangeFieldValues>(() => defaultExchangeFieldValues());
   const [feeEditor, setFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
 
-  const parsedAmount = Number(amount.replace(/,/g, '')) || 0;
-  const parsedRate = Number(rate.replace(/,/g, '')) || 0;
-  const exchangeResult = calcExchangeAmount(parsedAmount, parsedRate);
+  const exchangeParsed = parseExchangeFieldValues(exchangeFields);
+  const parsedAmount = exchangeParsed.paidAmount;
+  const parsedRate = exchangeParsed.rate;
+  const exchangeResult = exchangeParsed.receivedAmount;
+  const paidCurrency = exchangeFields.paidCurrency;
+  const receivedCurrency = exchangeFields.receivedCurrency;
   const parsedLines = parseAmountLines(lines);
   const feeBaseAmount = isExchange
-    ? (feeEditor.currency === currency ? parsedAmount : feeEditor.currency === toCurrency ? exchangeResult : 0)
+    ? (feeEditor.currency === paidCurrency ? parsedAmount : feeEditor.currency === receivedCurrency ? exchangeResult : 0)
     : sumAmountForCurrency(parsedLines, feeEditor.currency);
   const feeLineCurrencies = isExchange
-    ? [currency, toCurrency]
+    ? [paidCurrency, receivedCurrency]
     : [...new Set(parsedLines.map(item => item.currency))];
   const extraFeeBaseAmount = isExchange
-    ? (extraFeeEditor.currency === currency ? parsedAmount : extraFeeEditor.currency === toCurrency ? exchangeResult : 0)
+    ? (extraFeeEditor.currency === paidCurrency ? parsedAmount : extraFeeEditor.currency === receivedCurrency ? exchangeResult : 0)
     : sumAmountForCurrency(parsedLines, extraFeeEditor.currency);
   const shamelEligible = isShamelFeeEligible(accountName);
-  const amountStep = isWeightCurrency(currency) ? '0.01' : '1';
-  const valueLabel = getValueInputLabel(currency);
-  const toValueLabel = getValueInputLabel(toCurrency);
   const canLinkAccount = otherAccountNames.length > 0;
 
   function reset() {
@@ -98,10 +89,7 @@ export function AccountTransactionForm({
     setFundDirection('out');
     setTargetAccount('');
     setTargetDirection('in');
-    setCurrency('USD');
-    setAmount('');
-    setToCurrency('LBP');
-    setRate('');
+    setExchangeFields(defaultExchangeFieldValues());
     setFeeEditor(defaultFeeEditorValue());
     setExtraFeeEditor(defaultFeeEditorValue());
   }
@@ -132,15 +120,15 @@ export function AccountTransactionForm({
     let payload: Transaction | Transaction[];
 
     if (isExchange) {
-      if (!parsedAmount || !parsedRate || !toCurrency || currency === toCurrency) return;
+      if (!exchangeParsed.valid) return;
       if (transferMode === 'account') return;
       payload = transferMode === 'fund'
         ? createLinkedAccountFundExchange(
           shared,
           accountName,
-          currency,
+          paidCurrency,
           parsedAmount,
-          toCurrency,
+          receivedCurrency,
           parsedRate,
           exchangeResult,
           fundId,
@@ -151,9 +139,9 @@ export function AccountTransactionForm({
           ledger: 'account',
           party: accountName,
           kind: 'exchange',
-          currency,
+          currency: paidCurrency,
           amount: parsedAmount,
-          exchangeToCurrency: toCurrency,
+          exchangeToCurrency: receivedCurrency,
           exchangeRate: parsedRate,
           exchangeToAmount: exchangeResult,
         });
@@ -245,41 +233,7 @@ export function AccountTransactionForm({
       </div>
 
       {isExchange ? (
-        <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-[10px] text-slate-400">من</label>
-              <select value={currency} onChange={e => setCurrency(e.target.value as Currency)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-2 text-xs">
-                {CURRENCIES.map(c => <option key={c.id} value={c.id}>{assetOptionLabel(c)}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] text-slate-400">{valueLabel}</label>
-              <input type="number" min="0" step={amountStep} value={amount} onChange={e => setAmount(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-2 text-xs" required />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-[10px] text-slate-400">إلى</label>
-              <select value={toCurrency} onChange={e => setToCurrency(e.target.value as Currency)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-2 text-xs">
-                {CURRENCIES.filter(c => c.id !== currency).map(c => (
-                  <option key={c.id} value={c.id}>{assetOptionLabel(c)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[10px] text-slate-400">{exchangeRateLabel(currency, toCurrency)}</label>
-              <input type="number" min="0" step="any" value={rate} onChange={e => setRate(e.target.value)}
-                className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-2 text-xs" required />
-            </div>
-          </div>
-          {parsedAmount > 0 && parsedRate > 0 && (
-            <p className="text-xs text-violet-300">{toValueLabel}: {formatValueWithUnit(exchangeResult, toCurrency)}</p>
-          )}
-        </div>
+        <ExchangeFields values={exchangeFields} onChange={setExchangeFields} compact />
       ) : (
         <AmountLinesEditor lines={lines} onChange={setLines} />
       )}

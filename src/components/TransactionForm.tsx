@@ -1,21 +1,19 @@
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
-import { CURRENCIES, getFundAccountName, getValueInputLabel, isWeightCurrency } from '../config';
+import { getFundAccountName } from '../config';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
-  calcExchangeAmount,
   createLinkedFundAccountOperation,
   createLinkedAccountFundExchange,
   createTransaction,
   createTransactionBatch,
-  exchangeRateLabel,
-  formatValueWithUnit,
   formatIntermediary,
   inferKind,
   todayIso,
 } from '../lib/utils';
-import type { Currency, FundId, Transaction } from '../types';
+import type { FundId, Transaction } from '../types';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
+import { defaultExchangeFieldValues, ExchangeFields, parseExchangeFieldValues, type ExchangeFieldValues } from './ExchangeFields';
 import {
   buildFeeFromEditor,
   defaultFeeEditorValue,
@@ -32,10 +30,6 @@ interface Props {
   whatsappDestinations?: string[];
   actorName?: string;
   onPendingWhatsApp?: (payload: { message: string; destinations: string[] }) => void;
-}
-
-function assetOptionLabel(c: (typeof CURRENCIES)[number]) {
-  return c.kind === 'weight' ? `${c.label} (وزن بالغرام)` : `${c.label} (${c.symbol})`;
 }
 
 function LinkedAccountDirectionPicker({
@@ -72,28 +66,25 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('out');
   const [lines, setLines] = useState(createDefaultLines);
-  const [currency, setCurrency] = useState<Currency>('USD');
-  const [amount, setAmount] = useState('');
   const [counterparty, setCounterparty] = useState('');
   const [intermediary, setIntermediary] = useState('');
   const [feeEditor, setFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [note, setNote] = useState('');
   const [isExchange, setIsExchange] = useState(false);
-  const [pending, setPending] = useState(defaultPending);
-  const [sendWhatsApp, setSendWhatsApp] = useState(defaultPending);
-  const [toCurrency, setToCurrency] = useState<Currency>('LBP');
-  const [rate, setRate] = useState('');
+  const [exchangeFields, setExchangeFields] = useState<ExchangeFieldValues>(() => defaultExchangeFieldValues());
   const [linkToAccount, setLinkToAccount] = useState(true);
   const [accountDirection, setAccountDirection] = useState<'in' | 'out'>('out');
+  const [pending, setPending] = useState(defaultPending);
+  const [sendWhatsApp, setSendWhatsApp] = useState(defaultPending);
 
   const fundAccount = getFundAccountName(fundId);
-  const parsedAmount = Number(amount.replace(/,/g, '')) || 0;
-  const parsedRate = Number(rate.replace(/,/g, '')) || 0;
-  const exchangeResult = calcExchangeAmount(parsedAmount, parsedRate);
-  const amountStep = isWeightCurrency(currency) ? '0.01' : '1';
-  const valueLabel = getValueInputLabel(currency);
-  const toValueLabel = getValueInputLabel(toCurrency);
+  const exchangeParsed = parseExchangeFieldValues(exchangeFields);
+  const parsedAmount = exchangeParsed.paidAmount;
+  const parsedRate = exchangeParsed.rate;
+  const exchangeResult = exchangeParsed.receivedAmount;
+  const paidCurrency = exchangeFields.paidCurrency;
+  const receivedCurrency = exchangeFields.receivedCurrency;
 
   const counterpartyTrimmed = counterparty.trim();
   const matchedAccount = counterpartyNames.find(n => n === counterpartyTrimmed);
@@ -103,16 +94,13 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   function reset() {
     setDirection('out');
     setLines(createDefaultLines());
-    setCurrency('USD');
-    setToCurrency('LBP');
-    setAmount('');
-    setRate('');
     setCounterparty('');
     setIntermediary('');
     setFeeEditor(defaultFeeEditorValue());
     setExtraFeeEditor(defaultFeeEditorValue());
     setNote('');
     setIsExchange(false);
+    setExchangeFields(defaultExchangeFieldValues());
     setPending(defaultPending);
     setSendWhatsApp(defaultPending);
     setLinkToAccount(true);
@@ -126,14 +114,14 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
 
   const parsedLines = parseAmountLines(lines);
   const feeBaseAmount = isExchange
-    ? (feeEditor.currency === currency ? parsedAmount : feeEditor.currency === toCurrency ? exchangeResult : 0)
+    ? (feeEditor.currency === paidCurrency ? parsedAmount : feeEditor.currency === receivedCurrency ? exchangeResult : 0)
     : sumAmountForCurrency(parsedLines, feeEditor.currency);
   const feeLineCurrencies = isExchange
-    ? [currency, toCurrency]
+    ? [paidCurrency, receivedCurrency]
     : [...new Set(parsedLines.map(item => item.currency))];
 
   const extraFeeBaseAmount = isExchange
-    ? (extraFeeEditor.currency === currency ? parsedAmount : extraFeeEditor.currency === toCurrency ? exchangeResult : 0)
+    ? (extraFeeEditor.currency === paidCurrency ? parsedAmount : extraFeeEditor.currency === receivedCurrency ? exchangeResult : 0)
     : sumAmountForCurrency(parsedLines, extraFeeEditor.currency);
 
   async function submit(e: React.FormEvent) {
@@ -155,14 +143,14 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     let payload: Transaction | Transaction[];
 
     if (isExchange) {
-      if (!parsedAmount || !parsedRate || !toCurrency || currency === toCurrency) return;
+      if (!exchangeParsed.valid) return;
       payload = linkToAccount && canLink && matchedAccount
         ? createLinkedAccountFundExchange(
           shared,
           matchedAccount,
-          currency,
+          paidCurrency,
           parsedAmount,
-          toCurrency,
+          receivedCurrency,
           parsedRate,
           exchangeResult,
         )
@@ -170,11 +158,11 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
           ...shared,
           ledger: 'fund',
           party: fundAccount,
-          currency,
+          currency: paidCurrency,
           kind: 'exchange',
           amount: parsedAmount,
           counterparty: counterpartyTrimmed || 'تبديل',
-          exchangeToCurrency: toCurrency,
+          exchangeToCurrency: receivedCurrency,
           exchangeRate: parsedRate,
           exchangeToAmount: exchangeResult,
         });
@@ -275,47 +263,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
 
       {isExchange ? (
         <>
-          <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 space-y-3">
-            <p className="text-xs font-medium text-violet-300">تبديل داخل الصندوق</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-xs text-slate-400">من</label>
-                <select value={currency} onChange={e => setCurrency(e.target.value as Currency)}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm">
-                  {CURRENCIES.map(c => <option key={c.id} value={c.id}>{assetOptionLabel(c)}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-slate-400">{valueLabel}</label>
-                <input type="number" min="0" step={amountStep} placeholder="0" value={amount} onChange={e => setAmount(e.target.value)}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" required />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-1 block text-xs text-slate-400">إلى</label>
-                <select value={toCurrency} onChange={e => setToCurrency(e.target.value as Currency)}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm">
-                  {CURRENCIES.filter(c => c.id !== currency).map(c => (
-                    <option key={c.id} value={c.id}>{assetOptionLabel(c)}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-slate-400">{exchangeRateLabel(currency, toCurrency)}</label>
-                <input type="number" min="0" step="any" placeholder="الريت" value={rate} onChange={e => setRate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" required />
-              </div>
-            </div>
-            {parsedAmount > 0 && parsedRate > 0 && (
-              <div className="rounded-xl bg-slate-900/80 px-3 py-2.5 text-sm">
-                <span className="text-slate-400">{toValueLabel}: </span>
-                <span className="font-bold text-violet-300">
-                  {formatValueWithUnit(exchangeResult, toCurrency)}
-                </span>
-              </div>
-            )}
-          </div>
+          <ExchangeFields values={exchangeFields} onChange={setExchangeFields} />
           <input type="text" placeholder="ملاحظة طرف (اختياري)" value={counterparty} onChange={e => setCounterparty(e.target.value)}
             className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" list="counterparty-names" />
           {counterpartyNames.length > 0 && (
