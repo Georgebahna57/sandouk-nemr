@@ -65,6 +65,12 @@ export function calcExchangeAmount(fromAmount: number, rate: number): number {
   return Math.round(fromAmount * rate * 100) / 100;
 }
 
+/** مبلغ الدفع من مبلغ الاستلام والريت (مبلغ الدفع × الريت = الاستلام). */
+export function calcExchangePaidAmount(receivedAmount: number, rate: number): number {
+  if (!receivedAmount || !rate) return 0;
+  return Math.round((receivedAmount / rate) * 100) / 100;
+}
+
 export function describeTransaction(tx: Transaction): string {
   const via = formatIntermediary(tx.intermediary);
   const viaSuffix = via ? ` بيد ${via}` : '';

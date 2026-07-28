@@ -62,7 +62,7 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
   const [exchangeFields, setExchangeFields] = useState<ExchangeFieldValues>(() => (
     clicked?.kind === 'exchange'
       ? exchangeFieldValuesFromTransaction(clicked)
-      : { paidCurrency: 'USD', paidAmount: '', receivedCurrency: 'EUR', rate: '', manualReceived: false, receivedAmount: '' }
+      : { paidCurrency: 'USD', paidAmount: '', receivedCurrency: 'EUR', receivedAmount: '', rate: '', amountEntry: 'paid' as const }
   ));
 
   const fundTxs = useMemo(() => {
