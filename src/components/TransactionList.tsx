@@ -41,11 +41,11 @@ function renderAmounts(txs: Transaction[]) {
     const tx = txs[0];
     return (
       <>
-        <p className="font-bold tabular-nums text-rose-400">
-          -{formatValueWithUnit(tx.amount, tx.currency)}
-        </p>
         <p className="font-bold tabular-nums text-emerald-400">
           +{formatValueWithUnit(tx.exchangeToAmount!, tx.exchangeToCurrency!)}
+        </p>
+        <p className="font-bold tabular-nums text-rose-400">
+          -{formatValueWithUnit(tx.amount, tx.currency)}
         </p>
       </>
     );
@@ -278,7 +278,7 @@ export function TransactionList({
                   اعتماد → الصندوق
                 </button>
               )}
-              {onEdit && lead.kind !== 'exchange' && (
+              {onEdit && (
                 <button type="button" onClick={() => onEdit(lead.id)}
                   className="rounded-lg p-1 text-slate-500 hover:bg-amber-600/20 hover:text-amber-400"
                   title={showApprove ? 'تعديل' : 'تعديل (مسؤول فقط)'}>

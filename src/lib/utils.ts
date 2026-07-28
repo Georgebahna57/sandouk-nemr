@@ -69,7 +69,7 @@ export function describeTransaction(tx: Transaction): string {
   const via = formatIntermediary(tx.intermediary);
   const viaSuffix = via ? ` بيد ${via}` : '';
   if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount && tx.exchangeRate) {
-    return `تبديل — دفع ${formatValueWithUnit(tx.amount, tx.currency)} · استلم ${formatValueWithUnit(tx.exchangeToAmount, tx.exchangeToCurrency)}${viaSuffix}`;
+    return `تبديل — استلم ${formatValueWithUnit(tx.exchangeToAmount, tx.exchangeToCurrency)} · دفع ${formatValueWithUnit(tx.amount, tx.currency)}${viaSuffix}`;
   }
   if (tx.kind === 'exchange') return via ? `تبديل${viaSuffix}` : 'تبديل';
   if (tx.ledger === 'account' && !isFeeAccountName(tx.party)) {
@@ -190,22 +190,23 @@ export function filterTransactions(
   });
 }
 
+/** تبديل: العملة المدفوعة تنقص الرصيد، المستلمة تزيده (صندوق وحساب). */
 function applyExchangeToCurrencyBalances(
   balances: FundBalances | CustomerBalances,
-  fromCurrency: Currency,
-  fromAmount: number,
-  toCurrency: Currency,
-  toAmount: number,
+  paidCurrency: Currency,
+  paidAmount: number,
+  receivedCurrency: Currency,
+  receivedAmount: number,
 ) {
-  const fromBucket = balances[fromCurrency];
-  const toBucket = balances[toCurrency];
-  if (fromBucket) {
-    fromBucket.payments += fromAmount;
-    fromBucket.balance = fromBucket.receipts - fromBucket.payments;
+  const paidBucket = balances[paidCurrency];
+  const receivedBucket = balances[receivedCurrency];
+  if (paidBucket) {
+    paidBucket.payments += paidAmount;
+    paidBucket.balance = paidBucket.receipts - paidBucket.payments;
   }
-  if (toBucket) {
-    toBucket.receipts += toAmount;
-    toBucket.balance = toBucket.receipts - toBucket.payments;
+  if (receivedBucket) {
+    receivedBucket.receipts += receivedAmount;
+    receivedBucket.balance = receivedBucket.receipts - receivedBucket.payments;
   }
 }
 

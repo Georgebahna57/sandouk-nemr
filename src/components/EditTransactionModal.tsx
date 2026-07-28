@@ -18,6 +18,12 @@ import {
 import type { Transaction } from '../types';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
 import type { AmountLine } from './AmountLinesEditor';
+import {
+  ExchangeFields,
+  exchangeFieldValuesFromTransaction,
+  parseExchangeFieldValues,
+  type ExchangeFieldValues,
+} from './ExchangeFields';
 
 interface Props {
   leadId: string;
@@ -39,6 +45,25 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
     () => allTransactions.find(t => t.id === leadId),
     [allTransactions, leadId],
   );
+
+  const isExchange = clicked?.kind === 'exchange';
+
+  const exchangeTxs = useMemo(() => {
+    if (!clicked || !isExchange) return [];
+    const opIds = new Set(getOperationGroupIds(allTransactions, leadId));
+    return allTransactions.filter(t => opIds.has(t.id) && t.kind === 'exchange');
+  }, [allTransactions, leadId, clicked, isExchange]);
+
+  const exchangeFundTx = useMemo(
+    () => exchangeTxs.find(t => (t.ledger ?? 'fund') === 'fund'),
+    [exchangeTxs],
+  );
+
+  const [exchangeFields, setExchangeFields] = useState<ExchangeFieldValues>(() => (
+    clicked?.kind === 'exchange'
+      ? exchangeFieldValuesFromTransaction(clicked)
+      : { paidCurrency: 'USD', paidAmount: '', receivedCurrency: 'EUR', rate: '', manualReceived: false, receivedAmount: '' }
+  ));
 
   const fundTxs = useMemo(() => {
     if (!clicked) return [];
@@ -69,7 +94,22 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
     const linked = linkedAccountTxs[0];
     return linked?.kind === 'payment' ? 'out' : 'in';
   });
-  const [counterparty, setCounterparty] = useState(lead?.counterparty ?? clicked?.party ?? '');
+  const [counterparty, setCounterparty] = useState(() => {
+    const tx = allTransactions.find(t => t.id === leadId);
+    if (!tx) return '';
+    if (tx.kind === 'exchange') {
+      const opIds = new Set(getOperationGroupIds(allTransactions, leadId));
+      const fundEx = allTransactions.find(
+        t => opIds.has(t.id) && t.kind === 'exchange' && (t.ledger ?? 'fund') === 'fund',
+      );
+      return fundEx?.counterparty ?? '';
+    }
+    const opIds = new Set(getOperationGroupIds(allTransactions, leadId));
+    const fundLead = allTransactions.find(
+      t => opIds.has(t.id) && (t.ledger ?? 'fund') === 'fund' && t.kind !== 'exchange',
+    );
+    return fundLead?.counterparty ?? tx.party ?? '';
+  });
   const [intermediary, setIntermediary] = useState(lead?.intermediary ?? clicked?.intermediary ?? '');
   const [feeEditor, setFeeEditor] = useState(() => feeEditorFromParsed(resolveTransactionFee(lead ?? clicked)));
   const [extraFeeEditor, setExtraFeeEditor] = useState(() => feeEditorFromParsed(resolveTransactionExtraFee(lead ?? clicked)));
@@ -93,7 +133,109 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
     linkedAccountTxs[0]?.party ?? (isAccountOnly ? clicked?.party : undefined) ?? counterparty.trim() ?? lead?.counterparty,
   );
 
-  if ((!lead && !isAccountOnly) || (lead?.kind === 'exchange') || (clicked?.kind === 'exchange')) return null;
+  if (!clicked) return null;
+
+  if (isExchange) {
+    const displayExchange = exchangeFundTx ?? clicked;
+    const hasLinkedAccount = exchangeTxs.some(t => t.ledger === 'account');
+
+    function submitExchange(e: React.FormEvent) {
+      e.preventDefault();
+      const parsed = parseExchangeFieldValues(exchangeFields);
+      if (!parsed.valid) return;
+
+      const summaryParts: string[] = [];
+      if (
+        displayExchange.currency !== exchangeFields.paidCurrency
+        || displayExchange.amount !== parsed.paidAmount
+        || displayExchange.exchangeToCurrency !== exchangeFields.receivedCurrency
+        || displayExchange.exchangeToAmount !== parsed.receivedAmount
+      ) {
+        summaryParts.push('تعديل تبديل');
+      }
+      if ((note || '') !== (displayExchange.note || '')) summaryParts.push('تعديل ملاحظة');
+      if (exchangeFundTx && (counterparty || '') !== (exchangeFundTx.counterparty || '')) {
+        summaryParts.push(`طرف: ${exchangeFundTx.counterparty || '—'} → ${counterparty || '—'}`);
+      }
+
+      const updated = exchangeTxs.map(tx => ({
+        ...tx,
+        currency: exchangeFields.paidCurrency,
+        amount: parsed.paidAmount,
+        exchangeToCurrency: exchangeFields.receivedCurrency,
+        exchangeToAmount: parsed.receivedAmount,
+        exchangeRate: parsed.rate,
+        note: note.trim() || undefined,
+        counterparty: tx.ledger === 'account'
+          ? tx.counterparty
+          : counterparty.trim() || undefined,
+      }));
+
+      onSave(updated, summaryParts.join(' | ') || 'تعديل تبديل');
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
+        <form
+          onSubmit={submitExchange}
+          className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-900 p-4 shadow-xl space-y-3 max-h-[90vh] overflow-y-auto"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-violet-400">
+              <Pencil size={16} />
+              <h3 className="font-semibold">تعديل التبديل</h3>
+            </div>
+            <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
+              <X size={18} />
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-500">{getFundAccountName(displayExchange.fundId)}</p>
+          {hasLinkedAccount && (
+            <p className="text-xs text-emerald-400/80">مرتبط بحساب — التعديل ينعكس على الصندوق والحساب</p>
+          )}
+          <p className="text-xs text-slate-500">تاريخ الحركة: {formatDateAr(displayExchange.date)}</p>
+
+          <ExchangeFields values={exchangeFields} onChange={setExchangeFields} />
+
+          {exchangeFundTx && (
+            <input
+              type="text"
+              placeholder="طرف التبديل (اختياري)"
+              value={counterparty}
+              onChange={e => setCounterparty(e.target.value)}
+              className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+            />
+          )}
+
+          <input
+            type="text"
+            placeholder="ملاحظة (اختياري)"
+            value={note}
+            onChange={e => setNote(e.target.value)}
+            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+          />
+
+          {displayExchange.editHistory && displayExchange.editHistory.length > 0 && (
+            <div className="rounded-xl bg-slate-800/80 p-3 text-xs text-slate-500 space-y-1">
+              <p className="font-medium text-slate-400">سجل التعديلات</p>
+              {[...displayExchange.editHistory].reverse().slice(0, 5).map((h, i) => (
+                <p key={i}>
+                  {formatDateAr(h.at.slice(0, 10))} — {h.byName ?? h.byEmail ?? '؟'}: {h.summary}
+                </p>
+              ))}
+            </div>
+          )}
+
+          <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
+            حفظ التعديل
+          </button>
+        </form>
+      </div>
+    );
+  }
+
+  if (!lead && !isAccountOnly) return null;
 
   function accountNetAmount(
     gross: number,
