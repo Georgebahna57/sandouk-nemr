@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Clock, FileText, Eye, Loader2, LogOut, Settings, Share2, Users, Wallet } from 'lucide-react';
+import { BookOpen, Clock, FileText, Eye, Loader2, LogOut, ScrollText, Settings, Share2, Users, Wallet } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { CustomersPanel } from './components/CustomersPanel';
+import { DailyJournalModal } from './components/DailyJournalModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
 import { FundSelector } from './components/FundSelector';
+import { FundTransferForm } from './components/FundTransferForm';
 import { TransactionFiltersBar, hasActiveTransactionFilters } from './components/TransactionFiltersBar';
 import { TransactionForm } from './components/TransactionForm';
 import { TransactionList } from './components/TransactionList';
@@ -72,6 +74,7 @@ export default function App({ user, onLogout }: Props) {
   const [teamMembers, setTeamMembers] = useState<UserProfile[]>([]);
   const [valuationRates, setValuationRates] = useState<ValuationRates>(() => loadValuationRatesLocal());
   const [savingValuationRates, setSavingValuationRates] = useState(false);
+  const [dailyJournalOpen, setDailyJournalOpen] = useState(false);
 
   const {
     profile,
@@ -100,6 +103,7 @@ export default function App({ user, onLogout }: Props) {
     addComment,
     claimTransaction,
     releaseClaim,
+    restoreBackup,
   } = useCloudStore(true, user.email ? {
     userId: user.id,
     email: user.email,
@@ -226,6 +230,11 @@ export default function App({ user, onLogout }: Props) {
         valuationRates={valuationRates}
         onSaveValuationRates={handleSaveValuationRates}
         savingValuationRates={savingValuationRates}
+        appState={state}
+        onRestoreBackup={async (backup, mode) => {
+          await restoreBackup(backup, mode);
+          if (backup.valuationRates) setValuationRates(backup.valuationRates);
+        }}
       />
     );
   }
@@ -316,6 +325,14 @@ export default function App({ user, onLogout }: Props) {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
+              onClick={() => setDailyJournalOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-medium text-sky-400 hover:bg-sky-500/20"
+            >
+              <ScrollText size={12} />
+              يومية
+            </button>
+            <button
+              type="button"
               onClick={() => setBalanceShare({
                 payload: {
                   kind: 'fund',
@@ -359,20 +376,27 @@ export default function App({ user, onLogout }: Props) {
         {view === 'ledger' && (
           <div className="space-y-4">
             {!readOnly && (
-              <TransactionForm
-                fundId={fundId}
-                onAdd={addTransaction}
-                counterpartyNames={accountNames}
-                whatsappDestinations={fundWhatsApp[fundId]}
-                actorName={profile?.displayName}
-                onPendingWhatsApp={payload => setWhatsappPrompt({
-                  ...payload,
-                  title: 'إرسال على واتساب',
-                  subtitle: payload.message.startsWith('⏳')
-                    ? 'تم حفظ العملية بقيد الانتظار'
-                    : 'تم حفظ حركة الصندوق — أرسل الرسالة',
-                })}
-              />
+              <>
+                <TransactionForm
+                  fundId={fundId}
+                  onAdd={addTransaction}
+                  counterpartyNames={accountNames}
+                  whatsappDestinations={fundWhatsApp[fundId]}
+                  actorName={profile?.displayName}
+                  onPendingWhatsApp={payload => setWhatsappPrompt({
+                    ...payload,
+                    title: 'إرسال على واتساب',
+                    subtitle: payload.message.startsWith('⏳')
+                      ? 'تم حفظ العملية بقيد الانتظار'
+                      : 'تم حفظ حركة الصندوق — أرسل الرسالة',
+                  })}
+                />
+                <FundTransferForm
+                  fromFundId={fundId}
+                  fundOptions={visibleFunds.filter(f => canEdit(f.id))}
+                  onAdd={addTransaction}
+                />
+              </>
             )}
             <TransactionFiltersBar filters={txFilters} onChange={setTxFilters} />
             <div>
@@ -531,6 +555,15 @@ export default function App({ user, onLogout }: Props) {
           title={whatsappPrompt.title}
           subtitle={whatsappPrompt.subtitle}
           onClose={() => setWhatsappPrompt(null)}
+        />
+      )}
+
+      {dailyJournalOpen && (
+        <DailyJournalModal
+          fundId={fundId}
+          transactions={state.transactions}
+          defaultDate={today}
+          onClose={() => setDailyJournalOpen(false)}
         />
       )}
     </div>

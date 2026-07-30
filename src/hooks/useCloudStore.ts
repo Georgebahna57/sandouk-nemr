@@ -11,6 +11,8 @@ import {
   upsertCustomer,
   upsertTransactions,
 } from '../lib/db';
+import { saveValuationRates } from '../lib/appSettings';
+import type { AppBackup } from '../lib/backup';
 import {
   appendEditHistory,
   applyCustomerRename,
@@ -326,6 +328,47 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     await runSync(() => patchTransactions(ids, patch));
   }, [runSync]);
 
+  const restoreBackup = useCallback(async (backup: AppBackup, mode: 'merge' | 'replace') => {
+    setSyncing(true);
+    setError(null);
+    try {
+      if (mode === 'replace') {
+        let txIds: string[] = [];
+        let billIds: string[] = [];
+        let customerIds: string[] = [];
+        setState(prev => {
+          txIds = prev.transactions.map(t => t.id);
+          billIds = prev.bills.map(b => b.id);
+          customerIds = prev.customers.map(c => c.id);
+          return prev;
+        });
+        if (txIds.length) await removeTransactions(txIds);
+        await Promise.all(billIds.map(id => removeBill(id)));
+        await Promise.all(customerIds.map(id => removeCustomer(id)));
+      }
+
+      await importAppState({
+        transactions: backup.transactions,
+        bills: backup.bills,
+        customers: backup.customers,
+      });
+
+      if (backup.valuationRates) {
+        await saveValuationRates(backup.valuationRates);
+      }
+
+      const cloud = await fetchAppState();
+      const { transactions: withoutOrphans, removeIds } = purgeOrphanedLinkedTransactions(cloud.transactions);
+      if (removeIds.length) await removeTransactions(removeIds);
+      setState({ ...cloud, transactions: withoutOrphans.length ? withoutOrphans : cloud.transactions });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل استرجاع النسخة');
+      throw err;
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
   return {
     state,
     loading,
@@ -343,5 +386,6 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     addComment,
     claimTransaction,
     releaseClaim,
+    restoreBackup,
   };
 }

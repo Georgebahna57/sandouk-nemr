@@ -6,6 +6,7 @@ import {
   downloadAccountStatementCsv,
   printAccountStatement,
   statementActiveCurrencies,
+  type StatementKindFilter,
 } from '../lib/accountStatement';
 import { formatDateAr, formatValueWithUnit } from '../lib/utils';
 import type { Currency, FundId, Transaction } from '../types';
@@ -17,6 +18,13 @@ interface Props {
   reconciledThroughDate?: string;
   onClose: () => void;
 }
+
+const KIND_FILTERS: { id: StatementKindFilter; label: string }[] = [
+  { id: 'all', label: 'الكل' },
+  { id: 'receipt', label: 'وارد' },
+  { id: 'payment', label: 'صادر' },
+  { id: 'exchange', label: 'تبديل' },
+];
 
 export function AccountStatementModal({
   accountName,
@@ -32,18 +40,20 @@ export function AccountStatementModal({
   const [currency, setCurrency] = useState<Currency>(currencies[0] ?? 'USD');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [kindFilter, setKindFilter] = useState<StatementKindFilter>('all');
 
-  const rows = useMemo(
+  const build = useMemo(
     () => buildAccountStatementRows(transactions, fundId, accountName, {
       currency,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       reconciledThroughDate,
+      kindFilter,
     }),
-    [transactions, fundId, accountName, currency, dateFrom, dateTo, reconciledThroughDate],
+    [transactions, fundId, accountName, currency, dateFrom, dateTo, reconciledThroughDate, kindFilter],
   );
 
-  const filteredRows = rows.filter(r => r.currency === currency);
+  const filteredRows = build.rows.filter(r => r.currency === currency);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -93,25 +103,64 @@ export function AccountStatementModal({
                 className="w-full rounded-lg border border-slate-600 bg-slate-800 px-2 py-2 text-xs"
               />
             </div>
-            <div className="flex items-end gap-2">
+            <div>
+              <label className="mb-1 block text-[10px] text-slate-500">نوع الحركة</label>
+              <select
+                value={kindFilter}
+                onChange={e => setKindFilter(e.target.value as StatementKindFilter)}
+                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-2 py-2 text-xs"
+              >
+                {KIND_FILTERS.map(f => (
+                  <option key={f.id} value={f.id}>{f.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex gap-3 text-xs">
+              <span className="text-slate-500">
+                افتتاح: <span className="font-semibold text-slate-200">{formatValueWithUnit(build.openingBalance, currency)}</span>
+              </span>
+              <span className="text-slate-500">
+                إغلاق: <span className="font-semibold text-emerald-400">{formatValueWithUnit(build.closingBalance, currency)}</span>
+              </span>
+            </div>
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => downloadAccountStatementCsv(accountName, fundId, rows, currency)}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2 py-2 text-xs font-medium text-white hover:bg-emerald-500"
+                onClick={() => downloadAccountStatementCsv(
+                  accountName,
+                  fundId,
+                  build,
+                  currency,
+                  dateFrom || undefined,
+                  dateTo || undefined,
+                )}
+                className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-2 text-xs font-medium text-white hover:bg-emerald-500"
               >
                 <Download size={14} />
                 Excel
               </button>
               <button
                 type="button"
-                onClick={() => printAccountStatement(accountName, fundId, rows, currency, reconciledThroughDate)}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-slate-600 px-2 py-2 text-xs text-slate-200 hover:bg-slate-800"
+                onClick={() => printAccountStatement(
+                  accountName,
+                  fundId,
+                  build,
+                  currency,
+                  reconciledThroughDate,
+                  dateFrom || undefined,
+                  dateTo || undefined,
+                )}
+                className="flex items-center gap-1 rounded-lg border border-slate-600 px-2 py-2 text-xs text-slate-200 hover:bg-slate-800"
               >
                 <Printer size={14} />
                 PDF
               </button>
             </div>
           </div>
+
           {reconciledThroughDate && (
             <p className="text-[10px] text-emerald-400/90">
               مطابق حتى {formatDateAr(reconciledThroughDate)}
@@ -138,11 +187,15 @@ export function AccountStatementModal({
                 {filteredRows.map(row => (
                   <tr
                     key={row.id}
-                    className={`border-b border-slate-800/80 ${row.reconciled ? 'bg-emerald-500/5' : ''}`}
+                    className={`border-b border-slate-800/80 ${row.reconciled ? 'bg-emerald-500/5' : ''} ${row.id === 'opening-balance' ? 'bg-sky-500/10' : ''}`}
                   >
-                    <td className="py-2 text-slate-400 whitespace-nowrap">{formatDateAr(row.date)}</td>
+                    <td className="py-2 text-slate-400 whitespace-nowrap">
+                      {row.id === 'opening-balance' ? '—' : formatDateAr(row.date)}
+                    </td>
                     <td className="py-2 pr-2">
-                      <span className="text-slate-200">{row.description}</span>
+                      <span className={row.id === 'opening-balance' ? 'font-semibold text-sky-300' : 'text-slate-200'}>
+                        {row.description}
+                      </span>
                       {row.note && <p className="text-[10px] text-slate-500">{row.note}</p>}
                     </td>
                     <td className="py-2 text-rose-400 tabular-nums whitespace-nowrap">

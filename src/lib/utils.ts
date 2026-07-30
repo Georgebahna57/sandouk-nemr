@@ -1,4 +1,4 @@
-import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFundAccountName, isFundAccountName, isWeightCurrency } from '../config';
+import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isWeightCurrency } from '../config';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
 import type {
   AppState,
@@ -656,6 +656,46 @@ export function createLinkedAccountFundExchange(
       counterparty: undefined,
       intermediary: undefined,
       fee: undefined,
+    }),
+  ];
+}
+
+/** تحويل بين صندوقين — صادر من المصدر ووارد على الوجهة */
+export function createLinkedFundTransfer(
+  shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty' | 'currency' | 'amount'>,
+  fromFundId: FundId,
+  toFundId: FundId,
+  currency: Currency,
+  amount: number,
+): Transaction[] {
+  const linkId = crypto.randomUUID();
+  const fromAccount = getFundAccountName(fromFundId);
+  const toAccount = getFundAccountName(toFundId);
+
+  return [
+    createTransaction({
+      ...shared,
+      fundId: fromFundId,
+      ledger: 'fund',
+      party: fromAccount,
+      kind: 'payment',
+      currency,
+      amount,
+      counterparty: `→ ${getFund(toFundId).name}`,
+      linkId,
+      note: shared.note ?? `تحويل إلى ${getFund(toFundId).name}`,
+    }),
+    createTransaction({
+      ...shared,
+      fundId: toFundId,
+      ledger: 'fund',
+      party: toAccount,
+      kind: 'receipt',
+      currency,
+      amount,
+      counterparty: `← ${getFund(fromFundId).name}`,
+      linkId,
+      note: shared.note ?? `تحويل من ${getFund(fromFundId).name}`,
     }),
   ];
 }

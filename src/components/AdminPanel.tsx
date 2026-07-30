@@ -4,7 +4,10 @@ import { FUNDS } from '../config';
 import { fetchFundWhatsAppPhones, saveFundWhatsAppPhones, type FundWhatsAppMap } from '../lib/fundSettings';
 import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
 import { ValuationRatesEditor } from './ValuationRatesEditor';
+import { BackupSection } from './BackupSection';
 import type { ValuationRates } from '../lib/valuationRates';
+import type { AppBackup } from '../lib/backup';
+import type { AppState } from '../types';
 import {
   fetchAllPermissions,
   fetchAllProfiles,
@@ -25,6 +28,8 @@ interface Props {
   valuationRates: ValuationRates;
   onSaveValuationRates: (rates: ValuationRates) => void | Promise<void>;
   savingValuationRates?: boolean;
+  appState: AppState;
+  onRestoreBackup: (backup: AppBackup, mode: 'merge' | 'replace') => Promise<void>;
 }
 
 type FundWhatsAppTextMap = Partial<Record<FundId, string>>;
@@ -64,7 +69,7 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
@@ -224,6 +229,12 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
           {error ?? success}
         </div>
       )}
+
+      <BackupSection
+        appState={appState}
+        valuationRates={valuationRates}
+        onRestore={onRestoreBackup}
+      />
 
       <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
         <div className="mb-3 flex items-center gap-2">

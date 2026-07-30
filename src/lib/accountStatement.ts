@@ -15,11 +15,20 @@ export interface AccountStatementRow {
   note?: string;
 }
 
+export type StatementKindFilter = 'all' | 'receipt' | 'payment' | 'exchange';
+
 export interface AccountStatementOptions {
   dateFrom?: string;
   dateTo?: string;
   currency?: Currency;
   reconciledThroughDate?: string;
+  kindFilter?: StatementKindFilter;
+}
+
+export interface AccountStatementBuildResult {
+  rows: AccountStatementRow[];
+  openingBalance: number;
+  closingBalance: number;
 }
 
 function accountTransactionsForStatement(
@@ -45,13 +54,21 @@ function sortStatementTxs(txs: Transaction[]): Transaction[] {
 }
 
 
+function matchesKindFilter(tx: Transaction, filter: StatementKindFilter): boolean {
+  if (filter === 'all') return true;
+  return tx.kind === filter;
+}
+
 export function buildAccountStatementRows(
   transactions: Transaction[],
   fundId: FundId,
   accountName: string,
   opts: AccountStatementOptions = {},
-): AccountStatementRow[] {
-  const allTxs = accountTransactionsForStatement(transactions, fundId, accountName);
+): AccountStatementBuildResult {
+  const kindFilter = opts.kindFilter ?? 'all';
+  const allTxs = accountTransactionsForStatement(transactions, fundId, accountName).filter(
+    tx => matchesKindFilter(tx, kindFilter),
+  );
   const sortedAll = sortStatementTxs(allTxs);
 
   const runningByCurrency: Partial<Record<Currency, number>> = {};
@@ -66,7 +83,20 @@ export function buildAccountStatementRows(
   }
   if (opts.dateTo) txs = txs.filter(tx => tx.date <= opts.dateTo!);
 
+  const openingBalance = opts.currency ? (runningByCurrency[opts.currency] ?? 0) : 0;
+
   const rows: AccountStatementRow[] = [];
+
+  if (opts.currency && dateFrom) {
+    rows.push({
+      id: 'opening-balance',
+      date: dateFrom ?? (txs[0]?.date ?? ''),
+      description: 'رصيد افتتاحي',
+      currency: opts.currency,
+      runningBalance: openingBalance,
+      reconciled: true,
+    });
+  }
 
   for (const item of groupTransactionsForDisplay(txs)) {
     const groupTxs = item.kind === 'batch' ? item.transactions : [item.transaction];
@@ -129,7 +159,11 @@ export function buildAccountStatementRows(
     }
   }
 
-  return rows;
+  const closingBalance = opts.currency
+    ? (runningByCurrency[opts.currency] ?? openingBalance)
+    : 0;
+
+  return { rows, openingBalance, closingBalance };
 }
 
 function applyStatementTxToRunning(
@@ -179,14 +213,21 @@ function csvEscape(value: string): string {
 export function buildAccountStatementCsv(
   accountName: string,
   fundId: FundId,
-  rows: AccountStatementRow[],
+  build: AccountStatementBuildResult,
   currency: Currency,
+  dateFrom?: string,
+  dateTo?: string,
 ): string {
   const fundName = getFund(fundId).name;
+  const rows = build.rows;
   const lines = [
     `كشف حساب,${accountName}`,
     `الصندوق,${fundName}`,
     `العملة,${getCurrencyLabel(currency)}`,
+    ...(dateFrom ? [`من,${formatDateAr(dateFrom)}`] : []),
+    ...(dateTo ? [`إلى,${formatDateAr(dateTo)}`] : []),
+    `رصيد افتتاحي,${formatStatementAmount(build.openingBalance, currency)}`,
+    `رصيد إغلاق,${formatStatementAmount(build.closingBalance, currency)}`,
     '',
     'التاريخ,البيان,مدين,دائن,الرصيد,مطابق,ملاحظة',
   ];
@@ -209,10 +250,12 @@ export function buildAccountStatementCsv(
 export function downloadAccountStatementCsv(
   accountName: string,
   fundId: FundId,
-  rows: AccountStatementRow[],
+  build: AccountStatementBuildResult,
   currency: Currency,
+  dateFrom?: string,
+  dateTo?: string,
 ): void {
-  const csv = buildAccountStatementCsv(accountName, fundId, rows, currency);
+  const csv = buildAccountStatementCsv(accountName, fundId, build, currency, dateFrom, dateTo);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -225,15 +268,22 @@ export function downloadAccountStatementCsv(
 export function buildAccountStatementPrintHtml(
   accountName: string,
   fundId: FundId,
-  rows: AccountStatementRow[],
+  build: AccountStatementBuildResult,
   currency: Currency,
   reconciledThroughDate?: string,
+  dateFrom?: string,
+  dateTo?: string,
 ): string {
   const fundName = getFund(fundId).name;
-  const filtered = rows.filter(r => r.currency === currency);
+  const filtered = build.rows.filter(r => r.currency === currency);
+  const period = [
+    dateFrom ? `من ${formatDateAr(dateFrom)}` : '',
+    dateTo ? `إلى ${formatDateAr(dateTo)}` : '',
+  ].filter(Boolean).join(' · ');
+
   const bodyRows = filtered.map(row => `
-    <tr class="${row.reconciled ? 'reconciled' : ''}">
-      <td>${formatDateAr(row.date)}</td>
+    <tr class="${row.reconciled ? 'reconciled' : ''} ${row.id === 'opening-balance' ? 'opening' : ''}">
+      <td>${row.id === 'opening-balance' ? '—' : formatDateAr(row.date)}</td>
       <td>${row.description}${row.note ? `<br><small>${row.note}</small>` : ''}</td>
       <td class="num debit">${row.debit != null ? formatValueWithUnit(row.debit, currency) : '—'}</td>
       <td class="num credit">${row.credit != null ? formatValueWithUnit(row.credit, currency) : '—'}</td>
@@ -251,6 +301,8 @@ export function buildAccountStatementPrintHtml(
     body { font-family: Tahoma, Arial, sans-serif; padding: 24px; color: #111; }
     h1 { font-size: 20px; margin: 0 0 4px; }
     .meta { color: #555; font-size: 13px; margin-bottom: 16px; }
+    .summary { display: flex; gap: 24px; margin-bottom: 16px; font-size: 13px; }
+    .summary span { font-weight: bold; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: right; vertical-align: top; }
     th { background: #f3f4f6; }
@@ -258,6 +310,7 @@ export function buildAccountStatementPrintHtml(
     .debit { color: #b91c1c; }
     .credit { color: #047857; }
     tr.reconciled td { background: #f0fdf4; }
+    tr.opening td { background: #eff6ff; font-weight: 600; }
     @media print { body { padding: 0; } }
   </style>
 </head>
@@ -265,7 +318,12 @@ export function buildAccountStatementPrintHtml(
   <h1>كشف حساب — ${accountName}</h1>
   <div class="meta">
     ${fundName} · ${getCurrencyLabel(currency)}
+    ${period ? ` · ${period}` : ''}
     ${reconciledThroughDate ? ` · مطابق حتى ${formatDateAr(reconciledThroughDate)}` : ''}
+  </div>
+  <div class="summary">
+    <div>رصيد افتتاحي: <span>${formatValueWithUnit(build.openingBalance, currency)}</span></div>
+    <div>رصيد إغلاق: <span>${formatValueWithUnit(build.closingBalance, currency)}</span></div>
   </div>
   <table>
     <thead>
@@ -288,11 +346,21 @@ export function buildAccountStatementPrintHtml(
 export function printAccountStatement(
   accountName: string,
   fundId: FundId,
-  rows: AccountStatementRow[],
+  build: AccountStatementBuildResult,
   currency: Currency,
   reconciledThroughDate?: string,
+  dateFrom?: string,
+  dateTo?: string,
 ): void {
-  const html = buildAccountStatementPrintHtml(accountName, fundId, rows, currency, reconciledThroughDate);
+  const html = buildAccountStatementPrintHtml(
+    accountName,
+    fundId,
+    build,
+    currency,
+    reconciledThroughDate,
+    dateFrom,
+    dateTo,
+  );
   const win = window.open('', '_blank');
   if (!win) return;
   win.document.write(html);
