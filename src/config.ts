@@ -52,6 +52,13 @@ export function getFundAccountName(fundId: FundId): string {
   return fund.name;
 }
 
+/** الطرف/الحساب الافتراضي عند إضافة حركة — حلب لصندوق الفيلات إذا موجود */
+export function defaultCounterpartyForFund(fundId: FundId, accountNames: readonly string[]): string {
+  if (!isHalabFleilatFund(fundId)) return '';
+  const preferred = getFund(fundId).shortName;
+  return accountNames.includes(preferred) ? preferred : '';
+}
+
 const FUND_ACCOUNT_NAMES = new Set(
   FUNDS.flatMap(f => (f.id === 'halabFleilat' ? [f.shortName, f.name] : [f.name])),
 );

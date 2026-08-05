@@ -1,6 +1,6 @@
 import { Plus, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { getFundAccountName, isHalabFleilatFund } from '../config';
+import { useEffect, useMemo, useState } from 'react';
+import { getFundAccountName, defaultCounterpartyForFund, isHalabFleilatFund } from '../config';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
   createLinkedFundAccountOperation,
@@ -69,7 +69,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('out');
   const [lines, setLines] = useState(createDefaultLines);
-  const [counterparty, setCounterparty] = useState('');
+  const [counterparty, setCounterparty] = useState(() => defaultCounterpartyForFund(fundId, counterpartyNames));
   const [intermediary, setIntermediary] = useState('');
   const [feeEditor, setFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
@@ -103,10 +103,16 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     lines: parsedLines,
   }), [isExchange, exchangeParsed.receivedAmount, receivedCurrency, parsedLines]);
 
+  useEffect(() => {
+    const next = defaultCounterpartyForFund(fundId, counterpartyNames);
+    if (!next) return;
+    setCounterparty(prev => prev || next);
+  }, [fundId, counterpartyNames]);
+
   function reset() {
     setDirection('out');
     setLines(createDefaultLines());
-    setCounterparty('');
+    setCounterparty(defaultCounterpartyForFund(fundId, counterpartyNames));
     setIntermediary('');
     setFeeEditor(defaultFeeEditorValue());
     setExtraFeeEditor(defaultFeeEditorValue());
@@ -238,7 +244,10 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     return (
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setCounterparty(prev => prev || defaultCounterpartyForFund(fundId, counterpartyNames));
+          setOpen(true);
+        }}
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 font-semibold text-slate-900 transition hover:bg-amber-400"
       >
         <Plus size={18} />

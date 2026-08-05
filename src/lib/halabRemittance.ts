@@ -1,5 +1,5 @@
 import { getCurrencyLabel } from '../config';
-import { formatValueWithUnit } from './utils';
+import { formatValueWithUnit, todayIso } from './utils';
 import type { Currency, HalabRemittanceFields, Transaction } from '../types';
 
 export const HALAB_REMITTANCE_LABELS: { key: keyof HalabRemittanceFields; label: string }[] = [
@@ -36,7 +36,7 @@ export interface HalabDeliverySource {
 
 export function defaultHalabRemittanceFields(): HalabRemittanceFields {
   return {
-    transferDate: '',
+    transferDate: todayIso(),
     companyName: '',
     publicNumber: '',
     sender: '',
