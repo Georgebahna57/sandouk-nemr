@@ -13,6 +13,7 @@ import { TransactionList } from './components/TransactionList';
 import { AdminPanel } from './components/AdminPanel';
 import { ApproveTransactionModal } from './components/ApproveTransactionModal';
 import { BalanceShareImageModal } from './components/BalanceShareImageModal';
+import { PendingAmountTotals } from './components/PendingAmountTotals';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund } from './config';
 import { useCloudStore } from './hooks/useCloudStore';
@@ -490,6 +491,9 @@ export default function App({ user, onLogout }: Props) {
                   </button>
                 )}
               </div>
+            )}
+            {filteredPending.length > 0 && (
+              <PendingAmountTotals transactions={filteredPending} />
             )}
             <TransactionList
               transactions={filteredPending}

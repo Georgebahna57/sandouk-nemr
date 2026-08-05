@@ -991,6 +991,42 @@ export type TransactionDisplayItem =
   | { kind: 'single'; transaction: Transaction }
   | { kind: 'batch'; transactions: Transaction[] };
 
+export type PendingAmountRow = {
+  currency: Currency;
+  receipts: number;
+  payments: number;
+};
+
+/** مجموع مبالغ العمليات بقيد الانتظار — حسب العملة */
+export function summarizePendingAmounts(transactions: Transaction[]): PendingAmountRow[] {
+  const totals = new Map<Currency, { receipts: number; payments: number }>();
+
+  function bump(currency: Currency, field: 'receipts' | 'payments', amount: number) {
+    if (!amount) return;
+    const bucket = totals.get(currency) ?? { receipts: 0, payments: 0 };
+    bucket[field] += amount;
+    totals.set(currency, bucket);
+  }
+
+  for (const tx of transactions) {
+    if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount != null) {
+      bump(tx.currency, 'payments', tx.amount);
+      bump(tx.exchangeToCurrency, 'receipts', tx.exchangeToAmount);
+      continue;
+    }
+    if (tx.kind === 'receipt') bump(tx.currency, 'receipts', tx.amount);
+    else if (tx.kind === 'payment') bump(tx.currency, 'payments', tx.amount);
+  }
+
+  return CURRENCIES
+    .map(c => {
+      const t = totals.get(c.id);
+      if (!t || (t.receipts === 0 && t.payments === 0)) return null;
+      return { currency: c.id, receipts: t.receipts, payments: t.payments };
+    })
+    .filter((row): row is PendingAmountRow => row != null);
+}
+
 /** يعرض العمليات متعددة البنود كبطاقة واحدة */
 export function groupTransactionsForDisplay(transactions: Transaction[]): TransactionDisplayItem[] {
   const seen = new Set<string>();
