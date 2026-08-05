@@ -101,6 +101,11 @@ export function OpeningBalanceSection({ appState, onAdd }: Props) {
           <p className="font-medium text-slate-200">رصيد افتتاحي</p>
           <p className="text-xs text-slate-500">
             سجّل الرصيد قبل البرنامج — لنا = زايد، لهم = ناقص
+            {fundId === 'halabFleilat' && (
+              <span className="block mt-1 text-sky-400/90">
+                حلب: الدولار — دفع يزيد النقص واستلام ينقصه · السوري — دفع يزيد «لنا» واستلام ينقصه
+              </span>
+            )}
           </p>
         </div>
       </div>

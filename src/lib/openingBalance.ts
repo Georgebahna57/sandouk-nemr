@@ -1,4 +1,5 @@
 import { getFund, getFundAccountName, isHalabFleilatFund } from '../config';
+import { openingBalanceKindForDelta } from './halabBalance';
 import type { Currency, FundBalances, FundId, Transaction } from '../types';
 import { computeAccountBalances, computeBalances, createTransaction } from './utils';
 
@@ -57,7 +58,7 @@ export function buildOpeningBalanceTransactions(
     deltas.push({
       currency: line.currency,
       amount: Math.abs(delta),
-      kind: delta > 0 ? 'receipt' : 'payment',
+      kind: openingBalanceKindForDelta(fundId, line.currency, delta),
     });
   }
 

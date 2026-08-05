@@ -1,4 +1,10 @@
 import { getCurrencyLabel, getFund, isWeightCurrency } from '../config';
+import {
+  halabExchangePaidDelta,
+  halabExchangeReceivedDelta,
+  halabStatementBalanceDelta,
+  usesHalabStatementBalance,
+} from './halabBalance';
 import type { Currency, FundId, Transaction } from '../types';
 import { isTransactionReconciled } from './customerMeta';
 import { describeTransaction, filterAccountViewTransactions, formatAmount, formatDateAr, formatValueWithUnit, groupTransactionsForDisplay } from './utils';
@@ -73,7 +79,7 @@ export function buildAccountStatementRows(
   if (dateFrom) {
     for (const tx of sortedAll) {
       if (tx.date >= dateFrom) break;
-      applyStatementTxToRunning(runningByCurrency, tx, opts.currency);
+      applyStatementTxToRunning(runningByCurrency, tx, opts.currency, fundId, accountName);
     }
     txs = sortedAll.filter(tx => tx.date >= dateFrom);
   }
@@ -108,27 +114,36 @@ export function buildAccountStatementRows(
       }
 
       if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount) {
+        const halabStmt = usesHalabStatementBalance(fundId, accountName);
         if (!opts.currency || tx.currency === opts.currency) {
-          runningByCurrency[tx.currency] = (runningByCurrency[tx.currency] ?? 0) - tx.amount;
+          const delta = halabStmt
+            ? halabExchangePaidDelta(fundId, tx.currency, tx.amount)
+            : -tx.amount;
+          runningByCurrency[tx.currency] = (runningByCurrency[tx.currency] ?? 0) + delta;
           rows.push({
             id: `${tx.id}-from`,
             date: tx.date,
             description,
             currency: tx.currency,
-            debit: tx.amount,
+            debit: delta < 0 ? Math.abs(delta) : undefined,
+            credit: delta > 0 ? delta : undefined,
             runningBalance: runningByCurrency[tx.currency] ?? 0,
             reconciled: isTransactionReconciled(tx.date, opts.reconciledThroughDate),
             note: tx.note,
           });
         }
         if (!opts.currency || tx.exchangeToCurrency === opts.currency) {
-          runningByCurrency[tx.exchangeToCurrency] = (runningByCurrency[tx.exchangeToCurrency] ?? 0) + tx.exchangeToAmount;
+          const delta = halabStmt
+            ? halabExchangeReceivedDelta(fundId, tx.exchangeToCurrency, tx.exchangeToAmount)
+            : tx.exchangeToAmount;
+          runningByCurrency[tx.exchangeToCurrency] = (runningByCurrency[tx.exchangeToCurrency] ?? 0) + delta;
           rows.push({
             id: `${tx.id}-to`,
             date: tx.date,
             description: `↳ ${getCurrencyLabel(tx.exchangeToCurrency)}`,
             currency: tx.exchangeToCurrency,
-            credit: tx.exchangeToAmount,
+            debit: delta < 0 ? Math.abs(delta) : undefined,
+            credit: delta > 0 ? delta : undefined,
             runningBalance: runningByCurrency[tx.exchangeToCurrency] ?? 0,
             reconciled: isTransactionReconciled(tx.date, opts.reconciledThroughDate),
             note: tx.note,
@@ -137,17 +152,19 @@ export function buildAccountStatementRows(
         continue;
       }
 
-      runningByCurrency[tx.currency] = tx.kind === 'receipt'
-        ? (runningByCurrency[tx.currency] ?? 0) + tx.amount
-        : (runningByCurrency[tx.currency] ?? 0) - tx.amount;
+      const halabStmt = usesHalabStatementBalance(fundId, accountName);
+      const delta = halabStmt
+        ? halabStatementBalanceDelta(fundId, tx.currency, tx.kind as 'receipt' | 'payment', tx.amount)
+        : (tx.kind === 'receipt' ? tx.amount : -tx.amount);
+      runningByCurrency[tx.currency] = (runningByCurrency[tx.currency] ?? 0) + delta;
 
       rows.push({
         id: tx.id,
         date: tx.date,
         description,
         currency: tx.currency,
-        debit: tx.kind === 'payment' ? tx.amount : undefined,
-        credit: tx.kind === 'receipt' ? tx.amount : undefined,
+        debit: delta < 0 ? Math.abs(delta) : undefined,
+        credit: delta > 0 ? delta : undefined,
         runningBalance: runningByCurrency[tx.currency] ?? 0,
         reconciled: isTransactionReconciled(tx.date, opts.reconciledThroughDate),
         note: tx.note,
@@ -166,20 +183,30 @@ function applyStatementTxToRunning(
   runningByCurrency: Partial<Record<Currency, number>>,
   tx: Transaction,
   currencyFilter?: Currency,
+  fundId?: FundId,
+  accountName?: string,
 ): void {
+  const halabStmt = fundId && accountName && usesHalabStatementBalance(fundId, accountName);
   if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount) {
     if (!currencyFilter || tx.currency === currencyFilter) {
-      runningByCurrency[tx.currency] = (runningByCurrency[tx.currency] ?? 0) - tx.amount;
+      const delta = halabStmt
+        ? halabExchangePaidDelta(fundId!, tx.currency, tx.amount)
+        : -tx.amount;
+      runningByCurrency[tx.currency] = (runningByCurrency[tx.currency] ?? 0) + delta;
     }
     if (!currencyFilter || tx.exchangeToCurrency === currencyFilter) {
-      runningByCurrency[tx.exchangeToCurrency] = (runningByCurrency[tx.exchangeToCurrency] ?? 0) + tx.exchangeToAmount;
+      const delta = halabStmt
+        ? halabExchangeReceivedDelta(fundId!, tx.exchangeToCurrency, tx.exchangeToAmount)
+        : tx.exchangeToAmount;
+      runningByCurrency[tx.exchangeToCurrency] = (runningByCurrency[tx.exchangeToCurrency] ?? 0) + delta;
     }
     return;
   }
   if (currencyFilter && tx.currency !== currencyFilter) return;
-  runningByCurrency[tx.currency] = tx.kind === 'receipt'
-    ? (runningByCurrency[tx.currency] ?? 0) + tx.amount
-    : (runningByCurrency[tx.currency] ?? 0) - tx.amount;
+  const delta = halabStmt
+    ? halabStatementBalanceDelta(fundId!, tx.currency, tx.kind as 'receipt' | 'payment', tx.amount)
+    : (tx.kind === 'receipt' ? tx.amount : -tx.amount);
+  runningByCurrency[tx.currency] = (runningByCurrency[tx.currency] ?? 0) + delta;
 }
 
 export function statementActiveCurrencies(

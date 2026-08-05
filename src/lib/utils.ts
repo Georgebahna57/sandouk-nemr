@@ -1,4 +1,5 @@
 import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabFundPartyName, isHalabLinkedAccountName, isWeightCurrency } from '../config';
+import { computeHalabAwareBalance } from './halabBalance';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
 import type {
   AppState,
@@ -260,27 +261,32 @@ export function filterTransactions(
   });
 }
 
-/** تبديل: العملة المدفوعة تنقص الرصيد، المستلمة تزيده (صندوق وحساب). */
+/** تبديل: العملة المدفوعة تنقص الرصيد، المستلمة تزيده (صندوق وحساب) — مع استثناء السوري على حلب. */
 function applyExchangeToCurrencyBalances(
   balances: FundBalances | CustomerBalances,
   paidCurrency: Currency,
   paidAmount: number,
   receivedCurrency: Currency,
   receivedAmount: number,
+  fundId?: FundId,
 ) {
   const paidBucket = balances[paidCurrency];
   const receivedBucket = balances[receivedCurrency];
   if (paidBucket) {
     paidBucket.payments += paidAmount;
-    paidBucket.balance = paidBucket.receipts - paidBucket.payments;
+    paidBucket.balance = fundId
+      ? computeHalabAwareBalance(paidBucket.receipts, paidBucket.payments, fundId, paidCurrency)
+      : paidBucket.receipts - paidBucket.payments;
   }
   if (receivedBucket) {
     receivedBucket.receipts += receivedAmount;
-    receivedBucket.balance = receivedBucket.receipts - receivedBucket.payments;
+    receivedBucket.balance = fundId
+      ? computeHalabAwareBalance(receivedBucket.receipts, receivedBucket.payments, fundId, receivedCurrency)
+      : receivedBucket.receipts - receivedBucket.payments;
   }
 }
 
-function applyTransactionToFundBalance(balances: FundBalances, tx: Transaction) {
+function applyTransactionToFundBalance(balances: FundBalances, tx: Transaction, fundId: FundId) {
   if (tx.kind === 'exchange' && tx.exchangeToCurrency && tx.exchangeToAmount) {
     applyExchangeToCurrencyBalances(
       balances,
@@ -288,6 +294,7 @@ function applyTransactionToFundBalance(balances: FundBalances, tx: Transaction) 
       tx.amount,
       tx.exchangeToCurrency,
       tx.exchangeToAmount,
+      fundId,
     );
     return;
   }
@@ -299,7 +306,7 @@ function applyTransactionToFundBalance(balances: FundBalances, tx: Transaction) 
   } else {
     bucket.payments += tx.amount;
   }
-  bucket.balance = bucket.receipts - bucket.payments;
+  bucket.balance = computeHalabAwareBalance(bucket.receipts, bucket.payments, fundId, tx.currency);
 }
 
 function applyTransactionToCustomerBalance(balances: CustomerBalances, tx: Transaction) {
@@ -327,7 +334,7 @@ function applyTransactionToCustomerBalance(balances: CustomerBalances, tx: Trans
 export function computeBalances(transactions: Transaction[], fundId: FundId): FundBalances {
   const balances = emptyBalances();
   const posted = filterTransactions(transactions, fundId, { status: 'posted', ledger: 'fund' });
-  for (const tx of posted) applyTransactionToFundBalance(balances, tx);
+  for (const tx of posted) applyTransactionToFundBalance(balances, tx, fundId);
   return balances;
 }
 
