@@ -38,7 +38,7 @@ import {
 import { repairHalabOpeningBalanceKinds } from '../lib/halabBalance';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
-const HALAB_OPENING_KIND_MIGRATED = 'halab-opening-balance-kind-v1';
+const HALAB_OPENING_KIND_MIGRATED = 'halab-opening-balance-kind-v2';
 
 type FeeSyncResult = {
   transactions: Transaction[];

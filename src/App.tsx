@@ -367,7 +367,7 @@ export default function App({ user, onLogout }: Props) {
             <span className="text-xs text-slate-500">{formatDateAr(today)}</span>
           </div>
         </div>
-        <BalanceCards balances={balances} />
+        <BalanceCards balances={balances} fundId={fundId} />
       </section>
 
       <nav className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">

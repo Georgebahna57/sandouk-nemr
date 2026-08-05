@@ -1,15 +1,10 @@
 import { FUNDS } from '../config';
+import { halabBalanceSideLabel, getHalabCurrencyTotals } from '../lib/halabBalance';
 import { computeBalances, formatValueWithUnit, getFundTransactionStats } from '../lib/utils';
 import type { AppState } from '../types';
 
 interface Props {
   appState: AppState;
-}
-
-function sideLabel(balance: number): string {
-  if (balance > 0) return 'لنا';
-  if (balance < 0) return 'لهم';
-  return 'متعادل';
 }
 
 export function FundDataDiagnostic({ appState }: Props) {
@@ -20,6 +15,7 @@ export function FundDataDiagnostic({ appState }: Props) {
 
   const halab = rows.find(r => r.fund.id === 'halabFleilat');
   const halabBalances = halab ? computeBalances(appState.transactions, 'halabFleilat') : null;
+  const usdTotals = halab ? getHalabCurrencyTotals(appState.transactions, 'USD') : null;
   const halabHidden = halab
     ? halab.stats.fundLedger - halab.stats.visibleFundLedger
     : 0;
@@ -72,12 +68,17 @@ export function FundDataDiagnostic({ appState }: Props) {
           <p className="mb-1 font-medium text-sky-200">أرصدة حلب (المنطق الجديد)</p>
           {halabBalances.SYP.balance !== 0 && (
             <p>
-              سوري: {formatValueWithUnit(Math.abs(halabBalances.SYP.balance), 'SYP')} · {sideLabel(halabBalances.SYP.balance)}
+              سوري: {formatValueWithUnit(Math.abs(halabBalances.SYP.balance), 'SYP')} · {halabBalanceSideLabel('SYP', halabBalances.SYP.balance)}
             </p>
           )}
           {halabBalances.USD.balance !== 0 && (
             <p>
-              دولار: {formatValueWithUnit(Math.abs(halabBalances.USD.balance), 'USD')} · {sideLabel(halabBalances.USD.balance)}
+              دولار: {formatValueWithUnit(Math.abs(halabBalances.USD.balance), 'USD')} · {halabBalanceSideLabel('USD', halabBalances.USD.balance)}
+            </p>
+          )}
+          {usdTotals && (
+            <p className="mt-1 text-[10px] text-slate-500">
+              دولار — دفع: {formatValueWithUnit(usdTotals.payments, 'USD')} · استلام: {formatValueWithUnit(usdTotals.receipts, 'USD')} · فرق: {formatValueWithUnit(Math.abs(usdTotals.payments - usdTotals.receipts), 'USD')}
             </p>
           )}
         </div>

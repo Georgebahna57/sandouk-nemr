@@ -1,12 +1,14 @@
-import { CURRENCIES, isWeightCurrency } from '../config';
+import { CURRENCIES, isHalabFleilatFund, isWeightCurrency } from '../config';
+import { halabBalanceIsSurplus, halabBalanceSideLabel } from '../lib/halabBalance';
 import { formatAmount } from '../lib/utils';
-import type { FundBalances } from '../types';
+import type { FundBalances, FundId } from '../types';
 
 interface Props {
   balances: FundBalances;
+  fundId?: FundId;
 }
 
-export function BalanceCards({ balances }: Props) {
+export function BalanceCards({ balances, fundId }: Props) {
   const active = CURRENCIES.filter(c => balances[c.id].balance !== 0);
 
   if (active.length === 0) {
@@ -17,11 +19,16 @@ export function BalanceCards({ balances }: Props) {
     );
   }
 
+  const halab = fundId && isHalabFleilatFund(fundId) ? fundId : undefined;
+
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {active.map(c => {
         const b = balances[c.id];
-        const isSurplus = b.balance > 0;
+        const isSurplus = halab
+          ? halabBalanceIsSurplus(halab, c.id, b.balance)
+          : b.balance > 0;
+        const side = halab ? halabBalanceSideLabel(c.id, b.balance) : undefined;
         const isWeight = isWeightCurrency(c.id);
         return (
           <div
@@ -34,6 +41,7 @@ export function BalanceCards({ balances }: Props) {
           >
             <p className="text-xs text-slate-400">
               {c.label}
+              {side && <span className="text-slate-500"> · {side}</span>}
               {isWeight && <span className="text-slate-500"> · وزن</span>}
             </p>
             <p className={`mt-1 text-xl font-bold tabular-nums ${isSurplus ? 'text-emerald-400' : 'text-rose-400'}`}>

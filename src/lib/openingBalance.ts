@@ -1,5 +1,5 @@
 import { getFund, getFundAccountName, isHalabFleilatFund } from '../config';
-import { openingBalanceKindForDelta } from './halabBalance';
+import { halabOpeningTargetBalance, openingBalanceKindForDelta } from './halabBalance';
 import type { Currency, FundBalances, FundId, Transaction } from '../types';
 import { computeAccountBalances, computeBalances, createTransaction } from './utils';
 
@@ -51,7 +51,9 @@ export function buildOpeningBalanceTransactions(
 
   for (const line of lines) {
     if (!line.amount || line.amount <= 0) continue;
-    const target = sideToTargetBalance(line.amount, line.side);
+    const target = isHalabFleilatFund(fundId)
+      ? halabOpeningTargetBalance(line.amount, line.side, line.currency)
+      : sideToTargetBalance(line.amount, line.side);
     const current = currentBalances[line.currency]?.balance ?? 0;
     const delta = target - current;
     if (Math.abs(delta) < 1e-9) continue;

@@ -1,4 +1,5 @@
 import { getFundAccountName, isHalabFleilatFund, isHalabLinkedAccountName } from '../config';
+import { halabBalanceSideLabel } from './halabBalance';
 import { createAccountTransaction } from './utils';
 import type { Currency, CustomerBalances, FundId, Transaction, TransactionKind } from '../types';
 import { formatAmount, todayIso } from './utils';
@@ -70,8 +71,9 @@ function formatReconciliationDate(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function reconciliationSideLabel(balance: number): 'لنا' | 'لكم' {
-  return balance >= 0 ? 'لنا' : 'لكم';
+function reconciliationSideLabel(currency: Currency, balance: number): 'لنا' | 'لكم' {
+  const side = halabBalanceSideLabel(currency, balance);
+  return side === 'لهم' ? 'لكم' : side === 'لنا' ? 'لنا' : 'لنا';
 }
 
 /** رسالة مطابقة أرصدة — شركة موني آوت (حساب حلب) */
@@ -85,7 +87,7 @@ export function buildMoneyOutReconciliationMessage(
   for (const { currency, label } of MONEY_OUT_RECON_CURRENCIES) {
     const b = balances[currency];
     if (!b || (b.receipts === 0 && b.payments === 0 && b.balance === 0)) continue;
-    const side = reconciliationSideLabel(b.balance);
+    const side = reconciliationSideLabel(currency, b.balance);
     blocks.push(
       `*${label}.رصيد ${side}*`,
       '',
