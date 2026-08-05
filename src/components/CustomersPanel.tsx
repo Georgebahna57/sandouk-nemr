@@ -7,6 +7,7 @@ import { isFeeAccountName } from '../lib/fees';
 import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
 import { AccountTransactionForm } from './AccountTransactionForm';
+import { AccountTransferForm } from './AccountTransferForm';
 import { EditCustomerModal } from './EditCustomerModal';
 import { ReconciliationBar } from './ReconciliationBar';
 import { formatSharedFundLabels, SharedFundIdsField } from './SharedFundIdsField';
@@ -73,6 +74,11 @@ export function CustomersPanel({
     return summaries.filter(s => s.name.toLowerCase().includes(q));
   }, [summaries, search]);
 
+  const transferAccountNames = useMemo(
+    () => summaries.map(s => s.name).filter(name => !isFeeAccountName(name)),
+    [summaries],
+  );
+
   function submitCustomer(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !onAddCustomer) return;
@@ -132,6 +138,14 @@ export function CustomersPanel({
         <input type="text" placeholder="بحث عن حساب..." value={search} onChange={e => setSearch(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 py-2.5 pr-9 pl-3 text-sm" />
       </div>
+
+      {!readOnly && onAddTransaction && (
+        <AccountTransferForm
+          accountNames={transferAccountNames}
+          fundId={fundId}
+          onAdd={onAddTransaction}
+        />
+      )}
 
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-3">
         <div>

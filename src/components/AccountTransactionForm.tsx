@@ -201,7 +201,7 @@ export function AccountTransactionForm({
     const withRemittance = stampHalabRemittance(payload, showHalabFields ? halabRemittance : undefined);
     const mirrored = appendHalabMirrorTransactions(
       Array.isArray(withRemittance) ? withRemittance : [withRemittance],
-      mirrorToHalab && showHalabMirror,
+      mirrorToHalab && showHalabMirror && transferMode !== 'account',
     );
     onAdd(mirrored.length === 1 ? mirrored[0] : mirrored);
     reset();
@@ -335,7 +335,7 @@ export function AccountTransactionForm({
                 checked={transferMode === 'account'}
                 onChange={() => setTransferMode('account')}
               />
-              ترحيل إلى حساب آخر
+              ترحيل إلى حساب آخر (تحويل بين حسابين)
             </label>
           )}
         </div>

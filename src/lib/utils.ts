@@ -607,6 +607,73 @@ export function createLinkedAccountFundOperation(
 }
 
 /** ترحيل بين حسابين — حركة على حساب المصدر + حساب الوجهة */
+function clearCustomerFeeFields<T extends Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty'>>(
+  base: T,
+): T {
+  return {
+    ...base,
+    fee: undefined,
+    feeMode: undefined,
+    feeRate: undefined,
+    feeSide: undefined,
+    feeAmount: undefined,
+    feeCurrency: undefined,
+    extraFee: undefined,
+    extraFeeMode: undefined,
+    extraFeeRate: undefined,
+    extraFeeSide: undefined,
+    extraFeeAmount: undefined,
+    extraFeeCurrency: undefined,
+  };
+}
+
+/** ترحيل بين حساب حلب (دفتر الصندوق) وحساب زبون */
+function createLinkedHalabHubAccountTransfer(
+  shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty'>,
+  hubAccount: string,
+  otherAccount: string,
+  hubDirection: 'in' | 'out',
+  otherDirection: 'in' | 'out',
+  items: { currency: Currency; amount: number }[],
+  customerFees?: (ParsedFee | undefined)[],
+  feesOnOther = true,
+): Transaction[] {
+  const linkId = crypto.randomUUID();
+  const multi = items.length > 1;
+  const hubKind = inferKind(hubDirection, false);
+  const otherKind = inferKind(otherDirection, false);
+  const fromItems = adjustAccountItemsForFees(items, customerFees ?? []);
+  const hubItems = feesOnOther ? items : fromItems;
+  const otherItems = feesOnOther ? fromItems : items;
+  const hubParty = getFundAccountName(shared.fundId);
+
+  const fundTxs = createTransactionBatch(
+    clearCustomerFeeFields({
+      ...shared,
+      ledger: 'fund',
+      party: hubParty,
+      kind: hubKind,
+      counterparty: otherAccount,
+    }),
+    hubItems,
+    { batchId: multi ? crypto.randomUUID() : undefined, linkId },
+  );
+
+  const accountTxs = createTransactionBatch(
+    clearCustomerFeeFields({
+      ...shared,
+      ledger: 'account',
+      party: otherAccount,
+      kind: otherKind,
+      counterparty: hubAccount,
+    }),
+    otherItems,
+    { batchId: multi ? crypto.randomUUID() : undefined, linkId },
+  );
+
+  return [...fundTxs, ...accountTxs];
+}
+
 export function createLinkedAccountAccountOperation(
   shared: Omit<TxBase, 'kind' | 'party' | 'ledger' | 'counterparty'>,
   fromAccount: string,
@@ -616,10 +683,41 @@ export function createLinkedAccountAccountOperation(
   toDirection?: 'in' | 'out',
   customerFees?: (ParsedFee | undefined)[],
 ): Transaction[] {
+  const targetDirection = toDirection ?? (fromDirection === 'in' ? 'out' : 'in');
+
+  if (isHalabFleilatFund(shared.fundId)) {
+    const fromHalab = isHalabLinkedAccountName(fromAccount);
+    const toHalab = isHalabLinkedAccountName(toAccount);
+    if (fromHalab && toHalab) return [];
+    if (fromHalab) {
+      return createLinkedHalabHubAccountTransfer(
+        shared,
+        fromAccount,
+        toAccount,
+        fromDirection,
+        targetDirection,
+        items,
+        customerFees,
+        false,
+      );
+    }
+    if (toHalab) {
+      return createLinkedHalabHubAccountTransfer(
+        shared,
+        toAccount,
+        fromAccount,
+        targetDirection,
+        fromDirection,
+        items,
+        customerFees,
+        true,
+      );
+    }
+  }
+
   const linkId = crypto.randomUUID();
   const multi = items.length > 1;
   const fromKind = inferKind(fromDirection, false);
-  const targetDirection = toDirection ?? (fromDirection === 'in' ? 'out' : 'in');
   const toKind = inferKind(targetDirection, false);
   const fromItems = adjustAccountItemsForFees(items, customerFees ?? []);
 
@@ -636,25 +734,13 @@ export function createLinkedAccountAccountOperation(
   );
 
   const toTxs = createTransactionBatch(
-    {
+    clearCustomerFeeFields({
       ...shared,
       ledger: 'account',
       party: toAccount,
       kind: toKind,
       counterparty: fromAccount,
-      fee: undefined,
-      feeMode: undefined,
-      feeRate: undefined,
-      feeSide: undefined,
-      feeAmount: undefined,
-      feeCurrency: undefined,
-      extraFee: undefined,
-      extraFeeMode: undefined,
-      extraFeeRate: undefined,
-      extraFeeSide: undefined,
-      extraFeeAmount: undefined,
-      extraFeeCurrency: undefined,
-    },
+    }),
     items,
     { batchId: multi ? crypto.randomUUID() : undefined, linkId },
   );
