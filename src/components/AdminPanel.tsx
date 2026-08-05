@@ -6,6 +6,7 @@ import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
 import { ValuationRatesEditor } from './ValuationRatesEditor';
 import { BackupSection } from './BackupSection';
 import { FundDataDiagnostic } from './FundDataDiagnostic';
+import { HalabBulkImportSection } from './HalabBulkImportSection';
 import { OpeningBalanceSection } from './OpeningBalanceSection';
 import type { ValuationRates } from '../lib/valuationRates';
 import type { AppBackup } from '../lib/backup';
@@ -242,6 +243,8 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
       />
 
       <OpeningBalanceSection appState={appState} onAdd={onAddOpeningBalance} />
+
+      <HalabBulkImportSection onImport={onAddOpeningBalance} />
 
       <div className="mb-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
         <div className="mb-3 flex items-center gap-2">
