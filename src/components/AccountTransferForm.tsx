@@ -161,7 +161,7 @@ export function AccountTransferForm({ accountNames, fundId, onAdd }: Props) {
       </div>
 
       <p className="text-[10px] text-slate-500">
-        يُسحب من الحساب الأول ويُودَع بالثاني — مثلاً من حلب إلى زبون أو العكس
+        تحويل داخلي بين حسابات الزبائن — مثلاً كندا → موني آوت (بدون صندوق أو حلب)
       </p>
 
       <AmountLinesEditor lines={lines} onChange={setLines} />

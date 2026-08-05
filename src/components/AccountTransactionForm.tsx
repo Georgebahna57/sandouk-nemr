@@ -63,7 +63,7 @@ export function AccountTransactionForm({
   const [feeEditor, setFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
-  const [mirrorToHalab, setMirrorToHalab] = useState(true);
+  const [mirrorToHalab, setMirrorToHalab] = useState(false);
   const showHalabFields = isHalabFleilatFund(fundId);
   const showHalabMirror = showHalabFields && shouldOfferHalabMirror(fundId, accountName);
 
@@ -106,7 +106,7 @@ export function AccountTransactionForm({
     setFeeEditor(defaultFeeEditorValue());
     setExtraFeeEditor(defaultFeeEditorValue());
     setHalabRemittance(defaultHalabRemittanceFields());
-    setMirrorToHalab(true);
+    setMirrorToHalab(false);
   }
 
   function setSourceDirection(next: 'in' | 'out') {
@@ -258,7 +258,7 @@ export function AccountTransactionForm({
         <AmountLinesEditor lines={lines} onChange={setLines} />
       )}
 
-      {showHalabMirror && (
+      {showHalabMirror && transferMode !== 'account' && (
         <label className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-2.5 py-2 text-xs text-slate-300">
           <input
             type="checkbox"

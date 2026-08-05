@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CURRENCIES, getFund, canRegisterCustomerName } from '../config';
+import { CURRENCIES, getFund, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
 import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
@@ -75,7 +75,9 @@ export function CustomersPanel({
   }, [summaries, search]);
 
   const transferAccountNames = useMemo(
-    () => summaries.map(s => s.name).filter(name => !isFeeAccountName(name)),
+    () => summaries
+      .map(s => s.name)
+      .filter(name => !isFeeAccountName(name) && !isHalabLinkedAccountName(name)),
     [summaries],
   );
 

@@ -82,7 +82,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [pending, setPending] = useState(defaultPending);
   const [sendWhatsApp, setSendWhatsApp] = useState(defaultPending);
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
-  const [mirrorToHalab, setMirrorToHalab] = useState(true);
+  const [mirrorToHalab, setMirrorToHalab] = useState(false);
   const showHalabFields = isHalabFleilatFund(fundId);
 
   const fundAccount = getFundAccountName(fundId);
@@ -128,7 +128,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setLinkToAccount(true);
     setAccountDirection('out');
     setHalabRemittance(defaultHalabRemittanceFields());
-    setMirrorToHalab(true);
+    setMirrorToHalab(false);
   }
 
   function setFundDirection(next: 'in' | 'out') {
