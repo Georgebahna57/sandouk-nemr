@@ -88,6 +88,7 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
     approvedByEmail: (row.approved_by_email as string) || decoded.approvedByEmail || undefined,
     approvedAt: (row.approved_at as string) || decoded.approvedAt || undefined,
     orderedDate: (row.ordered_date as string) || decoded.orderedDate || undefined,
+    halabRemittance: decoded.halabRemittance,
     claimedByUserId: (row.claimed_by_id as string) || undefined,
     claimedByName: (row.claimed_by_name as string) || undefined,
     claimedAt: (row.claimed_at as string) || undefined,
@@ -150,6 +151,7 @@ function txNoteMeta(tx: Transaction) {
     approvedByEmail: tx.approvedByEmail,
     approvedAt: tx.approvedAt,
     orderedDate: tx.orderedDate,
+    halabRemittance: tx.halabRemittance,
   };
 }
 
@@ -329,6 +331,7 @@ export async function patchTransaction(id: string, patch: Partial<Transaction>) 
       approvedAt: patch.approvedAt ?? decoded.approvedAt,
       orderedDate: patch.orderedDate ?? decoded.orderedDate,
       feeSourceId: patch.feeSourceId ?? decoded.feeSourceId,
+      halabRemittance: patch.halabRemittance ?? decoded.halabRemittance,
     });
     const legacyUpdate: Record<string, unknown> = {};
     if (patch.status !== undefined) legacyUpdate.status = patch.status;

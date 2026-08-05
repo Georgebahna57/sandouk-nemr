@@ -1,6 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
-import { getFund } from '../config';
+import { getFund, isHalabFleilatFund } from '../config';
 import {
   createLinkedAccountAccountOperation,
   createLinkedAccountFundExchange,
@@ -17,7 +17,7 @@ import {
   isShamelFeeEligible,
   sumAmountForCurrency,
 } from '../lib/fees';
-import type { Fund, FundId, Transaction } from '../types';
+import type { Fund, FundId, HalabRemittanceFields, Transaction } from '../types';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
 import { defaultExchangeFieldValues, ExchangeFields, parseExchangeFieldValues, type ExchangeFieldValues } from './ExchangeFields';
 import {
@@ -26,6 +26,8 @@ import {
   FeeEditor,
   type FeeEditorValue,
 } from './FeeEditor';
+import { defaultHalabRemittanceFields, stampHalabRemittance } from '../lib/halabRemittance';
+import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 
 type TransferMode = 'none' | 'fund' | 'account';
 
@@ -59,6 +61,8 @@ export function AccountTransactionForm({
   const [exchangeFields, setExchangeFields] = useState<ExchangeFieldValues>(() => defaultExchangeFieldValues());
   const [feeEditor, setFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
+  const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
+  const showHalabFields = isHalabFleilatFund(fundId);
 
   const exchangeParsed = parseExchangeFieldValues(exchangeFields);
   const parsedAmount = exchangeParsed.paidAmount;
@@ -92,6 +96,7 @@ export function AccountTransactionForm({
     setExchangeFields(defaultExchangeFieldValues());
     setFeeEditor(defaultFeeEditorValue());
     setExtraFeeEditor(defaultFeeEditorValue());
+    setHalabRemittance(defaultHalabRemittanceFields());
   }
 
   function setSourceDirection(next: 'in' | 'out') {
@@ -183,7 +188,7 @@ export function AccountTransactionForm({
       }
     }
 
-    onAdd(payload);
+    onAdd(stampHalabRemittance(payload, showHalabFields ? halabRemittance : undefined));
     reset();
     setOpen(false);
   }
@@ -236,6 +241,10 @@ export function AccountTransactionForm({
         <ExchangeFields values={exchangeFields} onChange={setExchangeFields} compact />
       ) : (
         <AmountLinesEditor lines={lines} onChange={setLines} />
+      )}
+
+      {showHalabFields && (
+        <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} compact />
       )}
 
       <input type="text" placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)}

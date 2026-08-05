@@ -6,6 +6,7 @@ import { describeTransaction, formatAmount, formatDateAr, formatExecutor, format
 import { formatTransactionFees } from '../lib/fees';
 import type { Transaction } from '../types';
 import { TransactionCoordination } from './TransactionCoordination';
+import { HalabRemittanceSummary } from './HalabRemittanceFields';
 
 interface TeamMember {
   id: string;
@@ -95,6 +96,7 @@ function CompactSummary({
       <p className="mt-1 text-xs text-slate-400">بيد: {via ?? '—'}</p>
       <p className="mt-1 text-xs text-amber-400/90">أجور/عمولة: {fee ?? '—'}</p>
       <p className="mt-1 text-xs text-slate-400 line-clamp-2">ملاحظة: {lead.note?.trim() || '—'}</p>
+      <HalabRemittanceSummary fields={lead.halabRemittance} />
       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
         <span>{formatDateAr(lead.date)}</span>
         {orderedNote && (
@@ -253,6 +255,7 @@ export function TransactionList({
                     <p className="mt-1 text-xs text-slate-400">بيد: {formatIntermediary(lead.intermediary) ?? '—'}</p>
                     <p className="mt-1 text-xs text-amber-400/90">أجور/عمولة: {formatTransactionFees(lead) ?? formatFee(lead.fee) ?? '—'}</p>
                     <p className="mt-1 text-xs text-slate-500">ملاحظة: {lead.note?.trim() || '—'}</p>
+                    <HalabRemittanceSummary fields={lead.halabRemittance} />
                     <MetaLine tx={lead} />
                   </>
                 )}

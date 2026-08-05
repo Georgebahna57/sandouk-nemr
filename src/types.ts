@@ -47,6 +47,18 @@ export interface AccountReconciliation {
   markedByName?: string;
 }
 
+/** حقول حوالة إضافية — صندوق حلب - الفيلات */
+export interface HalabRemittanceFields {
+  transferDate?: string;
+  companyName?: string;
+  publicNumber?: string;
+  sender?: string;
+  beneficiary?: string;
+  beneficiaryPhone?: string;
+  deliveryAmount?: string;
+  destination?: string;
+}
+
 export interface Transaction {
   id: string;
   fundId: FundId;
@@ -102,6 +114,8 @@ export interface Transaction {
   approvedAt?: string;
   /** تاريخ إنشاء الطلب بقيد الانتظار — يبقى بعد الاعتماد للعرض */
   orderedDate?: string;
+  /** بيانات حوالة — حلب - الفيلات */
+  halabRemittance?: HalabRemittanceFields;
   /** موظف يتابع اعتماد/معالجة العملية */
   claimedByUserId?: string;
   claimedByName?: string;

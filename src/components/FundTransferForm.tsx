@@ -1,8 +1,10 @@
 import { ArrowRightLeft, Plus, X } from 'lucide-react';
 import { useState } from 'react';
-import { CURRENCIES, getFund, getValueInputLabel, isWeightCurrency } from '../config';
+import { CURRENCIES, getFund, getValueInputLabel, isHalabFleilatFund, isWeightCurrency } from '../config';
 import { createLinkedFundTransfer, todayIso } from '../lib/utils';
-import type { Currency, Fund, FundId, Transaction } from '../types';
+import { defaultHalabRemittanceFields, stampHalabRemittance } from '../lib/halabRemittance';
+import type { Currency, Fund, FundId, HalabRemittanceFields, Transaction } from '../types';
+import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 
 interface Props {
   fromFundId: FundId;
@@ -17,6 +19,8 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
   const [currency, setCurrency] = useState<Currency>('USD');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
+  const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
+  const showHalabFields = isHalabFleilatFund(fromFundId);
 
   if (!targets.length) return null;
 
@@ -25,6 +29,7 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
     setCurrency('USD');
     setAmount('');
     setNote('');
+    setHalabRemittance(defaultHalabRemittanceFields());
   }
 
   async function submit(e: React.FormEvent) {
@@ -32,17 +37,20 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
     const parsed = Number(amount.replace(/,/g, '')) || 0;
     if (!parsed || !targetFundId || targetFundId === fromFundId) return;
 
-    await onAdd(createLinkedFundTransfer(
-      {
-        fundId: fromFundId,
-        date: todayIso(),
-        status: 'posted',
-        note: note.trim() || undefined,
-      },
-      fromFundId,
-      targetFundId,
-      currency,
-      parsed,
+    await onAdd(stampHalabRemittance(
+      createLinkedFundTransfer(
+        {
+          fundId: fromFundId,
+          date: todayIso(),
+          status: 'posted',
+          note: note.trim() || undefined,
+        },
+        fromFundId,
+        targetFundId,
+        currency,
+        parsed,
+      ),
+      showHalabFields ? halabRemittance : undefined,
     ));
     reset();
     setOpen(false);
@@ -111,6 +119,10 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
           />
         </div>
       </div>
+
+      {showHalabFields && (
+        <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} compact />
+      )}
 
       <input
         type="text"

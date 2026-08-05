@@ -1,6 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
-import { getFundAccountName } from '../config';
+import { getFundAccountName, isHalabFleilatFund } from '../config';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
   createLinkedFundAccountOperation,
@@ -21,6 +21,9 @@ import {
   type FeeEditorValue,
 } from './FeeEditor';
 import { extraFeeFieldsFromParsed, feeFieldsFromParsed, isShamelFeeEligible, sumAmountForCurrency } from '../lib/fees';
+import { defaultHalabRemittanceFields, stampHalabRemittance } from '../lib/halabRemittance';
+import type { HalabRemittanceFields } from '../types';
+import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 
 interface Props {
   fundId: FundId;
@@ -77,6 +80,8 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [accountDirection, setAccountDirection] = useState<'in' | 'out'>('out');
   const [pending, setPending] = useState(defaultPending);
   const [sendWhatsApp, setSendWhatsApp] = useState(defaultPending);
+  const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
+  const showHalabFields = isHalabFleilatFund(fundId);
 
   const fundAccount = getFundAccountName(fundId);
   const exchangeParsed = parseExchangeFieldValues(exchangeFields);
@@ -105,6 +110,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setSendWhatsApp(defaultPending);
     setLinkToAccount(true);
     setAccountDirection('out');
+    setHalabRemittance(defaultHalabRemittanceFields());
   }
 
   function setFundDirection(next: 'in' | 'out') {
@@ -207,7 +213,8 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     const enriched = txs.map((t, i) => (
       i === 0 && wasPending && whatsappMessage ? { ...t, pendingWhatsAppMessage: whatsappMessage } : t
     ));
-    const toSave = Array.isArray(payload) ? enriched : enriched[0];
+    const toSaveRaw = Array.isArray(payload) ? enriched : enriched[0];
+    const toSave = stampHalabRemittance(toSaveRaw, showHalabFields ? halabRemittance : undefined);
 
     try {
       await Promise.resolve(onAdd(toSave));
@@ -345,6 +352,10 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
           hintOurs="تُخصم من مبلغ حساب الزبون وتُسجَّل على حساب «عمولات شاملة»"
           hintCustomer="تُضاف على مبلغ حساب الزبون فقط — ما بتروح لـ «عمولات شاملة»"
         />
+      )}
+
+      {showHalabFields && (
+        <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} />
       )}
 
       <input type="text" placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)}

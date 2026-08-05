@@ -1,4 +1,7 @@
 import type { TransactionLedger } from '../types';
+import type { HalabRemittanceMeta } from './halabRemittance';
+import { decodeHalabRemittanceMeta, encodeHalabRemittanceMeta } from './halabRemittance';
+import type { HalabRemittanceFields } from '../types';
 
 const META_PREFIX = '[[SNDK]]';
 
@@ -18,6 +21,7 @@ interface TxMeta {
   od?: string;
   fsi?: string;
   xf?: string;
+  hr?: HalabRemittanceMeta;
 }
 
 export function encodeNoteMeta(
@@ -38,6 +42,7 @@ export function encodeNoteMeta(
     orderedDate?: string;
     feeSourceId?: string;
     extraFee?: string;
+    halabRemittance?: HalabRemittanceFields;
   },
 ): string | undefined {
   const payload: TxMeta = {};
@@ -56,6 +61,8 @@ export function encodeNoteMeta(
   if (meta.orderedDate) payload.od = meta.orderedDate;
   if (meta.feeSourceId) payload.fsi = meta.feeSourceId;
   if (meta.extraFee) payload.xf = meta.extraFee;
+  const hr = encodeHalabRemittanceMeta(meta.halabRemittance);
+  if (hr) payload.hr = hr;
 
   const hasMeta = Object.keys(payload).length > 0;
   const trimmed = userNote?.trim();
@@ -81,6 +88,7 @@ export function decodeNoteMeta(note?: string): {
   orderedDate?: string;
   feeSourceId?: string;
   extraFee?: string;
+  halabRemittance?: HalabRemittanceFields;
 } {
   if (!note?.startsWith(META_PREFIX)) {
     return { userNote: note?.trim() || undefined };
@@ -109,6 +117,7 @@ export function decodeNoteMeta(note?: string): {
       orderedDate: meta.od,
       feeSourceId: meta.fsi,
       extraFee: meta.xf,
+      halabRemittance: decodeHalabRemittanceMeta(meta.hr),
     };
   } catch {
     return { userNote: note.trim() || undefined };

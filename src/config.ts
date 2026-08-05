@@ -40,6 +40,10 @@ export function getFund(id: FundId) {
   return FUNDS.find(f => f.id === id) ?? FUNDS[0];
 }
 
+export function isHalabFleilatFund(fundId: FundId): boolean {
+  return fundId === 'halabFleilat';
+}
+
 /** اسم حساب الصندوق الافتراضي — رصيد الصندوق = رصيد هالحساب فقط */
 export function getFundAccountName(fundId: FundId): string {
   return getFund(fundId).name;

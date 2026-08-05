@@ -1,6 +1,7 @@
 import { Pencil, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { getFundAccountName } from '../config';
+import { getFundAccountName, isHalabFleilatFund } from '../config';
+import { halabRemittanceFromTransaction, stampHalabRemittance } from '../lib/halabRemittance';
 import { buildPendingWhatsAppMessage } from '../lib/whatsapp';
 import { formatDateAr, formatFee, formatIntermediary, inferKind, getOperationGroupIds } from '../lib/utils';
 import { feeEditorFromParsed, buildFeeFromEditor, FeeEditor } from './FeeEditor';
@@ -15,7 +16,8 @@ import {
   resolveTransactionFee,
   sumAmountForCurrency,
 } from '../lib/fees';
-import type { Transaction } from '../types';
+import type { HalabRemittanceFields, Transaction } from '../types';
+import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
 import type { AmountLine } from './AmountLinesEditor';
 import {
@@ -114,6 +116,10 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
   const [feeEditor, setFeeEditor] = useState(() => feeEditorFromParsed(resolveTransactionFee(lead ?? clicked)));
   const [extraFeeEditor, setExtraFeeEditor] = useState(() => feeEditorFromParsed(resolveTransactionExtraFee(lead ?? clicked)));
   const [note, setNote] = useState(lead?.note ?? clicked?.note ?? '');
+  const showHalabFields = isHalabFleilatFund((lead ?? clicked)?.fundId ?? 'nemr');
+  const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => (
+    halabRemittanceFromTransaction(clicked)
+  ));
   const [lines, setLines] = useState(() => {
     if (fundTxs.length) return txsToLines(fundTxs);
     if (clicked && isAccountOnly) {
@@ -171,7 +177,10 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
           : counterparty.trim() || undefined,
       }));
 
-      onSave(updated, summaryParts.join(' | ') || 'تعديل تبديل');
+      onSave(
+        stampHalabRemittance(updated, showHalabFields ? halabRemittance : undefined),
+        summaryParts.join(' | ') || 'تعديل تبديل',
+      );
     }
 
     return (
@@ -206,6 +215,10 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
               onChange={e => setCounterparty(e.target.value)}
               className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
             />
+          )}
+
+          {showHalabFields && (
+            <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} />
           )}
 
           <input
@@ -276,14 +289,17 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
       if ((note || '') !== (clicked.note || '')) summaryParts.push('تعديل ملاحظة');
       if ((formattedFee || '') !== (formatFee(clicked.fee) || '')) summaryParts.push('تعديل أجور/عمولة');
       if ((formattedExtraFee || '') !== (formatExtraFee(clicked.extraFee) || '')) summaryParts.push('تعديل عمولات شاملة');
-      onSave([{
-        ...clicked,
-        note: note.trim() || undefined,
-        currency: item?.currency ?? clicked.currency,
-        amount: netAmount,
-        ...feeFields,
-        ...extraFeeFields,
-      }], summaryParts.join(' | ') || 'تعديل');
+      onSave(
+        stampHalabRemittance([{
+          ...clicked,
+          note: note.trim() || undefined,
+          currency: item?.currency ?? clicked.currency,
+          amount: netAmount,
+          ...feeFields,
+          ...extraFeeFields,
+        }], showHalabFields ? halabRemittance : undefined),
+        summaryParts.join(' | ') || 'تعديل',
+      );
       return;
     }
 
@@ -373,7 +389,10 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
       }
     }
 
-    onSave(updated, summaryParts.join(' | ') || 'تعديل');
+    onSave(
+      stampHalabRemittance(updated, showHalabFields ? halabRemittance : undefined),
+      summaryParts.join(' | ') || 'تعديل',
+    );
   }
 
   return (
@@ -480,6 +499,10 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
             hintOurs="تُخصم من مبلغ حساب الزبون وتُسجَّل على حساب «عمولات شاملة»"
             hintCustomer="تُضاف على مبلغ حساب الزبون فقط — ما بتروح لـ «عمولات شاملة»"
           />
+        )}
+
+        {showHalabFields && (
+          <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} />
         )}
 
         <input
