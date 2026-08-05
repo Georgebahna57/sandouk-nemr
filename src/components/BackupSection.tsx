@@ -1,4 +1,4 @@
-import { Download, HardDriveUpload, Loader2, Upload } from 'lucide-react';
+import { Clock, Download, HardDriveUpload, History, Loader2, ShieldCheck, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import {
   backupSummary,
@@ -7,6 +7,14 @@ import {
   parseAppBackup,
   type AppBackup,
 } from '../lib/backup';
+import {
+  getMirrorInfo,
+  listSnapshots,
+  loadSnapshot,
+  saveManualSnapshot,
+  snapshotReasonLabel,
+  type SnapshotMeta,
+} from '../lib/localMirror';
 import type { AppState } from '../types';
 import type { ValuationRates } from '../lib/valuationRates';
 import { loadState } from '../lib/utils';
@@ -17,6 +25,11 @@ interface Props {
   onRestore: (backup: AppBackup, mode: 'merge' | 'replace') => Promise<void>;
 }
 
+function formatSavedAt(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('ar-LB');
+}
+
 export function BackupSection({ appState, valuationRates, onRestore }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -24,6 +37,12 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
   const [success, setSuccess] = useState<string | null>(null);
   const [pendingBackup, setPendingBackup] = useState<AppBackup | null>(null);
   const [replaceConfirm, setReplaceConfirm] = useState('');
+  const [snapshots, setSnapshots] = useState<SnapshotMeta[]>(() => listSnapshots());
+  const mirror = getMirrorInfo();
+
+  function refreshSnapshots() {
+    setSnapshots(listSnapshots());
+  }
 
   function exportBackup() {
     setError(null);
@@ -59,6 +78,7 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
       setSuccess(mode === 'merge' ? 'تم دمج النسخة الاحتياطية' : 'تم استبدال البيانات');
       setPendingBackup(null);
       setReplaceConfirm('');
+      refreshSnapshots();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل الاسترجاع');
     } finally {
@@ -79,6 +99,27 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
     setSuccess(`وُجدت نسخة محلية: ${backupSummary(buildAppBackup(local, valuationRates))}`);
   }
 
+  function loadFromSnapshot(meta: SnapshotMeta) {
+    setError(null);
+    setSuccess(null);
+    const backup = loadSnapshot(meta.id);
+    if (!backup) {
+      setError('تعذّر قراءة اللقطة — ربما حُذفت');
+      refreshSnapshots();
+      return;
+    }
+    setPendingBackup(backup);
+    setSuccess(`لقطة ${snapshotReasonLabel(meta.reason)}: ${meta.transactions} حركة`);
+  }
+
+  function createManualSnapshot() {
+    setError(null);
+    setSuccess(null);
+    const meta = saveManualSnapshot(appState);
+    refreshSnapshots();
+    setSuccess(`تم حفظ لقطة يدوية — ${meta.transactions} حركة`);
+  }
+
   return (
     <div className="mb-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4">
       <div className="mb-3 flex items-center gap-2">
@@ -91,6 +132,25 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
         </div>
       </div>
 
+      <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+        <div className="flex items-start gap-2">
+          <ShieldCheck size={16} className="mt-0.5 shrink-0 text-emerald-400" />
+          <div className="min-w-0 text-xs">
+            <p className="font-medium text-emerald-200">حماية تلقائية — مفعّلة</p>
+            <p className="mt-1 text-slate-400">
+              كل عملية تُنسَخ محلياً في هذا المتصفح بعد الحفظ.
+            </p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-500">
+              <span className="inline-flex items-center gap-1">
+                <Clock size={11} />
+                آخر نسخ: {formatSavedAt(mirror.savedAt)}
+              </span>
+              <span>{mirror.transactions} حركة · {mirror.customers} حساب</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -99,6 +159,14 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
         >
           <Download size={14} />
           تنزيل نسخة احتياطية
+        </button>
+        <button
+          type="button"
+          onClick={createManualSnapshot}
+          className="flex items-center gap-2 rounded-xl border border-emerald-500/40 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-500/10"
+        >
+          <History size={14} />
+          حفظ لقطة الآن
         </button>
         <button
           type="button"
@@ -129,8 +197,35 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
       </div>
 
       <p className="mt-2 text-[10px] text-slate-500">
-        الحالية: {appState.transactions.length} حركة · {appState.customers.length} حساب · {appState.bills.length} فاتورة
+        السحابة: {appState.transactions.length} حركة · {appState.customers.length} حساب · {appState.bills.length} فاتورة
       </p>
+
+      {snapshots.length > 0 && (
+        <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900/40 p-3">
+          <p className="mb-2 text-xs font-medium text-slate-300">لقطات محلية ({snapshots.length})</p>
+          <p className="mb-2 text-[10px] text-slate-500">
+            تُحفظ تلقائياً قبل الحذف، وكل 5 حركات، وعند إغلاق الصفحة.
+          </p>
+          <div className="max-h-40 space-y-1 overflow-y-auto">
+            {snapshots.map(meta => (
+              <button
+                key={meta.id}
+                type="button"
+                onClick={() => loadFromSnapshot(meta)}
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-800"
+              >
+                <span>
+                  {formatSavedAt(meta.savedAt)}
+                  <span className="mr-2 text-slate-500">({snapshotReasonLabel(meta.reason)})</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-slate-500">
+                  {meta.transactions} حركة
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {(error || success) && (
         <p className={`mt-3 text-xs ${error ? 'text-rose-400' : 'text-emerald-400'}`}>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppState, Bill, Customer, Transaction, TransactionComment } from '../types';
 import {
   fetchAppState,
@@ -28,6 +28,13 @@ import {
   getFeeSyncLeadIds,
   syncAutoFeesForOperations,
 } from '../lib/feePosting';
+import {
+  maybeAutoSnapshot,
+  mirrorAppState,
+  recoverFromLocalMirror,
+  saveManualSnapshot,
+  savePreDestructiveSnapshot,
+} from '../lib/localMirror';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
 
@@ -74,6 +81,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     if (!enabled) return;
@@ -112,11 +121,18 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
           }
 
           setState(nextState);
+          mirrorAppState(nextState);
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'فشل تحميل البيانات');
-          setState(loadState());
+          const recovered = recoverFromLocalMirror();
+          if (recovered) {
+            setState(recovered.state);
+            setError(`تعذّر الاتصال — عُرضت نسخة محلية (${new Date(recovered.savedAt).toLocaleString('ar-LB')})`);
+          } else {
+            setError(err instanceof Error ? err.message : 'فشل تحميل البيانات');
+            setState(loadState());
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -126,6 +142,31 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     init();
     return () => { cancelled = true; };
   }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled || loading) return;
+    const timer = window.setTimeout(() => {
+      mirrorAppState(state);
+      maybeAutoSnapshot(state);
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [enabled, loading, state]);
+
+  useEffect(() => {
+    if (!enabled || loading) return;
+    function onHide() {
+      if (document.visibilityState === 'hidden') mirrorAppState(stateRef.current);
+    }
+    function onUnload() {
+      mirrorAppState(stateRef.current);
+    }
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('beforeunload', onUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('beforeunload', onUnload);
+    };
+  }, [enabled, loading]);
 
   const runSync = useCallback(async (fn: () => Promise<void>) => {
     setSyncing(true);
@@ -182,6 +223,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [runSync]);
 
   const deleteTransaction = useCallback(async (id: string) => {
+    savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
     let removeIds: string[] = [id];
     setState(prev => {
       removeIds = getDeletionGroupIds(prev.transactions, id);
@@ -216,6 +258,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [runSync]);
 
   const deleteBill = useCallback(async (id: string) => {
+    savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
     setState(prev => ({ ...prev, bills: prev.bills.filter(b => b.id !== id) }));
     await runSync(() => removeBill(id));
   }, [runSync]);
@@ -256,6 +299,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [runSync]);
 
   const deleteCustomer = useCallback(async (id: string) => {
+    savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
     setState(prev => ({ ...prev, customers: prev.customers.filter(c => c.id !== id) }));
     await runSync(() => removeCustomer(id));
   }, [runSync]);
@@ -333,6 +377,11 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     setError(null);
     try {
       if (mode === 'replace') {
+        savePreDestructiveSnapshot(stateRef.current, 'pre-replace');
+      } else {
+        saveManualSnapshot(stateRef.current);
+      }
+      if (mode === 'replace') {
         let txIds: string[] = [];
         let billIds: string[] = [];
         let customerIds: string[] = [];
@@ -359,6 +408,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
       const cloud = await fetchAppState();
       setState(cloud);
+      mirrorAppState(cloud);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل استرجاع النسخة');
       throw err;
