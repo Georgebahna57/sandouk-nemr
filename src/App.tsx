@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Clock, FileText, Eye, Loader2, LogOut, ScrollText, Settings, Share2, Users, Wallet } from 'lucide-react';
+import { BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { CustomersPanel } from './components/CustomersPanel';
@@ -76,6 +76,7 @@ export default function App({ user, onLogout }: Props) {
   const [valuationRates, setValuationRates] = useState<ValuationRates>(() => loadValuationRatesLocal());
   const [savingValuationRates, setSavingValuationRates] = useState(false);
   const [dailyJournalOpen, setDailyJournalOpen] = useState(false);
+  const [pendingQuery, setPendingQuery] = useState('');
 
   const {
     profile,
@@ -115,6 +116,10 @@ export default function App({ user, onLogout }: Props) {
     fetchFundWhatsAppPhones().then(setFundWhatsApp);
     fetchValuationRates().then(setValuationRates);
   }, [showAdmin]);
+
+  useEffect(() => {
+    setPendingQuery('');
+  }, [fundId]);
 
   useEffect(() => {
     fetchAllProfiles()
@@ -162,6 +167,13 @@ export default function App({ user, onLogout }: Props) {
     () => filterTransactions(state.transactions, fundId, { status: 'pending' }),
     [state.transactions, fundId],
   );
+
+  const filteredPending = useMemo(() => {
+    const q = pendingQuery.trim();
+    if (!q) return pending;
+    const matched = applyTransactionFilters(pending, { query: q });
+    return expandFilteredTransactions(pending, matched);
+  }, [pending, pendingQuery]);
 
   const fundBills = useMemo(() => filterByFund(state.bills, fundId), [state.bills, fundId]);
 
@@ -456,8 +468,30 @@ export default function App({ user, onLogout }: Props) {
                 })}
               />
             )}
+            {pending.length > 0 && (
+              <div className="relative">
+                <Search size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  type="search"
+                  placeholder="مبلغ، اسم، أو الرقم العام..."
+                  value={pendingQuery}
+                  onChange={e => setPendingQuery(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900/60 py-2 pl-8 pr-9 text-sm text-slate-200 placeholder:text-slate-500 focus:border-amber-500/50 focus:outline-none"
+                />
+                {pendingQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setPendingQuery('')}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-300"
+                    aria-label="مسح البحث"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )}
             <TransactionList
-              transactions={pending}
+              transactions={filteredPending}
               compact
               showApprove={!readOnly}
               showCoordination

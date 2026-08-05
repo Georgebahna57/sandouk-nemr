@@ -916,22 +916,53 @@ export function appendEditHistory(
   };
 }
 
+export function transactionMatchesQuery(tx: Transaction, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  const textParts = [
+    tx.party,
+    tx.counterparty,
+    tx.note,
+    tx.intermediary,
+    tx.createdByName,
+    tx.createdByEmail,
+    tx.halabRemittance?.companyName,
+    tx.halabRemittance?.publicNumber,
+    tx.halabRemittance?.sender,
+    tx.halabRemittance?.beneficiary,
+    tx.halabRemittance?.beneficiaryPhone,
+    tx.halabRemittance?.deliveryAmount,
+    tx.halabRemittance?.destination,
+    tx.halabRemittance?.transferDate,
+    String(tx.amount),
+    tx.exchangeToAmount != null ? String(tx.exchangeToAmount) : '',
+  ];
+  const hay = textParts.filter(Boolean).join(' ').toLowerCase();
+  if (hay.includes(q)) return true;
+
+  const qDigits = q.replace(/[^\d]/g, '');
+  if (qDigits) {
+    const digitHay = [tx.amount, tx.exchangeToAmount, tx.halabRemittance?.deliveryAmount]
+      .filter(v => v != null && v !== '')
+      .map(v => String(v).replace(/[^\d]/g, ''))
+      .filter(Boolean);
+    if (digitHay.some(d => d.includes(qDigits))) return true;
+  }
+
+  return false;
+}
+
 export function applyTransactionFilters(
   transactions: Transaction[],
   filters: TransactionFilters,
 ): Transaction[] {
-  const q = filters.query?.trim().toLowerCase();
+  const q = filters.query?.trim();
   return transactions.filter(tx => {
     if (filters.dateFrom && tx.date < filters.dateFrom) return false;
     if (filters.dateTo && tx.date > filters.dateTo) return false;
     if (filters.currency && tx.currency !== filters.currency) return false;
-    if (q) {
-      const hay = [tx.party, tx.counterparty, tx.note, tx.createdByName, tx.createdByEmail]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
+    if (q && !transactionMatchesQuery(tx, q)) return false;
     return true;
   });
 }
