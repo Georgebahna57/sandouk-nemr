@@ -50,6 +50,13 @@ export function isHalabLinkedAccountName(name: string): boolean {
   return name.trim() === getFund('halabFleilat').shortName;
 }
 
+/** أسماء حساب الصندوق لحلب — الحالي والقديم */
+export function isHalabFundPartyName(party: string): boolean {
+  const trimmed = party.trim();
+  const fund = getFund('halabFleilat');
+  return trimmed === fund.shortName || trimmed === fund.name;
+}
+
 /** هل يمكن تسجيل حساب زبون بهالاسم ضمن الصندوق؟ */
 export function canRegisterCustomerName(name: string, fundId: FundId): boolean {
   const trimmed = name.trim();

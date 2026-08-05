@@ -1,4 +1,4 @@
-import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabLinkedAccountName, isWeightCurrency } from '../config';
+import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabFundPartyName, isHalabLinkedAccountName, isWeightCurrency } from '../config';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
 import type {
   AppState,
@@ -191,7 +191,7 @@ export function filterTransactions(
     const ledger = tx.ledger ?? 'fund';
     if (opts?.ledger && ledger !== opts.ledger) return false;
     if (!opts?.ledger && ledger !== 'fund') return false;
-    if (ledger === 'fund' && tx.party !== getFundAccountName(fundId)) return false;
+    if (ledger === 'fund' && !isFundPartyForLedger(tx.party, fundId)) return false;
     if (opts?.date && tx.date !== opts.date) return false;
     if (opts?.status && tx.status !== opts.status) return false;
     return true;
@@ -269,23 +269,26 @@ export function computeBalances(transactions: Transaction[], fundId: FundId): Fu
   return balances;
 }
 
+export function isFundPartyForLedger(party: string, fundId: FundId): boolean {
+  const trimmed = party.trim();
+  if (fundId === 'halabFleilat') return isHalabFundPartyName(trimmed);
+  return trimmed === getFundAccountName(fundId);
+}
+
 export function transactionAffectsAccountView(
   tx: Transaction,
   fundId: FundId,
   accountName: string,
-  allTransactions: Transaction[],
+  _allTransactions?: Transaction[],
 ): boolean {
   if (tx.fundId !== fundId) return false;
+  if (isHalabLinkedAccountName(accountName) && isHalabFleilatFund(fundId)) {
+    const ledger = tx.ledger ?? 'fund';
+    return ledger === 'fund' && isHalabFundPartyName(tx.party);
+  }
   const ledger = tx.ledger ?? 'fund';
   if (ledger === 'account' && tx.party === accountName) return true;
-  if (!isHalabLinkedAccountName(accountName)) return false;
-  if (ledger !== 'fund' || tx.party !== accountName) return false;
-  if (tx.linkId && allTransactions.some(
-    t => t.linkId === tx.linkId && t.ledger === 'account' && t.party === accountName,
-  )) {
-    return false;
-  }
-  return true;
+  return false;
 }
 
 export function filterAccountViewTransactions(
@@ -301,6 +304,9 @@ export function computeAccountBalances(
   fundId: FundId,
   accountName: string,
 ): CustomerBalances {
+  if (isHalabLinkedAccountName(accountName) && isHalabFleilatFund(fundId)) {
+    return { ...computeBalances(transactions, fundId) } as CustomerBalances;
+  }
   const balances = emptyCustomerBalances();
   const posted = transactions.filter(
     tx => tx.status === 'posted'
