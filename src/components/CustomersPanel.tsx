@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, Pencil, Plus, Search, Share2, Trash2, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CURRENCIES, getFund, isFundAccountName } from '../config';
+import { CURRENCIES, getFund, canRegisterCustomerName } from '../config';
 import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
 import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
@@ -73,7 +73,7 @@ export function CustomersPanel({
   function submitCustomer(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !onAddCustomer) return;
-    if (isFundAccountName(name.trim())) {
+    if (!canRegisterCustomerName(name.trim(), fundId)) {
       setNameError('هالاسم محجوز لحساب الصندوق');
       return;
     }

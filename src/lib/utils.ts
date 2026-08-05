@@ -1,4 +1,4 @@
-import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isWeightCurrency } from '../config';
+import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabLinkedAccountName, isWeightCurrency } from '../config';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
 import type {
   AppState,
@@ -91,7 +91,9 @@ export function describeTransaction(tx: Transaction): string {
     return via ? `دفع${viaSuffix}` : 'دفع';
   }
   if (via) return other ? `استلام من ${other} بيد ${via}` : `استلام بيد ${via}`;
-  return other ? `استلام من ${other}` : (isFundAccountName(tx.party) ? 'حركة صندوق' : 'حركة حساب');
+  return other ? `استلام من ${other}` : (
+    tx.ledger === 'account' || !isFundAccountName(tx.party) ? 'حركة حساب' : 'حركة صندوق'
+  );
 }
 
 /** يكمّل «بيد» وغيرها من حركة الصندوق المربوطة للعرض */
@@ -303,6 +305,9 @@ export function findCustomerForAccount(
 /** حسابات هذا الصندوق + الحسابات المشتركة معه */
 export function getAvailableAccountNames(customers: Customer[], fundId: FundId): string[] {
   const names = new Set<string>();
+  if (isHalabFleilatFund(fundId)) {
+    names.add(getFundAccountName(fundId));
+  }
   for (const c of customers) {
     if (!isCustomerAccountName(c.name)) continue;
     if (isAccountInFund(c, fundId)) names.add(c.name.trim());
@@ -352,7 +357,9 @@ export function applyCustomerRename(
 
 export function isCustomerAccountName(name: string): boolean {
   const trimmed = name.trim();
-  if (!trimmed || isFundAccountName(trimmed)) return false;
+  if (!trimmed) return false;
+  if (isHalabLinkedAccountName(trimmed)) return true;
+  if (isFundAccountName(trimmed)) return false;
   return true;
 }
 
@@ -363,6 +370,10 @@ export function buildAccountSummaries(
 ): CustomerSummary[] {
   const names = new Set<string>();
   const relevantCustomers = customers.filter(c => isAccountInFund(c, fundId));
+
+  if (isHalabFleilatFund(fundId)) {
+    names.add(getFundAccountName(fundId));
+  }
 
   for (const c of relevantCustomers) {
     if (isCustomerAccountName(c.name)) names.add(c.name.trim());
@@ -396,7 +407,13 @@ export function buildAccountSummaries(
     };
   });
 
-  return summaries.filter(s => s.hasActivity || s.customerId || isFeeAccountName(s.name));
+  const halabAccountName = isHalabFleilatFund(fundId) ? getFundAccountName(fundId) : null;
+  return summaries.filter(s => (
+    s.hasActivity
+    || s.customerId
+    || isFeeAccountName(s.name)
+    || (halabAccountName !== null && s.name === halabAccountName)
+  ));
 }
 
 /** @deprecated use computeAccountBalances */

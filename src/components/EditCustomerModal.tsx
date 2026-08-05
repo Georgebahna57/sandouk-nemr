@@ -1,6 +1,6 @@
 import { Pencil, X } from 'lucide-react';
 import { useState } from 'react';
-import { FUNDS, isFundAccountName } from '../config';
+import { FUNDS, canRegisterCustomerName } from '../config';
 import type { Customer, Fund, FundId } from '../types';
 import { SharedFundIdsField } from './SharedFundIdsField';
 
@@ -29,7 +29,7 @@ export function EditCustomerModal({
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    if (isFundAccountName(trimmed)) {
+    if (!canRegisterCustomerName(trimmed, customer.fundId)) {
       setError('هالاسم محجوز لحساب الصندوق');
       return;
     }

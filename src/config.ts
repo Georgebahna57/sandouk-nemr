@@ -45,6 +45,19 @@ export function isHalabFleilatFund(fundId: FundId): boolean {
   return fundId === 'halabFleilat';
 }
 
+/** حساب «حلب» — مرتبط بصندوق الفيلات ويظهر ضمن الحسابات */
+export function isHalabLinkedAccountName(name: string): boolean {
+  return name.trim() === getFund('halabFleilat').shortName;
+}
+
+/** هل يمكن تسجيل حساب زبون بهالاسم ضمن الصندوق؟ */
+export function canRegisterCustomerName(name: string, fundId: FundId): boolean {
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  if (fundId === 'halabFleilat' && isHalabLinkedAccountName(trimmed)) return true;
+  return !isFundAccountName(trimmed);
+}
+
 /** اسم حساب الصندوق الافتراضي — رصيد الصندوق = رصيد هالحساب فقط */
 export function getFundAccountName(fundId: FundId): string {
   const fund = getFund(fundId);
