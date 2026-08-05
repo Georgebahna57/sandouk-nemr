@@ -1,6 +1,7 @@
-import { CheckCircle2, ChevronDown, ChevronUp, FileText, Pencil, Plus, Search, Share2, Trash2, User } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CURRENCIES, getFund, canRegisterCustomerName } from '../config';
+import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
 import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
 import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
@@ -26,6 +27,7 @@ interface Props {
   onDeleteTransaction?: (id: string) => void;
   onEditTransaction?: (id: string) => void;
   onShareAccount?: (summary: CustomerSummary) => void;
+  onMoneyOutReconciliation?: (summary: CustomerSummary) => void;
   valuationRates: ValuationRates;
   isAdmin?: boolean;
   actorName?: string;
@@ -45,6 +47,7 @@ export function CustomersPanel({
   onDeleteTransaction,
   onEditTransaction,
   onShareAccount,
+  onMoneyOutReconciliation,
   valuationRates,
   isAdmin = false,
   actorName,
@@ -194,6 +197,17 @@ export function CustomersPanel({
                       >
                         <FileText size={12} />
                         كشف
+                      </button>
+                    )}
+                    {onMoneyOutReconciliation && isMoneyOutReconciliationAccount(fundId, summary.name) && (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); onMoneyOutReconciliation(summary); }}
+                        className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[10px] font-medium text-violet-300 hover:bg-violet-500/20"
+                        title="رسالة مطابقة موني آوت"
+                      >
+                        <MessageCircle size={12} />
+                        موني آوت
                       </button>
                     )}
                     {onShareAccount && activeCurrencies.length > 0 && (

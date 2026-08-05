@@ -22,6 +22,7 @@ import {
 } from './FeeEditor';
 import { extraFeeFieldsFromParsed, feeFieldsFromParsed, isShamelFeeEligible, sumAmountForCurrency } from '../lib/fees';
 import { defaultHalabRemittanceFields, resolveHalabDeliverySource, stampHalabRemittance } from '../lib/halabRemittance';
+import { appendHalabMirrorTransactions, shouldOfferHalabMirror } from '../lib/halabMirror';
 import type { HalabRemittanceFields } from '../types';
 import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 
@@ -81,6 +82,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const [pending, setPending] = useState(defaultPending);
   const [sendWhatsApp, setSendWhatsApp] = useState(defaultPending);
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
+  const [mirrorToHalab, setMirrorToHalab] = useState(true);
   const showHalabFields = isHalabFleilatFund(fundId);
 
   const fundAccount = getFundAccountName(fundId);
@@ -94,6 +96,8 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const counterpartyTrimmed = counterparty.trim();
   const matchedAccount = counterpartyNames.find(n => n === counterpartyTrimmed);
   const canLink = !!matchedAccount;
+  const showHalabMirror = showHalabFields && linkToAccount && canLink
+    && shouldOfferHalabMirror(fundId, matchedAccount);
   const shamelEligible = isShamelFeeEligible(matchedAccount ?? counterpartyTrimmed);
   const parsedLines = parseAmountLines(lines);
   const halabDeliverySource = useMemo(() => resolveHalabDeliverySource({
@@ -124,6 +128,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setLinkToAccount(true);
     setAccountDirection('out');
     setHalabRemittance(defaultHalabRemittanceFields());
+    setMirrorToHalab(true);
   }
 
   function setFundDirection(next: 'in' | 'out') {
@@ -226,7 +231,12 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       i === 0 && wasPending && whatsappMessage ? { ...t, pendingWhatsAppMessage: whatsappMessage } : t
     ));
     const toSaveRaw = Array.isArray(payload) ? enriched : enriched[0];
-    const toSave = stampHalabRemittance(toSaveRaw, showHalabFields ? halabRemittance : undefined);
+    const withRemittance = stampHalabRemittance(toSaveRaw, showHalabFields ? halabRemittance : undefined);
+    const mirrored = appendHalabMirrorTransactions(
+      Array.isArray(withRemittance) ? withRemittance : [withRemittance],
+      mirrorToHalab && showHalabMirror,
+    );
+    const toSave = mirrored.length === 1 ? mirrored[0] : mirrored;
 
     try {
       await Promise.resolve(onAdd(toSave));
@@ -367,6 +377,18 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
           hintOurs="تُخصم من مبلغ حساب الزبون وتُسجَّل على حساب «عمولات شاملة»"
           hintCustomer="تُضاف على مبلغ حساب الزبون فقط — ما بتروح لـ «عمولات شاملة»"
         />
+      )}
+
+      {showHalabMirror && (
+        <label className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            checked={mirrorToHalab}
+            onChange={e => setMirrorToHalab(e.target.checked)}
+            className="rounded"
+          />
+          عكس الحركة على حساب حلب (مرآة تلقائية)
+        </label>
       )}
 
       {showHalabFields && (

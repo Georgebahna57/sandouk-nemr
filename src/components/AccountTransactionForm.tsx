@@ -27,6 +27,7 @@ import {
   type FeeEditorValue,
 } from './FeeEditor';
 import { defaultHalabRemittanceFields, resolveHalabDeliverySource, stampHalabRemittance } from '../lib/halabRemittance';
+import { appendHalabMirrorTransactions, shouldOfferHalabMirror } from '../lib/halabMirror';
 import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 
 type TransferMode = 'none' | 'fund' | 'account';
@@ -62,7 +63,9 @@ export function AccountTransactionForm({
   const [feeEditor, setFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
+  const [mirrorToHalab, setMirrorToHalab] = useState(true);
   const showHalabFields = isHalabFleilatFund(fundId);
+  const showHalabMirror = showHalabFields && shouldOfferHalabMirror(fundId, accountName);
 
   const exchangeParsed = parseExchangeFieldValues(exchangeFields);
   const parsedAmount = exchangeParsed.paidAmount;
@@ -103,6 +106,7 @@ export function AccountTransactionForm({
     setFeeEditor(defaultFeeEditorValue());
     setExtraFeeEditor(defaultFeeEditorValue());
     setHalabRemittance(defaultHalabRemittanceFields());
+    setMirrorToHalab(true);
   }
 
   function setSourceDirection(next: 'in' | 'out') {
@@ -194,7 +198,12 @@ export function AccountTransactionForm({
       }
     }
 
-    onAdd(stampHalabRemittance(payload, showHalabFields ? halabRemittance : undefined));
+    const withRemittance = stampHalabRemittance(payload, showHalabFields ? halabRemittance : undefined);
+    const mirrored = appendHalabMirrorTransactions(
+      Array.isArray(withRemittance) ? withRemittance : [withRemittance],
+      mirrorToHalab && showHalabMirror,
+    );
+    onAdd(mirrored.length === 1 ? mirrored[0] : mirrored);
     reset();
     setOpen(false);
   }
@@ -247,6 +256,18 @@ export function AccountTransactionForm({
         <ExchangeFields values={exchangeFields} onChange={setExchangeFields} compact />
       ) : (
         <AmountLinesEditor lines={lines} onChange={setLines} />
+      )}
+
+      {showHalabMirror && (
+        <label className="flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/5 px-2.5 py-2 text-xs text-slate-300">
+          <input
+            type="checkbox"
+            checked={mirrorToHalab}
+            onChange={e => setMirrorToHalab(e.target.checked)}
+            className="rounded"
+          />
+          عكس الحركة على حساب حلب
+        </label>
       )}
 
       {showHalabFields && (

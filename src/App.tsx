@@ -38,6 +38,7 @@ import { loadValuationRatesLocal } from './lib/valuationRates';
 import { fetchAllProfiles } from './lib/profile';
 import type { UserProfile } from './lib/permissions';
 import { buildApprovalWhatsAppMessage, resolveShareDestinations } from './lib/whatsapp';
+import { buildMoneyOutReconciliationMessage } from './lib/halabMirror';
 import { isFeeAccountName } from './lib/fees';
 import type { BalanceSharePayload } from './lib/balanceShare';
 
@@ -499,6 +500,17 @@ export default function App({ user, onLogout }: Props) {
                   date: today,
                 },
                 destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[fundId]),
+              });
+            }}
+            onMoneyOutReconciliation={summary => {
+              const customer = state.customers.find(
+                c => c.fundId === fundId && (c.id === summary.customerId || c.name === summary.name),
+              );
+              setWhatsappPrompt({
+                message: buildMoneyOutReconciliationMessage(summary.balances, today),
+                destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[fundId]),
+                title: 'مطابقة موني آوت',
+                subtitle: 'رصيد حساب حلب — انسخ أو أرسل على واتساب',
               });
             }}
             valuationRates={valuationRates}
