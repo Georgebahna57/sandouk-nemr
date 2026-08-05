@@ -820,7 +820,10 @@ export function findOrphanedLinkedTransactionIds(transactions: Transaction[]): s
   for (const tx of transactions) {
     if (tx.ledger !== 'account') continue;
     if (tx.linkId && !fundLinkIds.has(tx.linkId)) {
-      orphanIds.push(tx.id);
+      const linkGroup = transactions.filter(t => t.linkId === tx.linkId);
+      const isAccountOnlyTransfer = linkGroup.length >= 2
+        && linkGroup.every(t => t.ledger === 'account');
+      if (!isAccountOnlyTransfer) orphanIds.push(tx.id);
       continue;
     }
     if (isAutoFeeTransaction(tx) && tx.feeSourceId && !fundIds.has(tx.feeSourceId)) {

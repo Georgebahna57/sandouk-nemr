@@ -21,7 +21,6 @@ import {
   getOperationGroupIds,
   loadState,
   parseMentions,
-  purgeOrphanedLinkedTransactions,
 } from '../lib/utils';
 import {
   collectFeeSyncLeadIds,
@@ -97,15 +96,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         }
 
         if (!cancelled) {
-          const { transactions: withoutOrphans, removeIds } = purgeOrphanedLinkedTransactions(cloud.transactions);
-          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(withoutOrphans);
+          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(cloud.transactions);
           const leadIds = getFeeSyncLeadIds(withBackfill);
           const feeSync = mergeFeeSync(withBackfill, leadIds);
           const nextState = { ...cloud, transactions: feeSync.transactions };
 
-          if (removeIds.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
-            if (removeIds.length || feeSync.removeIds.length) {
-              await removeTransactions([...new Set([...removeIds, ...feeSync.removeIds])]);
+          if (changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
+            if (feeSync.removeIds.length) {
+              await removeTransactions(feeSync.removeIds);
             }
             const toUpsert = [...changed, ...feeSync.upsert];
             if (toUpsert.length) await upsertTransactions(toUpsert);
@@ -358,9 +356,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       }
 
       const cloud = await fetchAppState();
-      const { transactions: withoutOrphans, removeIds } = purgeOrphanedLinkedTransactions(cloud.transactions);
-      if (removeIds.length) await removeTransactions(removeIds);
-      setState({ ...cloud, transactions: withoutOrphans.length ? withoutOrphans : cloud.transactions });
+      setState(cloud);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل استرجاع النسخة');
       throw err;

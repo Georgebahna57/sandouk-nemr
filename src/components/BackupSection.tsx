@@ -9,6 +9,7 @@ import {
 } from '../lib/backup';
 import type { AppState } from '../types';
 import type { ValuationRates } from '../lib/valuationRates';
+import { loadState } from '../lib/utils';
 
 interface Props {
   appState: AppState;
@@ -65,6 +66,19 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
     }
   }
 
+  function loadBrowserBackup() {
+    setError(null);
+    setSuccess(null);
+    const local = loadState();
+    const count = local.transactions.length + local.customers.length + local.bills.length;
+    if (!count) {
+      setError('لا توجد نسخة محفوظة في هذا المتصفح');
+      return;
+    }
+    setPendingBackup(buildAppBackup(local, valuationRates));
+    setSuccess(`وُجدت نسخة محلية: ${backupSummary(buildAppBackup(local, valuationRates))}`);
+  }
+
   return (
     <div className="mb-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4">
       <div className="mb-3 flex items-center gap-2">
@@ -93,6 +107,13 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
         >
           <Upload size={14} />
           اختيار ملف للاسترجاع
+        </button>
+        <button
+          type="button"
+          onClick={loadBrowserBackup}
+          className="flex items-center gap-2 rounded-xl border border-amber-500/40 px-4 py-2 text-sm text-amber-200 hover:bg-amber-500/10"
+        >
+          استرجاع من المتصفح
         </button>
         <input
           ref={inputRef}
