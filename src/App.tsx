@@ -248,6 +248,7 @@ export default function App({ user, onLogout }: Props) {
           await restoreBackup(backup, mode);
           if (backup.valuationRates) setValuationRates(backup.valuationRates);
         }}
+        onAddOpeningBalance={addTransaction}
       />
     );
   }
