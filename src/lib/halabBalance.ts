@@ -1,5 +1,5 @@
 import { isHalabFleilatFund, isHalabLinkedAccountName } from '../config';
-import type { Currency, FundId } from '../types';
+import type { Currency, FundId, Transaction } from '../types';
 
 /** العملات السورية على حلب: دفع يزيد «لنا»، استلام ينقص — عكس الدولار */
 export function isHalabInvertedBalanceCurrency(currency: Currency): boolean {
@@ -64,4 +64,25 @@ export function halabExchangeReceivedDelta(fundId: FundId, currency: Currency, a
 
 export function usesHalabStatementBalance(fundId: FundId, accountName: string): boolean {
   return usesHalabReconciliationBalance(fundId) && isHalabLinkedAccountName(accountName);
+}
+
+const OPENING_BALANCE_NOTE = 'رصيد افتتاحي';
+
+/** الرصيد الافتتاحي السوري (لنا) كان يُسجَّل «استلام» — نحوّله «دفع» */
+export function repairHalabOpeningBalanceKinds(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (tx.fundId !== 'halabFleilat') return tx;
+    if ((tx.ledger ?? 'fund') !== 'fund') return tx;
+    if (!isHalabInvertedBalanceCurrency(tx.currency)) return tx;
+    if (!tx.note?.includes(OPENING_BALANCE_NOTE)) return tx;
+    if (tx.kind !== 'receipt') return tx;
+    const fixed: Transaction = { ...tx, kind: 'payment' };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
 }

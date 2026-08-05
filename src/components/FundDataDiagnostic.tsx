@@ -1,9 +1,15 @@
 import { FUNDS } from '../config';
-import { getFundTransactionStats } from '../lib/utils';
+import { computeBalances, formatValueWithUnit, getFundTransactionStats } from '../lib/utils';
 import type { AppState } from '../types';
 
 interface Props {
   appState: AppState;
+}
+
+function sideLabel(balance: number): string {
+  if (balance > 0) return 'لنا';
+  if (balance < 0) return 'لهم';
+  return 'متعادل';
 }
 
 export function FundDataDiagnostic({ appState }: Props) {
@@ -13,6 +19,7 @@ export function FundDataDiagnostic({ appState }: Props) {
   }));
 
   const halab = rows.find(r => r.fund.id === 'halabFleilat');
+  const halabBalances = halab ? computeBalances(appState.transactions, 'halabFleilat') : null;
   const halabHidden = halab
     ? halab.stats.fundLedger - halab.stats.visibleFundLedger
     : 0;
@@ -59,6 +66,21 @@ export function FundDataDiagnostic({ appState }: Props) {
         <p className="mt-3 text-xs text-amber-300">
           وُجد {halabHidden} حركة صندوق لحلب كانت مخفية — يفترض أن تظهر بعد التحديث.
         </p>
+      )}
+      {halabBalances && (halabBalances.SYP.balance !== 0 || halabBalances.USD.balance !== 0) && (
+        <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-slate-300">
+          <p className="mb-1 font-medium text-sky-200">أرصدة حلب (المنطق الجديد)</p>
+          {halabBalances.SYP.balance !== 0 && (
+            <p>
+              سوري: {formatValueWithUnit(Math.abs(halabBalances.SYP.balance), 'SYP')} · {sideLabel(halabBalances.SYP.balance)}
+            </p>
+          )}
+          {halabBalances.USD.balance !== 0 && (
+            <p>
+              دولار: {formatValueWithUnit(Math.abs(halabBalances.USD.balance), 'USD')} · {sideLabel(halabBalances.USD.balance)}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

@@ -35,8 +35,10 @@ import {
   saveManualSnapshot,
   savePreDestructiveSnapshot,
 } from '../lib/localMirror';
+import { repairHalabOpeningBalanceKinds } from '../lib/halabBalance';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
+const HALAB_OPENING_KIND_MIGRATED = 'halab-opening-balance-kind-v1';
 
 type FeeSyncResult = {
   transactions: Transaction[];
@@ -107,17 +109,27 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
         if (!cancelled) {
           const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(cloud.transactions);
-          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(repaired);
+          let afterOpening = repaired;
+          let repairedOpening: Transaction[] = [];
+          if (!localStorage.getItem(HALAB_OPENING_KIND_MIGRATED)) {
+            const openingRepair = repairHalabOpeningBalanceKinds(repaired);
+            afterOpening = openingRepair.transactions;
+            repairedOpening = openingRepair.changed;
+          }
+          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
           const leadIds = getFeeSyncLeadIds(withBackfill);
           const feeSync = mergeFeeSync(withBackfill, leadIds);
           const nextState = { ...cloud, transactions: feeSync.transactions };
 
-          if (repairedHalab.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
+          if (repairedHalab.length || repairedOpening.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
             if (feeSync.removeIds.length) {
               await removeTransactions(feeSync.removeIds);
             }
-            const toUpsert = [...repairedHalab, ...changed, ...feeSync.upsert];
+            const toUpsert = [...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
             if (toUpsert.length) await upsertTransactions(toUpsert);
+            if (repairedOpening.length) {
+              localStorage.setItem(HALAB_OPENING_KIND_MIGRATED, '1');
+            }
           }
 
           setState(nextState);
