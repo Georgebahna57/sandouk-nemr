@@ -1,6 +1,6 @@
-import { getFundAccountName } from '../config';
+import { getFund, getFundAccountName, isHalabFleilatFund } from '../config';
 import type { Currency, FundBalances, FundId, Transaction } from '../types';
-import { createTransaction } from './utils';
+import { computeAccountBalances, computeBalances, createTransaction } from './utils';
 
 export type OpeningBalanceSide = 'ours' | 'theirs';
 
@@ -18,7 +18,26 @@ export function targetBalanceToSide(balance: number): OpeningBalanceSide {
   return balance >= 0 ? 'ours' : 'theirs';
 }
 
-/** حركات لضبط رصيد الصندوق إلى الأهداف (فرق عن الرصيد الحالي) */
+/** الرصيد الحالي الذي تُقاس عليه حركة الافتتاح */
+export function computeOpeningBalanceCurrent(
+  transactions: Transaction[],
+  fundId: FundId,
+): FundBalances {
+  if (isHalabFleilatFund(fundId)) {
+    const account = getFundAccountName(fundId);
+    return computeAccountBalances(transactions, fundId, account) as FundBalances;
+  }
+  return computeBalances(transactions, fundId);
+}
+
+export function openingBalanceTargetLabel(fundId: FundId): string {
+  if (isHalabFleilatFund(fundId)) {
+    return `حساب ${getFundAccountName(fundId)} (${getFund(fundId).name})`;
+  }
+  return getFund(fundId).name;
+}
+
+/** حركات لضبط الرصيد إلى الأهداف (فرق عن الرصيد الحالي) */
 export function buildOpeningBalanceTransactions(
   fundId: FundId,
   date: string,

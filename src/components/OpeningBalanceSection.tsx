@@ -3,10 +3,12 @@ import { useMemo, useState } from 'react';
 import { CURRENCIES, FUNDS } from '../config';
 import {
   buildOpeningBalanceTransactions,
+  computeOpeningBalanceCurrent,
+  openingBalanceTargetLabel,
   type OpeningBalanceLine,
   type OpeningBalanceSide,
 } from '../lib/openingBalance';
-import { computeBalances, formatValueWithUnit, todayIso } from '../lib/utils';
+import { formatValueWithUnit, todayIso } from '../lib/utils';
 import type { AppState, Currency, FundId, Transaction } from '../types';
 
 interface LineDraft {
@@ -41,7 +43,7 @@ function assetLabel(currency: Currency): string {
 }
 
 export function OpeningBalanceSection({ appState, onAdd }: Props) {
-  const [fundId, setFundId] = useState<FundId>('nemr');
+  const [fundId, setFundId] = useState<FundId>('halabFleilat');
   const [date, setDate] = useState(todayIso());
   const [lines, setLines] = useState<LineDraft[]>([
     newLine('SYP', '343211200', 'ours'),
@@ -51,8 +53,10 @@ export function OpeningBalanceSection({ appState, onAdd }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const targetLabel = openingBalanceTargetLabel(fundId);
+
   const currentBalances = useMemo(
-    () => computeBalances(appState.transactions, fundId),
+    () => computeOpeningBalanceCurrent(appState.transactions, fundId),
     [appState.transactions, fundId],
   );
 
@@ -94,12 +98,16 @@ export function OpeningBalanceSection({ appState, onAdd }: Props) {
       <div className="mb-3 flex items-center gap-2">
         <Scale size={18} className="text-sky-400" />
         <div>
-          <p className="font-medium text-slate-200">رصيد افتتاحي للصندوق</p>
+          <p className="font-medium text-slate-200">رصيد افتتاحي</p>
           <p className="text-xs text-slate-500">
             سجّل الرصيد قبل البرنامج — لنا = زايد، لهم = ناقص
           </p>
         </div>
       </div>
+
+      <p className="mb-3 rounded-lg bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+        يُسجَّل على: <span className="font-medium text-sky-300">{targetLabel}</span>
+      </p>
 
       <div className="mb-3 grid gap-2 sm:grid-cols-2">
         <label className="block space-y-1">
@@ -202,6 +210,7 @@ export function OpeningBalanceSection({ appState, onAdd }: Props) {
             <p key={tx.id}>
               {tx.kind === 'receipt' ? 'وارد' : 'صادر'}{' '}
               {formatValueWithUnit(tx.amount, tx.currency)}
+              {tx.party ? ` · ${tx.party}` : ''}
             </p>
           ))}
         </div>
