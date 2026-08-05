@@ -2,8 +2,6 @@ import { getCurrencyLabel } from '../config';
 import { formatValueWithUnit } from './utils';
 import type { Currency, HalabRemittanceFields, Transaction } from '../types';
 
-export const HALAB_DEFAULT_COMPANY = 'موني آوت';
-
 export const HALAB_REMITTANCE_LABELS: { key: keyof HalabRemittanceFields; label: string }[] = [
   { key: 'transferDate', label: 'تاريخ الحوالة' },
   { key: 'companyName', label: 'اسم الشركة' },
@@ -39,7 +37,7 @@ export interface HalabDeliverySource {
 export function defaultHalabRemittanceFields(): HalabRemittanceFields {
   return {
     transferDate: '',
-    companyName: HALAB_DEFAULT_COMPANY,
+    companyName: '',
     publicNumber: '',
     sender: '',
     beneficiary: '',
