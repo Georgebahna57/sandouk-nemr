@@ -1,4 +1,4 @@
-export type FundId = 'nemr' | 'aura' | 'tiger' | 'zalqa' | 'george' | 'marakiz';
+export type FundId = 'nemr' | 'aura' | 'tiger' | 'zalqa' | 'george' | 'marakiz' | 'halabFleilat';
 
 export type Currency =
   | 'USD'
