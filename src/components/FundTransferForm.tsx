@@ -1,5 +1,5 @@
 import { ArrowRightLeft, Plus, X } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CURRENCIES, getFund, getValueInputLabel, isHalabFleilatFund, isWeightCurrency } from '../config';
 import { createLinkedFundTransfer, todayIso } from '../lib/utils';
 import { defaultHalabRemittanceFields, stampHalabRemittance } from '../lib/halabRemittance';
@@ -21,6 +21,10 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
   const [note, setNote] = useState('');
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
   const showHalabFields = isHalabFleilatFund(fromFundId);
+  const halabDeliverySource = useMemo(() => {
+    const parsed = Number(amount.replace(/,/g, '')) || 0;
+    return parsed > 0 ? { amount: parsed, currency } : null;
+  }, [amount, currency]);
 
   if (!targets.length) return null;
 
@@ -121,7 +125,12 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
       </div>
 
       {showHalabFields && (
-        <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} compact />
+        <HalabRemittanceFieldsEditor
+          values={halabRemittance}
+          onChange={setHalabRemittance}
+          deliverySource={halabDeliverySource}
+          compact
+        />
       )}
 
       <input

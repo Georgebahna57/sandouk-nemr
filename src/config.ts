@@ -31,6 +31,7 @@ export const CURRENCIES: AssetConfig[] = [
   { id: 'JOD', label: 'دينار أردني', symbol: 'د.أ', kind: 'money', unit: 'مبلغ' },
   { id: 'AED', label: 'درهم إماراتي', symbol: 'د.إ', kind: 'money', unit: 'مبلغ' },
   { id: 'SYP', label: 'ليرة سورية', symbol: 'ل.س', kind: 'money', unit: 'مبلغ' },
+  { id: 'NSYP', label: 'ليرة سورية جديدة', symbol: 'ل.س ج', kind: 'money', unit: 'مبلغ' },
   { id: 'LBP', label: 'ليرة لبنانية', symbol: 'ل.ل.', kind: 'money', unit: 'مبلغ' },
   { id: 'GOLD', label: 'ذهب', symbol: 'غ', kind: 'weight', unit: 'غرام' },
   { id: 'SILVER', label: 'فضة', symbol: 'غ', kind: 'weight', unit: 'غرام' },
@@ -46,10 +47,14 @@ export function isHalabFleilatFund(fundId: FundId): boolean {
 
 /** اسم حساب الصندوق الافتراضي — رصيد الصندوق = رصيد هالحساب فقط */
 export function getFundAccountName(fundId: FundId): string {
-  return getFund(fundId).name;
+  const fund = getFund(fundId);
+  if (fundId === 'halabFleilat') return fund.shortName;
+  return fund.name;
 }
 
-const FUND_ACCOUNT_NAMES = new Set(FUNDS.map(f => f.name));
+const FUND_ACCOUNT_NAMES = new Set(
+  FUNDS.flatMap(f => (f.id === 'halabFleilat' ? [f.shortName, f.name] : [f.name])),
+);
 
 export function isFundAccountName(name: string): boolean {
   return FUND_ACCOUNT_NAMES.has(name.trim());

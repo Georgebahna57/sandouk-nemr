@@ -9,7 +9,7 @@ export type AccountValuationMode = 'breakdown' | 'usd' | 'gold';
 const STORAGE_KEY = 'sandouk-valuation-rates-v1';
 
 /** عملات يُعرض فيها الريت كـ «1 USD = X» بدل USD لكل وحدة */
-export const INVERSE_RATE_CURRENCIES = new Set<Currency>(['LBP', 'SYP']);
+export const INVERSE_RATE_CURRENCIES = new Set<Currency>(['LBP', 'SYP', 'NSYP']);
 
 export const DEFAULT_VALUATION_RATES: ValuationRates = {
   USD: 1,
@@ -22,6 +22,7 @@ export const DEFAULT_VALUATION_RATES: ValuationRates = {
   JOD: 1.41,
   AED: 0.27,
   SYP: 1 / 15000,
+  NSYP: 1 / 15000,
   LBP: 1 / 89500,
   GOLD: 95,
   SILVER: 1.1,

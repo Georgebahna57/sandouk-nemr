@@ -1,5 +1,5 @@
 import { Plus, X } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getFund, isHalabFleilatFund } from '../config';
 import {
   createLinkedAccountAccountOperation,
@@ -26,7 +26,7 @@ import {
   FeeEditor,
   type FeeEditorValue,
 } from './FeeEditor';
-import { defaultHalabRemittanceFields, stampHalabRemittance } from '../lib/halabRemittance';
+import { defaultHalabRemittanceFields, resolveHalabDeliverySource, stampHalabRemittance } from '../lib/halabRemittance';
 import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 
 type TransferMode = 'none' | 'fund' | 'account';
@@ -82,6 +82,12 @@ export function AccountTransactionForm({
     : sumAmountForCurrency(parsedLines, extraFeeEditor.currency);
   const shamelEligible = isShamelFeeEligible(accountName);
   const canLinkAccount = otherAccountNames.length > 0;
+  const halabDeliverySource = useMemo(() => resolveHalabDeliverySource({
+    isExchange,
+    exchangeReceivedAmount: exchangeParsed.receivedAmount,
+    exchangeReceivedCurrency: receivedCurrency,
+    lines: parsedLines,
+  }), [isExchange, exchangeParsed.receivedAmount, receivedCurrency, parsedLines]);
 
   function reset() {
     setDirection('out');
@@ -244,7 +250,12 @@ export function AccountTransactionForm({
       )}
 
       {showHalabFields && (
-        <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} compact />
+        <HalabRemittanceFieldsEditor
+          values={halabRemittance}
+          onChange={setHalabRemittance}
+          deliverySource={halabDeliverySource}
+          compact
+        />
       )}
 
       <input type="text" placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)}

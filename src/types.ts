@@ -11,6 +11,7 @@ export type Currency =
   | 'JOD'
   | 'AED'
   | 'SYP'
+  | 'NSYP'
   | 'LBP'
   | 'GOLD'
   | 'SILVER';
@@ -56,6 +57,7 @@ export interface HalabRemittanceFields {
   beneficiary?: string;
   beneficiaryPhone?: string;
   deliveryAmount?: string;
+  deliveryCurrency?: Currency;
   destination?: string;
 }
 

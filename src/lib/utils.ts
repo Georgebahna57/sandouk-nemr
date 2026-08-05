@@ -146,7 +146,7 @@ export function formatWeight(grams: number): string {
 
 export function formatAmount(amount: number, currency: Currency): string {
   if (isWeightCurrency(currency)) return formatWeight(amount);
-  const noDecimals = currency === 'LBP' || currency === 'SYP';
+  const noDecimals = currency === 'LBP' || currency === 'SYP' || currency === 'NSYP';
   return amount.toLocaleString(NUMBER_LOCALE, {
     minimumFractionDigits: noDecimals ? 0 : 0,
     maximumFractionDigits: noDecimals ? 0 : 0,

@@ -1,5 +1,5 @@
 import { Plus, X } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getFundAccountName, isHalabFleilatFund } from '../config';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
@@ -21,7 +21,7 @@ import {
   type FeeEditorValue,
 } from './FeeEditor';
 import { extraFeeFieldsFromParsed, feeFieldsFromParsed, isShamelFeeEligible, sumAmountForCurrency } from '../lib/fees';
-import { defaultHalabRemittanceFields, stampHalabRemittance } from '../lib/halabRemittance';
+import { defaultHalabRemittanceFields, resolveHalabDeliverySource, stampHalabRemittance } from '../lib/halabRemittance';
 import type { HalabRemittanceFields } from '../types';
 import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 
@@ -95,6 +95,13 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const matchedAccount = counterpartyNames.find(n => n === counterpartyTrimmed);
   const canLink = !!matchedAccount;
   const shamelEligible = isShamelFeeEligible(matchedAccount ?? counterpartyTrimmed);
+  const parsedLines = parseAmountLines(lines);
+  const halabDeliverySource = useMemo(() => resolveHalabDeliverySource({
+    isExchange,
+    exchangeReceivedAmount: exchangeParsed.receivedAmount,
+    exchangeReceivedCurrency: receivedCurrency,
+    lines: parsedLines,
+  }), [isExchange, exchangeParsed.receivedAmount, receivedCurrency, parsedLines]);
 
   function reset() {
     setDirection('out');
@@ -118,7 +125,6 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setAccountDirection(next);
   }
 
-  const parsedLines = parseAmountLines(lines);
   const feeBaseAmount = isExchange
     ? (feeEditor.currency === paidCurrency ? parsedAmount : feeEditor.currency === receivedCurrency ? exchangeResult : 0)
     : sumAmountForCurrency(parsedLines, feeEditor.currency);
@@ -355,7 +361,11 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       )}
 
       {showHalabFields && (
-        <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} />
+        <HalabRemittanceFieldsEditor
+          values={halabRemittance}
+          onChange={setHalabRemittance}
+          deliverySource={halabDeliverySource}
+        />
       )}
 
       <input type="text" placeholder="ملاحظة (اختياري)" value={note} onChange={e => setNote(e.target.value)}

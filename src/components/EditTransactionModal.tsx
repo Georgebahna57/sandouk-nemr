@@ -1,7 +1,7 @@
 import { Pencil, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { getFundAccountName, isHalabFleilatFund } from '../config';
-import { halabRemittanceFromTransaction, stampHalabRemittance } from '../lib/halabRemittance';
+import { halabRemittanceFromTransaction, resolveHalabDeliverySource, stampHalabRemittance } from '../lib/halabRemittance';
 import { buildPendingWhatsAppMessage } from '../lib/whatsapp';
 import { formatDateAr, formatFee, formatIntermediary, inferKind, getOperationGroupIds } from '../lib/utils';
 import { feeEditorFromParsed, buildFeeFromEditor, FeeEditor } from './FeeEditor';
@@ -135,6 +135,21 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
     [lines],
   );
 
+  const exchangeDeliverySource = useMemo(() => {
+    if (!isExchange) return null;
+    const parsed = parseExchangeFieldValues(exchangeFields);
+    return resolveHalabDeliverySource({
+      isExchange: true,
+      exchangeReceivedAmount: parsed.receivedAmount,
+      exchangeReceivedCurrency: exchangeFields.receivedCurrency,
+    });
+  }, [isExchange, exchangeFields]);
+
+  const regularDeliverySource = useMemo(() => {
+    if (isExchange) return null;
+    return resolveHalabDeliverySource({ lines: parseAmountLines(lines) });
+  }, [isExchange, lines]);
+
   const shamelEligible = isShamelFeeEligible(
     linkedAccountTxs[0]?.party ?? (isAccountOnly ? clicked?.party : undefined) ?? counterparty.trim() ?? lead?.counterparty,
   );
@@ -218,7 +233,11 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
           )}
 
           {showHalabFields && (
-            <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} />
+            <HalabRemittanceFieldsEditor
+              values={halabRemittance}
+              onChange={setHalabRemittance}
+              deliverySource={exchangeDeliverySource}
+            />
           )}
 
           <input
@@ -502,7 +521,11 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
         )}
 
         {showHalabFields && (
-          <HalabRemittanceFieldsEditor values={halabRemittance} onChange={setHalabRemittance} />
+          <HalabRemittanceFieldsEditor
+            values={halabRemittance}
+            onChange={setHalabRemittance}
+            deliverySource={regularDeliverySource}
+          />
         )}
 
         <input
