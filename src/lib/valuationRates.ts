@@ -96,13 +96,14 @@ export interface ValuationLine {
 export function buildValuationLines(balances: CustomerBalances, rates: ValuationRates): ValuationLine[] {
   const lines: ValuationLine[] = [];
   for (const c of CURRENCIES) {
-    const balance = balances[c.id]?.balance ?? 0;
-    if (balance === 0) continue;
+    const bucket = balances[c.id];
+    if (!bucket) continue;
+    if (bucket.receipts === 0 && bucket.payments === 0 && bucket.balance === 0) continue;
     lines.push({
       currency: c.id,
       label: c.label,
-      balance,
-      usdValue: convertAmountToUsd(balance, c.id, rates),
+      balance: bucket.balance,
+      usdValue: convertAmountToUsd(bucket.balance, c.id, rates),
       rateLabel: formatRateLabel(c.id, rates),
     });
   }

@@ -2,7 +2,7 @@ import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, 
 import { useMemo, useState } from 'react';
 import { CURRENCIES, getFund, canRegisterCustomerName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
-import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, findCustomerForAccount, formatDateAr } from '../lib/utils';
+import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
 import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
@@ -153,16 +153,12 @@ export function CustomersPanel({
           {filtered.map(summary => {
             const isOpen = expanded === summary.name;
             const accountTx = enrichAccountTransactionsForDisplay(
-              transactions.filter(
-                tx => (tx.ledger ?? 'fund') === 'account'
-                  && tx.party === summary.name
-                  && tx.fundId === fundId,
-              ),
+              filterAccountViewTransactions(transactions, fundId, summary.name),
               transactions,
             );
             const activeCurrencies = CURRENCIES.filter(c => {
               const b = summary.balances[c.id];
-              return b.receipts !== 0 || b.payments !== 0;
+              return b && (b.receipts !== 0 || b.payments !== 0 || b.balance !== 0);
             });
 
             return (

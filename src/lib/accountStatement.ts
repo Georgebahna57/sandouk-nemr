@@ -1,7 +1,7 @@
 import { getCurrencyLabel, getFund, isWeightCurrency } from '../config';
 import type { Currency, FundId, Transaction } from '../types';
 import { isTransactionReconciled } from './customerMeta';
-import { describeTransaction, formatAmount, formatDateAr, formatValueWithUnit, groupTransactionsForDisplay } from './utils';
+import { describeTransaction, filterAccountViewTransactions, formatAmount, formatDateAr, formatValueWithUnit, groupTransactionsForDisplay } from './utils';
 
 export interface AccountStatementRow {
   id: string;
@@ -36,12 +36,8 @@ function accountTransactionsForStatement(
   fundId: FundId,
   accountName: string,
 ): Transaction[] {
-  return transactions.filter(
-    tx => tx.fundId === fundId
-      && tx.status === 'posted'
-      && (tx.ledger ?? 'fund') === 'account'
-      && tx.party === accountName
-      && !tx.feeSourceId,
+  return filterAccountViewTransactions(transactions, fundId, accountName).filter(
+    tx => tx.status === 'posted' && !tx.feeSourceId,
   );
 }
 

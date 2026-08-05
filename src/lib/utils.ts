@@ -269,6 +269,33 @@ export function computeBalances(transactions: Transaction[], fundId: FundId): Fu
   return balances;
 }
 
+export function transactionAffectsAccountView(
+  tx: Transaction,
+  fundId: FundId,
+  accountName: string,
+  allTransactions: Transaction[],
+): boolean {
+  if (tx.fundId !== fundId) return false;
+  const ledger = tx.ledger ?? 'fund';
+  if (ledger === 'account' && tx.party === accountName) return true;
+  if (!isHalabLinkedAccountName(accountName)) return false;
+  if (ledger !== 'fund' || tx.party !== accountName) return false;
+  if (tx.linkId && allTransactions.some(
+    t => t.linkId === tx.linkId && t.ledger === 'account' && t.party === accountName,
+  )) {
+    return false;
+  }
+  return true;
+}
+
+export function filterAccountViewTransactions(
+  transactions: Transaction[],
+  fundId: FundId,
+  accountName: string,
+): Transaction[] {
+  return transactions.filter(tx => transactionAffectsAccountView(tx, fundId, accountName, transactions));
+}
+
 export function computeAccountBalances(
   transactions: Transaction[],
   fundId: FundId,
@@ -276,10 +303,8 @@ export function computeAccountBalances(
 ): CustomerBalances {
   const balances = emptyCustomerBalances();
   const posted = transactions.filter(
-    tx => tx.fundId === fundId
-      && tx.status === 'posted'
-      && (tx.ledger ?? 'fund') === 'account'
-      && tx.party === accountName,
+    tx => tx.status === 'posted'
+      && transactionAffectsAccountView(tx, fundId, accountName, transactions),
   );
   for (const tx of posted) applyTransactionToCustomerBalance(balances, tx);
   return balances;
@@ -393,7 +418,7 @@ export function buildAccountSummaries(
     const balances = computeAccountBalances(transactions, fundId, name);
     const hasActivity = CURRENCIES.some(c => {
       const b = balances[c.id];
-      return b.receipts !== 0 || b.payments !== 0;
+      return b && (b.receipts !== 0 || b.payments !== 0 || b.balance !== 0);
     });
     const customer = findCustomerForAccount(customers, name, fundId)
       ?? relevantCustomers.find(c => c.name === name);
