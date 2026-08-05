@@ -121,11 +121,25 @@ export function normalizeTransaction(tx: Transaction): Transaction {
     ? withFee
     : tx;
   if (base.ledger === 'account') return base;
+
+  const ledger = base.ledger ?? 'fund';
+  if (ledger === 'fund') {
+    if (!isFundAccountName(base.party) && isCustomerAccountName(base.party)) {
+      return {
+        ...base,
+        ledger: 'fund',
+        counterparty: base.counterparty ?? base.party,
+        party: getFundAccountName(base.fundId),
+      };
+    }
+    return { ...base, ledger: 'fund' };
+  }
+
   if (!isFundAccountName(base.party) && isCustomerAccountName(base.party)) {
     return { ...base, ledger: 'account' };
   }
   if (isFundAccountName(base.party) || base.counterparty) {
-    return { ...base, ledger: base.ledger ?? 'fund' };
+    return { ...base, ledger: 'fund' };
   }
   return {
     ...base,
@@ -181,6 +195,54 @@ export function filterByFund<T extends { fundId: FundId }>(items: T[], fundId: F
   return items.filter(i => i.fundId === fundId);
 }
 
+export type FundTransactionStats = {
+  total: number;
+  fundLedger: number;
+  accountLedger: number;
+  pending: number;
+  posted: number;
+  visibleFundLedger: number;
+  visiblePending: number;
+  visiblePosted: number;
+};
+
+export function getFundTransactionStats(transactions: Transaction[], fundId: FundId): FundTransactionStats {
+  const inFund = transactions.filter(t => t.fundId === fundId);
+  return {
+    total: inFund.length,
+    fundLedger: inFund.filter(t => (t.ledger ?? 'fund') === 'fund').length,
+    accountLedger: inFund.filter(t => t.ledger === 'account').length,
+    pending: inFund.filter(t => t.status === 'pending').length,
+    posted: inFund.filter(t => t.status === 'posted').length,
+    visibleFundLedger: filterTransactions(inFund, fundId).length,
+    visiblePending: filterTransactions(inFund, fundId, { status: 'pending' }).length,
+    visiblePosted: filterTransactions(inFund, fundId, { status: 'posted' }).length,
+  };
+}
+
+/** إصلاح حركات صندوق حلب المخزّنة بحساب الطرف بدل حساب الصندوق */
+export function repairHalabFundTransactions(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (tx.fundId !== 'halabFleilat') return tx;
+    const ledger = tx.ledger ?? 'fund';
+    if (ledger !== 'fund') return tx;
+    if (isHalabFundPartyName(tx.party)) return tx;
+    const fixed: Transaction = {
+      ...tx,
+      ledger: 'fund',
+      counterparty: tx.counterparty ?? (isCustomerAccountName(tx.party) ? tx.party : undefined),
+      party: getFundAccountName('halabFleilat'),
+    };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
+}
+
 export function filterTransactions(
   transactions: Transaction[],
   fundId: FundId,
@@ -191,7 +253,7 @@ export function filterTransactions(
     const ledger = tx.ledger ?? 'fund';
     if (opts?.ledger && ledger !== opts.ledger) return false;
     if (!opts?.ledger && ledger !== 'fund') return false;
-    if (ledger === 'fund' && !isFundPartyForLedger(tx.party, fundId)) return false;
+    if (ledger === 'fund' && !isHalabFleilatFund(fundId) && !isFundPartyForLedger(tx.party, fundId)) return false;
     if (opts?.date && tx.date !== opts.date) return false;
     if (opts?.status && tx.status !== opts.status) return false;
     return true;

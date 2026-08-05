@@ -21,6 +21,7 @@ import {
   getOperationGroupIds,
   loadState,
   parseMentions,
+  repairHalabFundTransactions,
 } from '../lib/utils';
 import {
   collectFeeSyncLeadIds,
@@ -96,16 +97,17 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         }
 
         if (!cancelled) {
-          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(cloud.transactions);
+          const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(cloud.transactions);
+          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(repaired);
           const leadIds = getFeeSyncLeadIds(withBackfill);
           const feeSync = mergeFeeSync(withBackfill, leadIds);
           const nextState = { ...cloud, transactions: feeSync.transactions };
 
-          if (changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
+          if (repairedHalab.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
             if (feeSync.removeIds.length) {
               await removeTransactions(feeSync.removeIds);
             }
-            const toUpsert = [...changed, ...feeSync.upsert];
+            const toUpsert = [...repairedHalab, ...changed, ...feeSync.upsert];
             if (toUpsert.length) await upsertTransactions(toUpsert);
           }
 
