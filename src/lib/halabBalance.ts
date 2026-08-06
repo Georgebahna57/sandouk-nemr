@@ -156,3 +156,81 @@ export function getHalabCurrencyTotals(
   const operationDelta = currency === 'USD' ? receipts - payments : payments - receipts;
   return { payments, receipts, balance, operationDelta };
 }
+
+export type HalabUsdBreakdown = {
+  openingPayments: number;
+  openingReceipts: number;
+  openingBalance: number;
+  opsPayments: number;
+  opsReceipts: number;
+  opsDelta: number;
+  totalBalance: number;
+  openingTxCount: number;
+};
+
+export function getHalabUsdBalanceBreakdown(transactions: Transaction[]): HalabUsdBreakdown {
+  let openingPayments = 0;
+  let openingReceipts = 0;
+  let opsPayments = 0;
+  let opsReceipts = 0;
+  let openingTxCount = 0;
+
+  for (const tx of transactions) {
+    if (tx.fundId !== 'halabFleilat') continue;
+    if ((tx.ledger ?? 'fund') !== 'fund') continue;
+    if (tx.status !== 'posted') continue;
+    if (tx.currency !== 'USD') continue;
+    if (tx.kind !== 'payment' && tx.kind !== 'receipt') continue;
+    const isOpening = Boolean(tx.note?.includes(OPENING_BALANCE_NOTE));
+    if (isOpening) openingTxCount += 1;
+    if (tx.kind === 'payment') {
+      if (isOpening) openingPayments += tx.amount;
+      else opsPayments += tx.amount;
+    } else {
+      if (isOpening) openingReceipts += tx.amount;
+      else opsReceipts += tx.amount;
+    }
+  }
+
+  const openingBalance = openingReceipts - openingPayments;
+  const opsDelta = opsReceipts - opsPayments;
+  const totalBalance = computeHalabAwareBalance(
+    openingReceipts + opsReceipts,
+    openingPayments + opsPayments,
+    'halabFleilat',
+    'USD',
+  );
+
+  return {
+    openingPayments,
+    openingReceipts,
+    openingBalance,
+    opsPayments,
+    opsReceipts,
+    opsDelta,
+    totalBalance,
+    openingTxCount,
+  };
+}
+
+/** كل إصلاحات حلب — تُشغَّل عند كل تحميل */
+export function runAllHalabRepairs(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changedById = new Map<string, Transaction>();
+
+  function merge(result: { transactions: Transaction[]; changed: Transaction[] }) {
+    for (const tx of result.changed) changedById.set(tx.id, tx);
+    return result.transactions;
+  }
+
+  let txs = transactions;
+  txs = merge(repairHalabOpeningBalanceKinds(txs));
+
+  const changed = [...changedById.values()];
+  const byId = new Map(txs.map(tx => [tx.id, tx]));
+  for (const tx of changed) byId.set(tx.id, tx);
+
+  return { transactions: [...byId.values()], changed };
+}

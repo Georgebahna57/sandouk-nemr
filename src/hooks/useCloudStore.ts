@@ -35,10 +35,9 @@ import {
   saveManualSnapshot,
   savePreDestructiveSnapshot,
 } from '../lib/localMirror';
-import { repairHalabOpeningBalanceKinds } from '../lib/halabBalance';
+import { runAllHalabRepairs } from '../lib/halabBalance';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
-const HALAB_OPENING_KIND_MIGRATED = 'halab-opening-balance-kind-v2';
 
 type FeeSyncResult = {
   transactions: Transaction[];
@@ -109,13 +108,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
         if (!cancelled) {
           const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(cloud.transactions);
-          let afterOpening = repaired;
-          let repairedOpening: Transaction[] = [];
-          if (!localStorage.getItem(HALAB_OPENING_KIND_MIGRATED)) {
-            const openingRepair = repairHalabOpeningBalanceKinds(repaired);
-            afterOpening = openingRepair.transactions;
-            repairedOpening = openingRepair.changed;
-          }
+          const { transactions: afterOpening, changed: repairedOpening } = runAllHalabRepairs(repaired);
           const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
           const leadIds = getFeeSyncLeadIds(withBackfill);
           const feeSync = mergeFeeSync(withBackfill, leadIds);
@@ -127,9 +120,6 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
             }
             const toUpsert = [...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
             if (toUpsert.length) await upsertTransactions(toUpsert);
-            if (repairedOpening.length) {
-              localStorage.setItem(HALAB_OPENING_KIND_MIGRATED, '1');
-            }
           }
 
           setState(nextState);
@@ -429,6 +419,23 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     }
   }, []);
 
+  const repairHalabData = useCallback(async () => {
+    await runSync(async () => {
+      const cloud = await fetchAppState();
+      const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(cloud.transactions);
+      const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
+      const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
+      const leadIds = getFeeSyncLeadIds(withBackfill);
+      const feeSync = mergeFeeSync(withBackfill, leadIds);
+      if (feeSync.removeIds.length) await removeTransactions(feeSync.removeIds);
+      const toUpsert = [...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+      if (toUpsert.length) await upsertTransactions(toUpsert);
+      const refreshed = await fetchAppState();
+      setState(refreshed);
+      mirrorAppState(refreshed);
+    });
+  }, [runSync]);
+
   return {
     state,
     loading,
@@ -447,5 +454,6 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     claimTransaction,
     releaseClaim,
     restoreBackup,
+    repairHalabData,
   };
 }

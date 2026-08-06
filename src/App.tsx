@@ -107,6 +107,7 @@ export default function App({ user, onLogout }: Props) {
     claimTransaction,
     releaseClaim,
     restoreBackup,
+    repairHalabData,
   } = useCloudStore(true, user.email ? {
     userId: user.id,
     email: user.email,
@@ -250,6 +251,7 @@ export default function App({ user, onLogout }: Props) {
           if (backup.valuationRates) setValuationRates(backup.valuationRates);
         }}
         onAddOpeningBalance={addTransaction}
+        onRepairHalab={repairHalabData}
       />
     );
   }

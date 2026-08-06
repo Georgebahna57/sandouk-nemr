@@ -34,6 +34,7 @@ interface Props {
   appState: AppState;
   onRestoreBackup: (backup: AppBackup, mode: 'merge' | 'replace') => Promise<void>;
   onAddOpeningBalance: (tx: Transaction[]) => void | Promise<void>;
+  onRepairHalab?: () => Promise<void>;
 }
 
 type FundWhatsAppTextMap = Partial<Record<FundId, string>>;
@@ -73,7 +74,7 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRepairHalab }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
@@ -234,7 +235,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
         </div>
       )}
 
-      <FundDataDiagnostic appState={appState} />
+      <FundDataDiagnostic appState={appState} onRepairHalab={onRepairHalab} />
 
       <BackupSection
         appState={appState}

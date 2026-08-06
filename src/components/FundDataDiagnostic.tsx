@@ -1,13 +1,22 @@
+import { Loader2, Wrench } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { FUNDS } from '../config';
-import { halabBalanceSideLabel, getHalabCurrencyTotals } from '../lib/halabBalance';
+import {
+  getHalabUsdBalanceBreakdown,
+  halabBalanceSideLabel,
+} from '../lib/halabBalance';
 import { computeBalances, formatValueWithUnit, getFundTransactionStats } from '../lib/utils';
 import type { AppState } from '../types';
 
 interface Props {
   appState: AppState;
+  onRepairHalab?: () => Promise<void>;
 }
 
-export function FundDataDiagnostic({ appState }: Props) {
+export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
+  const [busy, setBusy] = useState(false);
+  const [repairMsg, setRepairMsg] = useState<string | null>(null);
+
   const rows = FUNDS.map(fund => ({
     fund,
     stats: getFundTransactionStats(appState.transactions, fund.id),
@@ -15,10 +24,28 @@ export function FundDataDiagnostic({ appState }: Props) {
 
   const halab = rows.find(r => r.fund.id === 'halabFleilat');
   const halabBalances = halab ? computeBalances(appState.transactions, 'halabFleilat') : null;
-  const usdTotals = halab ? getHalabCurrencyTotals(appState.transactions, 'USD') : null;
+  const usdBreakdown = useMemo(
+    () => getHalabUsdBalanceBreakdown(appState.transactions),
+    [appState.transactions],
+  );
+
   const halabHidden = halab
     ? halab.stats.fundLedger - halab.stats.visibleFundLedger
     : 0;
+
+  async function runRepair() {
+    if (!onRepairHalab) return;
+    setBusy(true);
+    setRepairMsg(null);
+    try {
+      await onRepairHalab();
+      setRepairMsg('تم تطبيق إصلاح حلب — حدّث الرصيد');
+    } catch {
+      setRepairMsg('فشل الإصلاح');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="mb-4 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
@@ -52,10 +79,10 @@ export function FundDataDiagnostic({ appState }: Props) {
           </tbody>
         </table>
       </div>
+
       {halab && halab.stats.total === 0 && (
         <p className="mt-3 text-xs text-rose-300">
-          لا توجد أي حركة مخزّنة لـ حلب - الفيلات في قاعدة البيانات. راجع Supabase → Table Editor → transactions
-          أو استعد نسخة احتياطية.
+          لا توجد أي حركة مخزّنة لـ حلب - الفيلات في قاعدة البيانات.
         </p>
       )}
       {halabHidden > 0 && (
@@ -63,25 +90,49 @@ export function FundDataDiagnostic({ appState }: Props) {
           وُجد {halabHidden} حركة صندوق لحلب كانت مخفية — يفترض أن تظهر بعد التحديث.
         </p>
       )}
-      {halabBalances && (halabBalances.SYP.balance !== 0 || halabBalances.USD.balance !== 0) && (
-        <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-slate-300">
-          <p className="mb-1 font-medium text-sky-200">أرصدة حلب (المنطق الجديد)</p>
+
+      {halabBalances && (
+        <div className="mt-3 rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-slate-300 space-y-1">
+          <p className="font-medium text-sky-200">أرصدة حلب</p>
           {halabBalances.SYP.balance !== 0 && (
             <p>
               سوري: {formatValueWithUnit(Math.abs(halabBalances.SYP.balance), 'SYP')} · {halabBalanceSideLabel('SYP', halabBalances.SYP.balance)}
             </p>
           )}
-          {halabBalances.USD.balance !== 0 && (
-            <p>
-              دولار: {formatValueWithUnit(Math.abs(halabBalances.USD.balance), 'USD')} · {halabBalanceSideLabel('USD', halabBalances.USD.balance)}
+          <p>
+            دولار: {formatValueWithUnit(Math.abs(halabBalances.USD.balance), 'USD')} · {halabBalanceSideLabel('USD', halabBalances.USD.balance)}
+          </p>
+          <div className="mt-2 border-t border-slate-700/60 pt-2 text-[10px] text-slate-500 space-y-0.5">
+            <p>افتتاح: {formatValueWithUnit(usdBreakdown.openingBalance, 'USD')} ({usdBreakdown.openingTxCount} حركة)</p>
+            <p>عمليات: {formatValueWithUnit(usdBreakdown.opsDelta, 'USD')} (دفع {formatValueWithUnit(usdBreakdown.opsPayments, 'USD')} · استلام {formatValueWithUnit(usdBreakdown.opsReceipts, 'USD')})</p>
+            <p>المجموع: {formatValueWithUnit(usdBreakdown.totalBalance, 'USD')} = افتتاح + عمليات</p>
+          </div>
+          {usdBreakdown.openingTxCount === 0 && (
+            <p className="text-amber-300">
+              ⚠ لا يوجد رصيد افتتاحي دولار — سجّله من «رصيد افتتاحي» (245,542 لهم)
             </p>
           )}
-          {usdTotals && (
-            <p className="mt-1 text-[10px] text-slate-500">
-              دولار — دفع: {formatValueWithUnit(usdTotals.payments, 'USD')} · استلام: {formatValueWithUnit(usdTotals.receipts, 'USD')} · فرق (استلام−دفع): {formatValueWithUnit(usdTotals.operationDelta, 'USD')}
+          {usdBreakdown.openingReceipts > 0 && usdBreakdown.openingPayments === 0 && (
+            <p className="text-amber-300">
+              ⚠ الافتتاح مسجّل «استلام» — اضغط إصلاح لتحويله «دفع»
             </p>
           )}
         </div>
+      )}
+
+      {onRepairHalab && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void runRepair()}
+          className="mt-3 flex items-center gap-2 rounded-xl border border-sky-500/40 px-3 py-2 text-xs text-sky-200 hover:bg-sky-500/10 disabled:opacity-60"
+        >
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Wrench size={14} />}
+          إصلاح أرصدة حلب الآن
+        </button>
+      )}
+      {repairMsg && (
+        <p className="mt-2 text-xs text-emerald-400">{repairMsg}</p>
       )}
     </div>
   );
