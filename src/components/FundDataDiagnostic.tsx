@@ -104,7 +104,7 @@ export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
           </p>
           <div className="mt-2 border-t border-slate-700/60 pt-2 text-[10px] text-slate-500 space-y-0.5">
             <p>افتتاح: {formatValueWithUnit(usdBreakdown.openingBalance, 'USD')} ({usdBreakdown.openingTxCount} حركة)</p>
-            <p>عمليات: {formatValueWithUnit(usdBreakdown.opsDelta, 'USD')} (دفع {formatValueWithUnit(usdBreakdown.opsPayments, 'USD')} · استلام {formatValueWithUnit(usdBreakdown.opsReceipts, 'USD')})</p>
+            <p>عمليات: {formatValueWithUnit(usdBreakdown.opsDelta, 'USD')} (دفع − استلام: {formatValueWithUnit(usdBreakdown.opsPayments, 'USD')} − {formatValueWithUnit(usdBreakdown.opsReceipts, 'USD')})</p>
             <p>المجموع: {formatValueWithUnit(usdBreakdown.totalBalance, 'USD')} = افتتاح + عمليات</p>
           </div>
           {usdBreakdown.openingTxCount === 0 && (
@@ -112,9 +112,9 @@ export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
               ⚠ لا يوجد رصيد افتتاحي دولار — سجّله من «رصيد افتتاحي» (245,542 لهم)
             </p>
           )}
-          {usdBreakdown.openingReceipts > 0 && usdBreakdown.openingPayments === 0 && (
+          {usdBreakdown.openingPayments > 0 && usdBreakdown.openingReceipts === 0 && (
             <p className="text-amber-300">
-              ⚠ الافتتاح مسجّل «استلام» — اضغط إصلاح لتحويله «دفع»
+              ⚠ الافتتاح مسجّل «دفع» — اضغط إصلاح لتحويله «استلام»
             </p>
           )}
         </div>
