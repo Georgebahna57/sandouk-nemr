@@ -78,7 +78,7 @@ export function FundDataDiagnostic({ appState }: Props) {
           )}
           {usdTotals && (
             <p className="mt-1 text-[10px] text-slate-500">
-              دولار — دفع: {formatValueWithUnit(usdTotals.payments, 'USD')} · استلام: {formatValueWithUnit(usdTotals.receipts, 'USD')} · فرق: {formatValueWithUnit(Math.abs(usdTotals.payments - usdTotals.receipts), 'USD')}
+              دولار — دفع: {formatValueWithUnit(usdTotals.payments, 'USD')} · استلام: {formatValueWithUnit(usdTotals.receipts, 'USD')} · فرق (استلام−دفع): {formatValueWithUnit(usdTotals.operationDelta, 'USD')}
             </p>
           )}
         </div>

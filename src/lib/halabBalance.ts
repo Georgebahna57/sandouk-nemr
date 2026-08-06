@@ -2,7 +2,7 @@ import { isHalabFleilatFund, isHalabLinkedAccountName } from '../config';
 import type { Currency, FundId, Transaction } from '../types';
 import type { OpeningBalanceSide } from './openingBalance';
 
-/** العملات السورية: موجب = لنا · الدولار على حلب: موجب = لهم */
+/** سوري/NSYP على حلب: دفع − استلام · دولار: استلام − دفع */
 export function isHalabInvertedBalanceCurrency(currency: Currency): boolean {
   return currency === 'SYP' || currency === 'NSYP';
 }
@@ -11,27 +11,32 @@ export function usesHalabReconciliationBalance(fundId: FundId): boolean {
   return isHalabFleilatFund(fundId);
 }
 
-/** على حلب: الرصيد = دفع − استلام (للعمليات كلها) */
 export function computeHalabAwareBalance(
   receipts: number,
   payments: number,
   fundId: FundId,
-  _currency?: Currency,
+  currency: Currency,
 ): number {
-  if (usesHalabReconciliationBalance(fundId)) {
+  if (!usesHalabReconciliationBalance(fundId)) {
+    return receipts - payments;
+  }
+  if (currency === 'USD') {
+    return receipts - payments;
+  }
+  if (isHalabInvertedBalanceCurrency(currency)) {
     return payments - receipts;
   }
   return receipts - payments;
 }
 
-/** هدف الرصيد الافتتاحي على حلب */
+/** هدف الرصيد الافتتاحي (موقّع) */
 export function halabOpeningTargetBalance(
   amount: number,
   side: OpeningBalanceSide,
   currency: Currency,
 ): number {
   if (currency === 'USD') {
-    return side === 'theirs' ? amount : -amount;
+    return side === 'theirs' ? -amount : amount;
   }
   if (isHalabInvertedBalanceCurrency(currency)) {
     return side === 'ours' ? amount : -amount;
@@ -45,20 +50,20 @@ export function openingBalanceKindForDelta(
   delta: number,
 ): 'receipt' | 'payment' {
   if (usesHalabReconciliationBalance(fundId)) {
-    return delta > 0 ? 'payment' : 'receipt';
+    if (currency === 'USD') {
+      return delta > 0 ? 'receipt' : 'payment';
+    }
+    if (isHalabInvertedBalanceCurrency(currency)) {
+      return delta > 0 ? 'payment' : 'receipt';
+    }
   }
-  const wantIncrease = delta > 0;
-  if (isHalabInvertedBalanceCurrency(currency)) {
-    return wantIncrease ? 'payment' : 'receipt';
-  }
-  return wantIncrease ? 'receipt' : 'payment';
+  return delta > 0 ? 'receipt' : 'payment';
 }
 
-/** لنا / لهم للعرض — الدولار على حلب معكوس عن السوري */
 export function halabBalanceSideLabel(currency: Currency, balance: number): 'لنا' | 'لهم' | 'متعادل' {
   if (balance === 0) return 'متعادل';
   if (currency === 'USD') {
-    return balance > 0 ? 'لهم' : 'لنا';
+    return balance < 0 ? 'لهم' : 'لنا';
   }
   if (isHalabInvertedBalanceCurrency(currency)) {
     return balance > 0 ? 'لنا' : 'لهم';
@@ -71,7 +76,6 @@ export function halabBalanceIsSurplus(fundId: FundId, currency: Currency, balanc
   return halabBalanceSideLabel(currency, balance) === 'لنا';
 }
 
-/** تأثير حركة واحدة على الرصيد الجاري (كشف حساب) */
 export function halabStatementBalanceDelta(
   fundId: FundId,
   currency: Currency,
@@ -79,30 +83,28 @@ export function halabStatementBalanceDelta(
   amount: number,
 ): number {
   if (usesHalabReconciliationBalance(fundId)) {
-    return kind === 'payment' ? amount : -amount;
-  }
-  if (isHalabInvertedBalanceCurrency(currency)) {
-    return kind === 'payment' ? amount : -amount;
+    if (currency === 'USD') {
+      return kind === 'receipt' ? amount : -amount;
+    }
+    if (isHalabInvertedBalanceCurrency(currency)) {
+      return kind === 'payment' ? amount : -amount;
+    }
   }
   return kind === 'receipt' ? amount : -amount;
 }
 
 export function halabExchangePaidDelta(fundId: FundId, currency: Currency, amount: number): number {
   if (usesHalabReconciliationBalance(fundId)) {
-    return amount;
-  }
-  if (isHalabInvertedBalanceCurrency(currency)) {
-    return amount;
+    if (currency === 'USD') return -amount;
+    if (isHalabInvertedBalanceCurrency(currency)) return amount;
   }
   return -amount;
 }
 
 export function halabExchangeReceivedDelta(fundId: FundId, currency: Currency, amount: number): number {
   if (usesHalabReconciliationBalance(fundId)) {
-    return -amount;
-  }
-  if (isHalabInvertedBalanceCurrency(currency)) {
-    return -amount;
+    if (currency === 'USD') return amount;
+    if (isHalabInvertedBalanceCurrency(currency)) return -amount;
   }
   return amount;
 }
@@ -113,7 +115,7 @@ export function usesHalabStatementBalance(fundId: FundId, accountName: string): 
 
 const OPENING_BALANCE_NOTE = 'رصيد افتتاحي';
 
-/** الرصيد الافتتاحي كان يُسجَّل «استلام» — نحوّله «دفع» (سوري لنا + دولار لهم) */
+/** سوري: افتتاح «استلام» → «دفع» · دولار: «استلام» → «دفع» للرصيد الافتتاحي لهم */
 export function repairHalabOpeningBalanceKinds(transactions: Transaction[]): {
   transactions: Transaction[];
   changed: Transaction[];
@@ -124,9 +126,6 @@ export function repairHalabOpeningBalanceKinds(transactions: Transaction[]): {
     if ((tx.ledger ?? 'fund') !== 'fund') return tx;
     if (!tx.note?.includes(OPENING_BALANCE_NOTE)) return tx;
     if (tx.kind !== 'receipt') return tx;
-    const shouldBePayment =
-      isHalabInvertedBalanceCurrency(tx.currency) || tx.currency === 'USD';
-    if (!shouldBePayment) return tx;
     const fixed: Transaction = { ...tx, kind: 'payment' };
     changed.push(fixed);
     return fixed;
@@ -153,6 +152,7 @@ export function getHalabCurrencyTotals(
     if (tx.kind === 'payment') payments += tx.amount;
     if (tx.kind === 'receipt') receipts += tx.amount;
   }
-  const balance = payments - receipts;
-  return { payments, receipts, balance, operationDelta: payments - receipts };
+  const balance = computeHalabAwareBalance(receipts, payments, 'halabFleilat', currency);
+  const operationDelta = currency === 'USD' ? receipts - payments : payments - receipts;
+  return { payments, receipts, balance, operationDelta };
 }
