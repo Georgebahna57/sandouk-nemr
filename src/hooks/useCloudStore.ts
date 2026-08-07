@@ -13,6 +13,7 @@ import {
 } from '../lib/db';
 import { saveValuationRates } from '../lib/appSettings';
 import type { AppBackup } from '../lib/backup';
+import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
 import {
   appendEditHistory,
   applyCustomerRename,
@@ -107,18 +108,19 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         }
 
         if (!cancelled) {
-          const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(cloud.transactions);
+          const { transactions: nsypFixed, changed: repairedNsyp } = repairNsypToSypTransactions(cloud.transactions);
+          const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(nsypFixed);
           const { transactions: afterOpening, changed: repairedOpening } = runAllHalabRepairs(repaired);
           const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
           const leadIds = getFeeSyncLeadIds(withBackfill);
           const feeSync = mergeFeeSync(withBackfill, leadIds);
           const nextState = { ...cloud, transactions: feeSync.transactions };
 
-          if (repairedHalab.length || repairedOpening.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
+          if (repairedNsyp.length || repairedHalab.length || repairedOpening.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
             if (feeSync.removeIds.length) {
               await removeTransactions(feeSync.removeIds);
             }
-            const toUpsert = [...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+            const toUpsert = [...repairedNsyp, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
             if (toUpsert.length) await upsertTransactions(toUpsert);
           }
 
@@ -184,7 +186,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, []);
 
   const addTransaction = useCallback(async (tx: Transaction | Transaction[]) => {
-    const txs = toArray(tx).map(t => stampActor(t, actor));
+    const txs = toArray(tx).map(t => stampActor(normalizeSyrianTransaction(t) as Transaction, actor));
     let previous: Transaction[] = [];
     let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
     setState(prev => {
@@ -209,17 +211,22 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
   const updateTransaction = useCallback(async (id: string, patch: Partial<Transaction>) => {
     let ids: string[] = [id];
+    let upsertTxs: Transaction[] = [];
     let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
     setState(prev => {
       ids = getOperationGroupIds(prev.transactions, id);
-      const patched = prev.transactions.map(tx => (ids.includes(tx.id) ? { ...tx, ...patch } : tx));
+      const patched = prev.transactions.map(tx => {
+        if (!ids.includes(tx.id)) return tx;
+        return normalizeSyrianTransaction({ ...tx, ...patch }) as Transaction;
+      });
+      upsertTxs = patched.filter(tx => ids.includes(tx.id));
       const leadIds = collectFeeSyncLeadIds(patched, ids);
       syncResult = mergeFeeSync(patched, leadIds);
       return { ...prev, transactions: syncResult.transactions };
     });
     await runSync(async () => {
       if (syncResult.removeIds.length) await removeTransactions(syncResult.removeIds);
-      await patchTransactions(ids, patch);
+      if (upsertTxs.length) await upsertTransactions(upsertTxs);
       if (syncResult.upsert.length) await upsertTransactions(syncResult.upsert);
     });
   }, [runSync]);
@@ -235,7 +242,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [runSync]);
 
   const editTransactions = useCallback(async (updated: Transaction[], summary: string) => {
-    const stamped = updated.map(tx => appendEditHistory(tx, summary, actor));
+    const stamped = updated.map(tx => appendEditHistory(normalizeSyrianTransaction(tx) as Transaction, summary, actor));
     let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
     setState(prev => {
       const merged = prev.transactions.map(tx => {
@@ -422,13 +429,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   const repairHalabData = useCallback(async () => {
     await runSync(async () => {
       const cloud = await fetchAppState();
-      const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(cloud.transactions);
+      const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(cloud.transactions);
+      const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterNsyp);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
       const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
       const leadIds = getFeeSyncLeadIds(withBackfill);
       const feeSync = mergeFeeSync(withBackfill, leadIds);
       if (feeSync.removeIds.length) await removeTransactions(feeSync.removeIds);
-      const toUpsert = [...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedNsyp, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);

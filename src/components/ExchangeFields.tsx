@@ -1,4 +1,5 @@
 import { ArrowLeftRight } from 'lucide-react';
+import { formatNsypConversionHint, isNsyp } from '../lib/syrianCurrency';
 import { CURRENCIES, getValueInputLabel, isWeightCurrency } from '../config';
 import {
   calcExchangeAmount,
@@ -136,6 +137,14 @@ export function ExchangeFields({ values, onChange, compact = false }: Props) {
   const toggleBtn = (active: boolean) => compact
     ? `rounded-lg py-1.5 text-[10px] font-medium ${active ? 'bg-violet-600 text-white' : 'bg-slate-700 text-slate-300'}`
     : `rounded-xl py-2 text-xs font-medium ${active ? 'bg-violet-600 text-white' : 'bg-slate-700 text-slate-300'}`;
+
+  const nsypHints: string[] = [];
+  if (isNsyp(values.paidCurrency) && parsed.paidAmount > 0) {
+    nsypHints.push(`دفع: ${formatNsypConversionHint(parsed.paidAmount)}`);
+  }
+  if (isNsyp(values.receivedCurrency) && parsed.receivedAmount > 0) {
+    nsypHints.push(`استلام: ${formatNsypConversionHint(parsed.receivedAmount)}`);
+  }
 
   return (
     <div className={`rounded-xl border border-violet-500/30 bg-violet-500/10 space-y-3 ${compact ? 'p-2.5' : 'p-3'}`}>
@@ -277,6 +286,10 @@ export function ExchangeFields({ values, onChange, compact = false }: Props) {
           required
         />
       </div>
+
+      {nsypHints.length > 0 && (
+        <p className="text-[10px] text-amber-400/90 tabular-nums">{nsypHints.join(' · ')}</p>
+      )}
 
       {parsed.valid && (
         <div className={`rounded-xl bg-slate-900/80 px-3 py-2.5 ${compact ? 'text-xs' : 'text-sm'}`}>

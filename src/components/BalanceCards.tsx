@@ -1,5 +1,6 @@
 import { CURRENCIES, isHalabFleilatFund, isWeightCurrency } from '../config';
 import { halabBalanceIsSurplus, halabBalanceSideLabel } from '../lib/halabBalance';
+import { isBalanceDisplayCurrency } from '../lib/syrianCurrency';
 import { formatAmount } from '../lib/utils';
 import type { FundBalances, FundId } from '../types';
 
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function BalanceCards({ balances, fundId }: Props) {
-  const active = CURRENCIES.filter(c => balances[c.id].balance !== 0);
+  const active = CURRENCIES.filter(c => isBalanceDisplayCurrency(c.id) && balances[c.id].balance !== 0);
 
   if (active.length === 0) {
     return (

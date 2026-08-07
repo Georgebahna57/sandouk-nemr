@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
+import { formatNsypConversionHint, isNsyp } from '../lib/syrianCurrency';
 import { CURRENCIES, getValueInputLabel, isWeightCurrency } from '../config';
 import type { Currency } from '../types';
 
@@ -60,7 +61,8 @@ export function AmountLinesEditor({ lines, onChange }: Props) {
         const step = isWeightCurrency(line.currency) ? '0.01' : '1';
         const valueLabel = getValueInputLabel(line.currency);
         return (
-          <div key={line.id} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+          <div key={line.id} className="space-y-1">
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
             <select
               value={line.currency}
               onChange={e => updateLine(line.id, { currency: e.target.value as Currency })}
@@ -88,6 +90,12 @@ export function AmountLinesEditor({ lines, onChange }: Props) {
             >
               <Trash2 size={14} />
             </button>
+            </div>
+            {isNsyp(line.currency) && Number(line.amount.replace(/,/g, '')) > 0 && (
+              <p className="text-[10px] text-amber-400/90 tabular-nums pr-1">
+                {formatNsypConversionHint(Number(line.amount.replace(/,/g, '')))}
+              </p>
+            )}
           </div>
         );
       })}

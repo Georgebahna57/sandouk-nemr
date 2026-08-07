@@ -1,4 +1,5 @@
 import { CURRENCIES, getFund, isWeightCurrency } from '../config';
+import { isBalanceDisplayCurrency } from './syrianCurrency';
 import type { CustomerBalances, FundBalances, FundId, Transaction } from '../types';
 import {
   describeTransaction,
@@ -40,6 +41,7 @@ function balanceTone(balance: number): AccountBalanceRow['balanceTone'] {
 export function getFundBalanceShareRows(balances: FundBalances): FundBalanceRow[] {
   const rows: FundBalanceRow[] = [];
   for (const c of CURRENCIES) {
+    if (!isBalanceDisplayCurrency(c.id)) continue;
     const b = balances[c.id];
     if (b.balance === 0) continue;
     const amount = formatAmount(Math.abs(b.balance), c.id);
@@ -58,6 +60,7 @@ export function getFundBalanceShareRows(balances: FundBalances): FundBalanceRow[
 export function getAccountBalanceShareRows(balances: CustomerBalances): AccountBalanceRow[] {
   const rows: AccountBalanceRow[] = [];
   for (const c of CURRENCIES) {
+    if (!isBalanceDisplayCurrency(c.id)) continue;
     const b = balances[c.id];
     if (b.receipts === 0 && b.payments === 0) continue;
     rows.push({

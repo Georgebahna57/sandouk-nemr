@@ -1,5 +1,6 @@
 import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabFundPartyName, isHalabLinkedAccountName, isWeightCurrency } from '../config';
 import { computeHalabAwareBalance } from './halabBalance';
+import { normalizeSyrianTransaction, syrianBalanceAmount, syrianBalanceCurrency } from './syrianCurrency';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
 import type {
   AppState,
@@ -270,18 +271,23 @@ function applyExchangeToCurrencyBalances(
   receivedAmount: number,
   fundId?: FundId,
 ) {
-  const paidBucket = balances[paidCurrency];
-  const receivedBucket = balances[receivedCurrency];
+  const paid = { currency: syrianBalanceCurrency(paidCurrency), amount: syrianBalanceAmount(paidCurrency, paidAmount) };
+  const received = {
+    currency: syrianBalanceCurrency(receivedCurrency),
+    amount: syrianBalanceAmount(receivedCurrency, receivedAmount),
+  };
+  const paidBucket = balances[paid.currency];
+  const receivedBucket = balances[received.currency];
   if (paidBucket) {
-    paidBucket.payments += paidAmount;
+    paidBucket.payments += paid.amount;
     paidBucket.balance = fundId
-      ? computeHalabAwareBalance(paidBucket.receipts, paidBucket.payments, fundId, paidCurrency)
+      ? computeHalabAwareBalance(paidBucket.receipts, paidBucket.payments, fundId, paid.currency)
       : paidBucket.receipts - paidBucket.payments;
   }
   if (receivedBucket) {
-    receivedBucket.receipts += receivedAmount;
+    receivedBucket.receipts += received.amount;
     receivedBucket.balance = fundId
-      ? computeHalabAwareBalance(receivedBucket.receipts, receivedBucket.payments, fundId, receivedCurrency)
+      ? computeHalabAwareBalance(receivedBucket.receipts, receivedBucket.payments, fundId, received.currency)
       : receivedBucket.receipts - receivedBucket.payments;
   }
 }
@@ -299,14 +305,16 @@ function applyTransactionToFundBalance(balances: FundBalances, tx: Transaction, 
     return;
   }
 
-  const bucket = balances[tx.currency];
+  const currency = syrianBalanceCurrency(tx.currency);
+  const amount = syrianBalanceAmount(tx.currency, tx.amount);
+  const bucket = balances[currency];
   if (!bucket) return;
   if (tx.kind === 'receipt') {
-    bucket.receipts += tx.amount;
+    bucket.receipts += amount;
   } else {
-    bucket.payments += tx.amount;
+    bucket.payments += amount;
   }
-  bucket.balance = computeHalabAwareBalance(bucket.receipts, bucket.payments, fundId, tx.currency);
+  bucket.balance = computeHalabAwareBalance(bucket.receipts, bucket.payments, fundId, currency);
 }
 
 function applyTransactionToCustomerBalance(balances: CustomerBalances, tx: Transaction) {
@@ -321,12 +329,14 @@ function applyTransactionToCustomerBalance(balances: CustomerBalances, tx: Trans
     return;
   }
 
-  const bucket = balances[tx.currency];
+  const currency = syrianBalanceCurrency(tx.currency);
+  const amount = syrianBalanceAmount(tx.currency, tx.amount);
+  const bucket = balances[currency];
   if (!bucket) return;
   if (tx.kind === 'receipt') {
-    bucket.receipts += tx.amount;
+    bucket.receipts += amount;
   } else {
-    bucket.payments += tx.amount;
+    bucket.payments += amount;
   }
   bucket.balance = bucket.receipts - bucket.payments;
 }
@@ -535,9 +545,10 @@ export function buildCustomerSummaries(
 }
 
 export function createTransaction(input: Omit<Transaction, 'id' | 'createdAt'>): Transaction {
+  const normalized = normalizeSyrianTransaction(input);
   return {
-    ...input,
-    ledger: input.ledger ?? 'fund',
+    ...normalized,
+    ledger: normalized.ledger ?? 'fund',
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
   };
@@ -557,16 +568,19 @@ export function createTransactionBatch(
   if (!items.length) return [];
   const batchId = opts?.batchId ?? (items.length > 1 ? crypto.randomUUID() : undefined);
   const createdAt = new Date().toISOString();
-  return items.map(item => ({
-    ...base,
-    ledger: base.ledger ?? 'fund',
-    id: crypto.randomUUID(),
-    createdAt,
-    batchId,
-    linkId: opts?.linkId,
-    currency: item.currency,
-    amount: item.amount,
-  }));
+  return items.map(item => {
+    const normalized = normalizeSyrianTransaction({ ...base, ...item });
+    return {
+      ...normalized,
+      ledger: normalized.ledger ?? 'fund',
+      id: crypto.randomUUID(),
+      createdAt,
+      batchId,
+      linkId: opts?.linkId,
+      currency: normalized.currency!,
+      amount: normalized.amount!,
+    };
+  });
 }
 
 /** حركة صندوق + حركة حساب مربوطة */
