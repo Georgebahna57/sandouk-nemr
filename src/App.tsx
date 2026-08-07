@@ -22,6 +22,7 @@ import {
   applyTransactionFilters,
   buildAccountSummaries,
   computeBalances,
+  computeProjectedFundBalances,
   expandFilteredTransactions,
   filterByFund,
   filterTransactions,
@@ -143,6 +144,11 @@ export default function App({ user, onLogout }: Props) {
   }, [visibleFunds, fundId]);
 
   const balances = useMemo(() => computeBalances(state.transactions, fundId), [state.transactions, fundId]);
+
+  const projectedBalances = useMemo(
+    () => computeProjectedFundBalances(state.transactions, fundId),
+    [state.transactions, fundId],
+  );
 
   const allPosted = useMemo(
     () => filterTransactions(state.transactions, fundId, { status: 'posted' }),
@@ -369,7 +375,11 @@ export default function App({ user, onLogout }: Props) {
             <span className="text-xs text-slate-500">{formatDateAr(today)}</span>
           </div>
         </div>
-        <BalanceCards balances={balances} fundId={fundId} />
+        <BalanceCards
+          balances={balances}
+          fundId={fundId}
+          projectedBalances={view === 'pending' && pending.length > 0 ? projectedBalances : undefined}
+        />
       </section>
 
       <nav className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">

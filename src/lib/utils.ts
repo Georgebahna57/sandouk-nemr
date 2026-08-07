@@ -348,6 +348,16 @@ export function computeBalances(transactions: Transaction[], fundId: FundId): Fu
   return balances;
 }
 
+/** رصيد الصندوق لو اعتُمدت كل العمليات المعلّقة */
+export function computeProjectedFundBalances(transactions: Transaction[], fundId: FundId): FundBalances {
+  const balances = emptyBalances();
+  const fundTxs = filterTransactions(transactions, fundId, { ledger: 'fund' }).filter(
+    tx => tx.status === 'posted' || tx.status === 'pending',
+  );
+  for (const tx of fundTxs) applyTransactionToFundBalance(balances, tx, fundId);
+  return balances;
+}
+
 export function isFundPartyForLedger(party: string, fundId: FundId): boolean {
   const trimmed = party.trim();
   if (fundId === 'halabFleilat') return isHalabFundPartyName(trimmed);
@@ -1089,9 +1099,11 @@ export function summarizePendingAmounts(transactions: Transaction[]): PendingAmo
 
   function bump(currency: Currency, field: 'receipts' | 'payments', amount: number) {
     if (!amount) return;
-    const bucket = totals.get(currency) ?? { receipts: 0, payments: 0 };
-    bucket[field] += amount;
-    totals.set(currency, bucket);
+    const resolved = syrianBalanceCurrency(currency);
+    const resolvedAmount = syrianBalanceAmount(currency, amount);
+    const bucket = totals.get(resolved) ?? { receipts: 0, payments: 0 };
+    bucket[field] += resolvedAmount;
+    totals.set(resolved, bucket);
   }
 
   for (const tx of transactions) {
