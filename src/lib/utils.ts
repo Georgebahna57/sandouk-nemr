@@ -1145,6 +1145,14 @@ export function groupTransactionsForDisplay(transactions: Transaction[]): Transa
   return items;
 }
 
+/** معرّفات العمليات المعلّقة بالصندوق — عملية واحدة لكل بطاقة عرض */
+export function getPendingFundOperationLeads(transactions: Transaction[], fundId: FundId): string[] {
+  const pending = filterTransactions(transactions, fundId, { status: 'pending' });
+  return groupTransactionsForDisplay(pending).map(item =>
+    item.kind === 'batch' ? item.transactions[0].id : item.transaction.id,
+  );
+}
+
 export function createCustomer(input: Omit<Customer, 'id' | 'createdAt'>): Customer {
   return {
     ...input,

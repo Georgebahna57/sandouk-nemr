@@ -231,6 +231,56 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     });
   }, [runSync]);
 
+  const approvePendingOperations = useCallback(async (
+    leadIds: string[],
+    meta: {
+      approvalDetails?: string;
+      approvedByName?: string;
+      approvedByEmail?: string;
+      executionDate: string;
+      approvedAt: string;
+    },
+  ) => {
+    if (!leadIds.length) return;
+    let upsertTxs: Transaction[] = [];
+    let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
+    const affectedIds = new Set<string>();
+
+    setState(prev => {
+      let transactions = prev.transactions;
+      for (const leadId of leadIds) {
+        const groupIds = getOperationGroupIds(transactions, leadId);
+        groupIds.forEach(gid => affectedIds.add(gid));
+        const lead = transactions.find(t => t.id === leadId);
+        if (!lead) continue;
+        const orderedDate = lead.date !== meta.executionDate ? lead.date : undefined;
+        const patch = {
+          status: 'posted' as const,
+          date: meta.executionDate,
+          orderedDate,
+          approvalDetails: meta.approvalDetails,
+          approvedByName: meta.approvedByName,
+          approvedByEmail: meta.approvedByEmail,
+          approvedAt: meta.approvedAt,
+        };
+        transactions = transactions.map(tx =>
+          groupIds.includes(tx.id)
+            ? normalizeSyrianTransaction({ ...tx, ...patch }) as Transaction
+            : tx,
+        );
+      }
+      upsertTxs = transactions.filter(tx => affectedIds.has(tx.id));
+      syncResult = mergeFeeSync(transactions, collectFeeSyncLeadIds(transactions, leadIds));
+      return { ...prev, transactions: syncResult.transactions };
+    });
+
+    await runSync(async () => {
+      if (syncResult.removeIds.length) await removeTransactions(syncResult.removeIds);
+      if (upsertTxs.length) await upsertTransactions(upsertTxs);
+      if (syncResult.upsert.length) await upsertTransactions(syncResult.upsert);
+    });
+  }, [runSync]);
+
   const deleteTransaction = useCallback(async (id: string) => {
     savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
     let removeIds: string[] = [id];
@@ -451,6 +501,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     error,
     addTransaction,
     updateTransaction,
+    approvePendingOperations,
     deleteTransaction,
     editTransactions,
     addBill,

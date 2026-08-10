@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
+import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { CustomersPanel } from './components/CustomersPanel';
@@ -11,11 +11,12 @@ import { TransactionFiltersBar, hasActiveTransactionFilters } from './components
 import { TransactionForm } from './components/TransactionForm';
 import { TransactionList } from './components/TransactionList';
 import { AdminPanel } from './components/AdminPanel';
+import { ApproveAllPendingModal } from './components/ApproveAllPendingModal';
 import { ApproveTransactionModal } from './components/ApproveTransactionModal';
 import { BalanceShareImageModal } from './components/BalanceShareImageModal';
 import { PendingAmountTotals } from './components/PendingAmountTotals';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
-import { getFund } from './config';
+import { getFund, isHalabFleilatFund } from './config';
 import { useCloudStore } from './hooks/useCloudStore';
 import { usePermissions } from './hooks/usePermissions';
 import {
@@ -29,6 +30,7 @@ import {
   formatDateAr,
   getAvailableAccountNames,
   getOperationGroupIds,
+  getPendingFundOperationLeads,
   todayIso,
 } from './lib/utils';
 import type { FundId, TransactionFilters, ViewId } from './types';
@@ -70,6 +72,7 @@ export default function App({ user, onLogout }: Props) {
     subtitle?: string;
   } | null>(null);
   const [approvingTxId, setApprovingTxId] = useState<string | null>(null);
+  const [approvingAllPending, setApprovingAllPending] = useState(false);
   const [balanceShare, setBalanceShare] = useState<{
     payload: BalanceSharePayload;
     destinations: string[];
@@ -97,6 +100,7 @@ export default function App({ user, onLogout }: Props) {
     error: syncError,
     addTransaction,
     updateTransaction,
+    approvePendingOperations,
     deleteTransaction,
     editTransactions,
     addBill,
@@ -194,6 +198,24 @@ export default function App({ user, onLogout }: Props) {
     () => getAvailableAccountNames(state.customers, fundId).filter(n => !isFeeAccountName(n)),
     [state.customers, fundId],
   );
+
+  const pendingOperationLeads = useMemo(
+    () => getPendingFundOperationLeads(state.transactions, fundId),
+    [state.transactions, fundId],
+  );
+
+  async function handleApproveAllConfirm(approvalDetails: string) {
+    if (!pendingOperationLeads.length) return;
+    const now = new Date().toISOString();
+    await approvePendingOperations(pendingOperationLeads, {
+      approvalDetails: approvalDetails || undefined,
+      approvedByName: profile?.displayName,
+      approvedByEmail: user.email ?? undefined,
+      executionDate: todayIso(),
+      approvedAt: now,
+    });
+    setApprovingAllPending(false);
+  }
 
   async function handleApproveConfirm(approvalDetails: string, sendWhatsApp: boolean) {
     if (!approvingTxId) return;
@@ -504,6 +526,17 @@ export default function App({ user, onLogout }: Props) {
                 )}
               </div>
             )}
+            {isHalabFleilatFund(fundId) && pending.length > 0 && !readOnly && (
+              <button
+                type="button"
+                onClick={() => setApprovingAllPending(true)}
+                disabled={syncing}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 py-2.5 text-sm font-medium text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-60"
+              >
+                <CheckCircle2 size={16} />
+                اعتماد الكل ({pendingOperationLeads.length})
+              </button>
+            )}
             {filteredPending.length > 0 && (
               <PendingAmountTotals transactions={filteredPending} />
             )}
@@ -585,6 +618,17 @@ export default function App({ user, onLogout }: Props) {
       <footer className="mt-8 text-center text-xs text-slate-600">
         البيانات محفوظة على السحابة — كل صندوق له حسابه الافتراضي
       </footer>
+
+      {approvingAllPending && isHalabFleilatFund(fundId) && (
+        <ApproveAllPendingModal
+          pendingTransactions={pending}
+          operationCount={pendingOperationLeads.length}
+          approverName={profile?.displayName}
+          busy={syncing}
+          onClose={() => setApprovingAllPending(false)}
+          onApprove={handleApproveAllConfirm}
+        />
+      )}
 
       {approvingTxId && (() => {
         const approvingLead = state.transactions.find(t => t.id === approvingTxId);
