@@ -4,8 +4,11 @@ import { CURRENCIES, getValueInputLabel, isWeightCurrency } from '../config';
 import {
   calcExchangeAmount,
   calcExchangePaidAmount,
+  displayRateToInternalRate,
   exchangeRateLabel,
+  formatExchangeRateDisplay,
   formatValueWithUnit,
+  internalRateToDisplayRate,
 } from '../lib/utils';
 import type { Currency } from '../types';
 
@@ -45,9 +48,10 @@ export function exchangeFieldValuesFromTransaction(tx: {
   const receivedCurrency = tx.exchangeToCurrency ?? 'LBP';
   const receivedAmount = tx.exchangeToAmount ?? 0;
   const paidAmount = tx.amount;
-  const rate = tx.exchangeRate ?? 0;
-  const calcReceived = calcExchangeAmount(paidAmount, rate);
-  const amountEntry: ExchangeAmountEntry = rate > 0 && receivedAmount > 0
+  const internalRate = tx.exchangeRate ?? 0;
+  const displayRate = internalRateToDisplayRate(tx.currency, receivedCurrency, internalRate);
+  const calcReceived = calcExchangeAmount(paidAmount, internalRate);
+  const amountEntry: ExchangeAmountEntry = internalRate > 0 && receivedAmount > 0
     && Math.abs(calcReceived - receivedAmount) > 0.01
     ? 'received'
     : 'paid';
@@ -57,7 +61,7 @@ export function exchangeFieldValuesFromTransaction(tx: {
     paidAmount: paidAmount ? String(paidAmount) : '',
     receivedCurrency,
     receivedAmount: receivedAmount ? String(receivedAmount) : '',
-    rate: rate ? String(rate) : '',
+    rate: displayRate ? String(displayRate) : '',
     amountEntry,
   };
 }
@@ -70,35 +74,39 @@ export function parseExchangeFieldValues(values: ExchangeFieldValues): {
   paidAmount: number;
   receivedAmount: number;
   rate: number;
+  displayRate: number;
   valid: boolean;
 } {
-  const parsedRate = Number(values.rate.replace(/,/g, '')) || 0;
+  const parsedDisplayRate = Number(values.rate.replace(/,/g, '')) || 0;
+  const internalRate = displayRateToInternalRate(values.paidCurrency, values.receivedCurrency, parsedDisplayRate);
   const paidInput = Number(values.paidAmount.replace(/,/g, '')) || 0;
   const receivedInput = Number(values.receivedAmount.replace(/,/g, '')) || 0;
 
   let paidAmount: number;
   let receivedAmount: number;
-  let rate = parsedRate;
+  let rate = internalRate;
 
   if (values.amountEntry === 'received') {
     receivedAmount = receivedInput;
-    paidAmount = calcExchangePaidAmount(receivedAmount, parsedRate);
+    paidAmount = calcExchangePaidAmount(receivedAmount, internalRate);
   } else {
     paidAmount = paidInput;
-    receivedAmount = calcExchangeAmount(paidAmount, parsedRate);
+    receivedAmount = calcExchangeAmount(paidAmount, internalRate);
   }
 
-  if (values.amountEntry === 'received' && receivedAmount > 0 && paidAmount > 0 && !parsedRate) {
+  if (values.amountEntry === 'received' && receivedAmount > 0 && paidAmount > 0 && !parsedDisplayRate) {
     rate = Math.round((receivedAmount / paidAmount) * 1_000_000) / 1_000_000;
   }
 
+  const displayRate = parsedDisplayRate || internalRateToDisplayRate(values.paidCurrency, values.receivedCurrency, rate);
+
   const valid = values.paidCurrency !== values.receivedCurrency
-    && parsedRate > 0
+    && displayRate > 0
     && (values.amountEntry === 'received' ? receivedInput > 0 : paidInput > 0)
     && paidAmount > 0
     && receivedAmount > 0;
 
-  return { paidAmount, receivedAmount, rate, valid };
+  return { paidAmount, receivedAmount, rate, displayRate, valid };
 }
 
 interface Props {
@@ -297,7 +305,9 @@ export function ExchangeFields({ values, onChange, compact = false }: Props) {
           <span className="mx-2 text-slate-500">·</span>
           <span className="text-rose-400">-{formatValueWithUnit(parsed.paidAmount, values.paidCurrency)}</span>
           {parsed.rate > 0 && (
-            <p className="mt-1 text-[10px] text-slate-500">ريت: {parsed.rate}</p>
+            <p className="mt-1 text-[10px] text-slate-500">
+              ريت: {formatExchangeRateDisplay(values.paidCurrency, values.receivedCurrency, parsed.rate)}
+            </p>
           )}
         </div>
       )}

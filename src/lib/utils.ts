@@ -2,6 +2,7 @@ import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, get
 import { computeHalabAwareBalance } from './halabBalance';
 import { normalizeSyrianTransaction, syrianBalanceAmount, syrianBalanceCurrency } from './syrianCurrency';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
+import { INVERSE_RATE_CURRENCIES } from './valuationRates';
 import type {
   AppState,
   Currency,
@@ -1166,8 +1167,74 @@ export function formatExecutor(tx: Transaction): string | undefined {
   return undefined;
 }
 
-export function exchangeRateLabel(from: Currency, to: Currency): string {
-  const fromLabel = isWeightCurrency(from) ? `1 غ ${getCurrencyLabel(from)}` : `1 ${getCurrencyLabel(from)}`;
-  const toLabel = isWeightCurrency(to) ? `غ ${getCurrencyLabel(to)}` : getCurrencyLabel(to);
+export function exchangeRateLabel(paid: Currency, received: Currency): string {
+  if (paid === 'USD' || received === 'USD') {
+    const other = paid === 'USD' ? received : paid;
+    if (INVERSE_RATE_CURRENCIES.has(other)) {
+      return `1 $ = ؟ ${getCurrencySymbol(other)}`;
+    }
+    if (isWeightCurrency(other)) {
+      return `1 غ ${getCurrencyLabel(other)} = ؟ $`;
+    }
+    return `1 ${getCurrencyLabel(other)} = ؟ $`;
+  }
+  const fromLabel = isWeightCurrency(paid) ? `1 غ ${getCurrencyLabel(paid)}` : `1 ${getCurrencyLabel(paid)}`;
+  const toLabel = isWeightCurrency(received) ? `غ ${getCurrencyLabel(received)}` : getCurrencyLabel(received);
   return `${fromLabel} = ؟ ${toLabel}`;
+}
+
+/** الريت المعروض للمستخدم — بالدولار عند وجود USD في التبديل */
+export function internalRateToDisplayRate(
+  paid: Currency,
+  received: Currency,
+  internalRate: number,
+): number {
+  if (!internalRate) return 0;
+  if (paid === 'USD' || received === 'USD') {
+    const other = paid === 'USD' ? received : paid;
+    if (INVERSE_RATE_CURRENCIES.has(other)) {
+      return paid === 'USD' ? internalRate : 1 / internalRate;
+    }
+    return paid === 'USD' ? 1 / internalRate : internalRate;
+  }
+  return internalRate;
+}
+
+/** تحويل ريت العرض إلى الريت الداخلي (استلام = دفع × ريت) */
+export function displayRateToInternalRate(
+  paid: Currency,
+  received: Currency,
+  displayRate: number,
+): number {
+  if (!displayRate) return 0;
+  if (paid === 'USD' || received === 'USD') {
+    const other = paid === 'USD' ? received : paid;
+    if (INVERSE_RATE_CURRENCIES.has(other)) {
+      return paid === 'USD' ? displayRate : 1 / displayRate;
+    }
+    return paid === 'USD' ? 1 / displayRate : displayRate;
+  }
+  return displayRate;
+}
+
+export function formatExchangeRateDisplay(
+  paid: Currency,
+  received: Currency,
+  internalRate: number,
+): string {
+  const display = internalRateToDisplayRate(paid, received, internalRate);
+  if (!display) return '—';
+  if (paid === 'USD' || received === 'USD') {
+    const other = paid === 'USD' ? received : paid;
+    if (INVERSE_RATE_CURRENCIES.has(other)) {
+      return `1 $ = ${formatAmount(display, other)} ${getCurrencySymbol(other)}`;
+    }
+    if (isWeightCurrency(other)) {
+      return `1 غ ${getCurrencyLabel(other)} = ${formatAmount(display, 'USD')} $`;
+    }
+    return `1 ${getCurrencyLabel(other)} = ${formatAmount(display, 'USD')} $`;
+  }
+  const fromLabel = isWeightCurrency(paid) ? `1 غ ${getCurrencyLabel(paid)}` : `1 ${getCurrencyLabel(paid)}`;
+  const toSym = isWeightCurrency(received) ? `غ ${getCurrencyLabel(received)}` : getCurrencySymbol(received);
+  return `${fromLabel} = ${formatAmount(display, received)} ${toSym}`;
 }

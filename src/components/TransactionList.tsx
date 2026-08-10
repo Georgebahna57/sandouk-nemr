@@ -2,7 +2,7 @@ import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ChevronDown, ChevronUp, Penc
 import { useState } from 'react';
 import { getFund } from '../config';
 import { isTransactionReconciled } from '../lib/customerMeta';
-import { describeTransaction, formatAmount, formatDateAr, formatExecutor, formatFee, formatIntermediary, formatValueWithUnit, getOrderedDateNote, groupTransactionsForDisplay } from '../lib/utils';
+import { describeTransaction, formatDateAr, formatExchangeRateDisplay, formatExecutor, formatFee, formatIntermediary, formatValueWithUnit, getOrderedDateNote, groupTransactionsForDisplay } from '../lib/utils';
 import { formatTransactionFees } from '../lib/fees';
 import type { Transaction } from '../types';
 import { TransactionCoordination } from './TransactionCoordination';
@@ -244,9 +244,9 @@ export function TransactionList({
                     {showFund && (
                       <p className="mt-0.5 truncate text-xs text-slate-500">حساب: {lead.party}</p>
                     )}
-                    {!isBatch && lead.kind === 'exchange' && lead.exchangeRate && (
+                    {!isBatch && lead.kind === 'exchange' && lead.exchangeRate && lead.exchangeToCurrency && (
                       <p className="mt-1 text-xs text-violet-400">
-                        ريت: {formatAmount(lead.exchangeRate, lead.currency)}
+                        ريت: {formatExchangeRateDisplay(lead.currency, lead.exchangeToCurrency, lead.exchangeRate)}
                       </p>
                     )}
                     {lead.approvalDetails && (
