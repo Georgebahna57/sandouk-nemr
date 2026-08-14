@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { formatNsypConversionHint, isNsyp } from '../lib/syrianCurrency';
 import { CURRENCIES, getValueInputLabel, isWeightCurrency } from '../config';
@@ -115,8 +116,8 @@ interface Props {
   compact?: boolean;
 }
 
-export function ExchangeFields({ values, onChange, compact = false }: Props) {
-  const parsed = parseExchangeFieldValues(values);
+export const ExchangeFields = memo(function ExchangeFields({ values, onChange, compact = false }: Props) {
+  const parsed = useMemo(() => parseExchangeFieldValues(values), [values]);
   const paidStep = isWeightCurrency(values.paidCurrency) ? '0.01' : '1';
   const receivedStep = isWeightCurrency(values.receivedCurrency) ? '0.01' : '1';
   const paidValueLabel = getValueInputLabel(values.paidCurrency);
@@ -313,4 +314,4 @@ export function ExchangeFields({ values, onChange, compact = false }: Props) {
       )}
     </div>
   );
-}
+});

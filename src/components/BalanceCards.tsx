@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { CURRENCIES, isHalabFleilatFund, isWeightCurrency } from '../config';
 import { halabBalanceIsSurplus, halabBalanceSideLabel } from '../lib/halabBalance';
 import { isBalanceDisplayCurrency } from '../lib/syrianCurrency';
@@ -11,7 +12,7 @@ interface Props {
   projectedBalances?: FundBalances;
 }
 
-export function BalanceCards({ balances, fundId, projectedBalances }: Props) {
+export const BalanceCards = memo(function BalanceCards({ balances, fundId, projectedBalances }: Props) {
   const showProjected = projectedBalances != null;
   const halab = fundId && isHalabFleilatFund(fundId) ? fundId : undefined;
 
@@ -82,4 +83,4 @@ export function BalanceCards({ balances, fundId, projectedBalances }: Props) {
       </div>
     </div>
   );
-}
+});

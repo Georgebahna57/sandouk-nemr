@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { formatNsypConversionHint, isNsyp } from '../lib/syrianCurrency';
 import { CURRENCIES, getValueInputLabel, isWeightCurrency } from '../config';
@@ -35,7 +36,7 @@ export function parseAmountLines(lines: AmountLine[]): { currency: Currency; amo
     .filter(line => line.amount > 0);
 }
 
-export function AmountLinesEditor({ lines, onChange }: Props) {
+export const AmountLinesEditor = memo(function AmountLinesEditor({ lines, onChange }: Props) {
   function updateLine(id: string, patch: Partial<AmountLine>) {
     onChange(lines.map(line => (line.id === id ? { ...line, ...patch } : line)));
   }
@@ -109,4 +110,4 @@ export function AmountLinesEditor({ lines, onChange }: Props) {
       </button>
     </div>
   );
-}
+});

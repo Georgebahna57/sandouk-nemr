@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Filter, X } from 'lucide-react';
 import { CURRENCIES } from '../config';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import type { Currency, TransactionFilters } from '../types';
 
 interface Props {
@@ -14,9 +15,25 @@ export function hasActiveTransactionFilters(filters: TransactionFilters): boolea
 
 export function TransactionFiltersBar({ filters, onChange }: Props) {
   const [open, setOpen] = useState(false);
+  const [queryDraft, setQueryDraft] = useState(filters.query ?? '');
+  const debouncedQuery = useDebouncedValue(queryDraft, 200);
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
   const hasActive = hasActiveTransactionFilters(filters);
 
+  useEffect(() => {
+    setQueryDraft(filters.query ?? '');
+  }, [filters.query]);
+
+  useEffect(() => {
+    const trimmed = debouncedQuery.trim();
+    const nextQuery = trimmed || undefined;
+    if (nextQuery === (filtersRef.current.query ?? undefined)) return;
+    onChange({ ...filtersRef.current, query: nextQuery });
+  }, [debouncedQuery, onChange]);
+
   function clear() {
+    setQueryDraft('');
     onChange({});
     setOpen(false);
   }
@@ -88,8 +105,8 @@ export function TransactionFiltersBar({ filters, onChange }: Props) {
               <input
                 type="text"
                 placeholder="بحث..."
-                value={filters.query ?? ''}
-                onChange={e => onChange({ ...filters, query: e.target.value || undefined })}
+                value={queryDraft}
+                onChange={e => setQueryDraft(e.target.value)}
                 className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-2 text-xs"
               />
             </div>

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { CURRENCIES, getCurrencySymbol } from '../config';
 import {
   buildParsedFee,
@@ -55,7 +56,7 @@ export function buildFeeFromEditor(value: FeeEditorValue, baseAmount: number): P
   return buildParsedFee(value.mode, rate, value.side, value.currency, effectiveBase);
 }
 
-export function FeeEditor({
+export const FeeEditor = memo(function FeeEditor({
   value,
   onChange,
   baseAmount,
@@ -179,4 +180,4 @@ export function FeeEditor({
       )}
     </div>
   );
-}
+});

@@ -1,5 +1,5 @@
 import { Plus, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { getFundAccountName, defaultCounterpartyForFund, isHalabFleilatFund } from '../config';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
@@ -66,7 +66,7 @@ function LinkedAccountDirectionPicker({
   );
 }
 
-export function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappDestinations, actorName, onPendingWhatsApp }: Props) {
+export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, defaultPending = false, counterpartyNames = [], whatsappDestinations, actorName, onPendingWhatsApp }: Props) {
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('out');
   const [lines, setLines] = useState(createDefaultLines);
@@ -86,7 +86,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const showHalabFields = isHalabFleilatFund(fundId);
 
   const fundAccount = getFundAccountName(fundId);
-  const exchangeParsed = parseExchangeFieldValues(exchangeFields);
+  const exchangeParsed = useMemo(() => parseExchangeFieldValues(exchangeFields), [exchangeFields]);
   const parsedAmount = exchangeParsed.paidAmount;
   const parsedRate = exchangeParsed.rate;
   const exchangeResult = exchangeParsed.receivedAmount;
@@ -94,18 +94,41 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
   const receivedCurrency = exchangeFields.receivedCurrency;
 
   const counterpartyTrimmed = counterparty.trim();
-  const matchedAccount = counterpartyNames.find(n => n === counterpartyTrimmed);
+  const matchedAccount = useMemo(
+    () => counterpartyNames.find(n => n === counterpartyTrimmed),
+    [counterpartyNames, counterpartyTrimmed],
+  );
   const canLink = !!matchedAccount;
   const showHalabMirror = showHalabFields && linkToAccount && canLink
     && shouldOfferHalabMirror(fundId, matchedAccount);
-  const shamelEligible = isShamelFeeEligible(matchedAccount ?? counterpartyTrimmed);
-  const parsedLines = parseAmountLines(lines);
+  const parsedLines = useMemo(() => parseAmountLines(lines), [lines]);
   const halabDeliverySource = useMemo(() => resolveHalabDeliverySource({
     isExchange,
     exchangeReceivedAmount: exchangeParsed.receivedAmount,
     exchangeReceivedCurrency: receivedCurrency,
     lines: parsedLines,
   }), [isExchange, exchangeParsed.receivedAmount, receivedCurrency, parsedLines]);
+
+  const feeLineCurrencies = useMemo(
+    () => (isExchange
+      ? [paidCurrency, receivedCurrency]
+      : [...new Set(parsedLines.map(item => item.currency))]),
+    [isExchange, paidCurrency, receivedCurrency, parsedLines],
+  );
+
+  const feeBaseAmount = useMemo(
+    () => (isExchange
+      ? (feeEditor.currency === paidCurrency ? parsedAmount : feeEditor.currency === receivedCurrency ? exchangeResult : 0)
+      : sumAmountForCurrency(parsedLines, feeEditor.currency)),
+    [isExchange, feeEditor.currency, paidCurrency, receivedCurrency, parsedAmount, exchangeResult, parsedLines],
+  );
+
+  const extraFeeBaseAmount = useMemo(
+    () => (isExchange
+      ? (extraFeeEditor.currency === paidCurrency ? parsedAmount : extraFeeEditor.currency === receivedCurrency ? exchangeResult : 0)
+      : sumAmountForCurrency(parsedLines, extraFeeEditor.currency)),
+    [isExchange, extraFeeEditor.currency, paidCurrency, receivedCurrency, parsedAmount, exchangeResult, parsedLines],
+  );
 
   useEffect(() => {
     const next = defaultCounterpartyForFund(fundId, counterpartyNames);
@@ -136,16 +159,7 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
     setAccountDirection(next);
   }
 
-  const feeBaseAmount = isExchange
-    ? (feeEditor.currency === paidCurrency ? parsedAmount : feeEditor.currency === receivedCurrency ? exchangeResult : 0)
-    : sumAmountForCurrency(parsedLines, feeEditor.currency);
-  const feeLineCurrencies = isExchange
-    ? [paidCurrency, receivedCurrency]
-    : [...new Set(parsedLines.map(item => item.currency))];
-
-  const extraFeeBaseAmount = isExchange
-    ? (extraFeeEditor.currency === paidCurrency ? parsedAmount : extraFeeEditor.currency === receivedCurrency ? exchangeResult : 0)
-    : sumAmountForCurrency(parsedLines, extraFeeEditor.currency);
+  const shamelEligible = isShamelFeeEligible(matchedAccount ?? counterpartyTrimmed);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -424,4 +438,4 @@ export function TransactionForm({ fundId, onAdd, defaultPending = false, counter
       </button>
     </form>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
@@ -17,6 +17,7 @@ import { BalanceShareImageModal } from './components/BalanceShareImageModal';
 import { PendingAmountTotals } from './components/PendingAmountTotals';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund, isHalabFleilatFund } from './config';
+import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useCloudStore } from './hooks/useCloudStore';
 import { usePermissions } from './hooks/usePermissions';
 import {
@@ -149,10 +150,7 @@ export default function App({ user, onLogout }: Props) {
 
   const balances = useMemo(() => computeBalances(state.transactions, fundId), [state.transactions, fundId]);
 
-  const projectedBalances = useMemo(
-    () => computeProjectedFundBalances(state.transactions, fundId),
-    [state.transactions, fundId],
-  );
+  const debouncedPendingQuery = useDebouncedValue(pendingQuery, 200);
 
   const allPosted = useMemo(
     () => filterTransactions(state.transactions, fundId, { status: 'posted' }),
@@ -180,18 +178,27 @@ export default function App({ user, onLogout }: Props) {
     [state.transactions, fundId],
   );
 
+  const projectedBalances = useMemo(
+    () => (view === 'pending' && pending.length > 0)
+      ? computeProjectedFundBalances(state.transactions, fundId)
+      : balances,
+    [view, pending.length, state.transactions, fundId, balances],
+  );
+
   const filteredPending = useMemo(() => {
-    const q = pendingQuery.trim();
+    const q = debouncedPendingQuery.trim();
     if (!q) return pending;
     const matched = applyTransactionFilters(pending, { query: q });
     return expandFilteredTransactions(pending, matched);
-  }, [pending, pendingQuery]);
+  }, [pending, debouncedPendingQuery]);
 
   const fundBills = useMemo(() => filterByFund(state.bills, fundId), [state.bills, fundId]);
 
   const accountSummaries = useMemo(
-    () => buildAccountSummaries(state.transactions, state.customers, fundId),
-    [state.transactions, state.customers, fundId],
+    () => view === 'customers'
+      ? buildAccountSummaries(state.transactions, state.customers, fundId)
+      : [],
+    [view, state.transactions, state.customers, fundId],
   );
 
   const accountNames = useMemo(
@@ -203,6 +210,16 @@ export default function App({ user, onLogout }: Props) {
     () => getPendingFundOperationLeads(state.transactions, fundId),
     [state.transactions, fundId],
   );
+
+  const handlePendingWhatsApp = useCallback((payload: { message: string; destinations: string[] }) => {
+    setWhatsappPrompt({
+      ...payload,
+      title: 'إرسال على واتساب',
+      subtitle: payload.message.startsWith('⏳')
+        ? 'تم حفظ العملية بقيد الانتظار'
+        : 'تم حفظ حركة الصندوق — أرسل الرسالة',
+    });
+  }, []);
 
   async function handleApproveAllConfirm(approvalDetails: string) {
     if (!pendingOperationLeads.length) return;
@@ -432,13 +449,7 @@ export default function App({ user, onLogout }: Props) {
                   counterpartyNames={accountNames}
                   whatsappDestinations={fundWhatsApp[fundId]}
                   actorName={profile?.displayName}
-                  onPendingWhatsApp={payload => setWhatsappPrompt({
-                    ...payload,
-                    title: 'إرسال على واتساب',
-                    subtitle: payload.message.startsWith('⏳')
-                      ? 'تم حفظ العملية بقيد الانتظار'
-                      : 'تم حفظ حركة الصندوق — أرسل الرسالة',
-                  })}
+                  onPendingWhatsApp={handlePendingWhatsApp}
                 />
                 <FundTransferForm
                   fromFundId={fundId}
@@ -495,13 +506,7 @@ export default function App({ user, onLogout }: Props) {
                 counterpartyNames={accountNames}
                 whatsappDestinations={fundWhatsApp[fundId]}
                 actorName={profile?.displayName}
-                onPendingWhatsApp={payload => setWhatsappPrompt({
-                  ...payload,
-                  title: 'إرسال على واتساب',
-                  subtitle: payload.message.startsWith('⏳')
-                    ? 'تم حفظ العملية بقيد الانتظار'
-                    : 'تم حفظ حركة الصندوق — أرسل الرسالة',
-                })}
+                onPendingWhatsApp={handlePendingWhatsApp}
               />
             )}
             {pending.length > 0 && (

@@ -1,5 +1,5 @@
 import { ArrowDownLeft, ArrowUpRight, CheckCircle2, ChevronDown, ChevronUp, Pencil, RefreshCw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { getFund } from '../config';
 import { isTransactionReconciled } from '../lib/customerMeta';
 import { describeTransaction, formatDateAr, formatExchangeRateDisplay, formatExecutor, formatFee, formatIntermediary, formatValueWithUnit, getOrderedDateNote, groupTransactionsForDisplay } from '../lib/utils';
@@ -157,7 +157,7 @@ function MetaLine({ tx }: { tx: Transaction }) {
   );
 }
 
-export function TransactionList({
+export const TransactionList = memo(function TransactionList({
   transactions,
   onDelete,
   onEdit,
@@ -174,7 +174,7 @@ export function TransactionList({
   compact = false,
   reconciledThroughDate,
 }: Props) {
-  const items = groupTransactionsForDisplay(transactions);
+  const items = useMemo(() => groupTransactionsForDisplay(transactions), [transactions]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
 
   function toggleExpanded(id: string) {
@@ -312,4 +312,4 @@ export function TransactionList({
       })}
     </div>
   );
-}
+});
