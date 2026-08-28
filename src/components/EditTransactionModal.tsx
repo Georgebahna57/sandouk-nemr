@@ -1,4 +1,4 @@
-import { Pencil, X } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { getFundAccountName, isHalabFleilatFund } from '../config';
 import { halabRemittanceFromTransaction, resolveHalabDeliverySource, stampHalabRemittance } from '../lib/halabRemittance';
@@ -26,6 +26,7 @@ import {
   parseExchangeFieldValues,
   type ExchangeFieldValues,
 } from './ExchangeFields';
+import { ModalShell } from './ModalShell';
 
 interface Props {
   leadId: string;
@@ -199,21 +200,14 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
     }
 
     return (
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-        <form
-          onSubmit={submitExchange}
-          className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-900 p-4 shadow-xl space-y-3 max-h-[90vh] overflow-y-auto"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-violet-400">
-              <Pencil size={16} />
-              <h3 className="font-semibold">تعديل التبديل</h3>
-            </div>
-            <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
-              <X size={18} />
-            </button>
-          </div>
-
+      <ModalShell
+        title="تعديل التبديل"
+        titleIcon={<Pencil size={16} />}
+        titleClassName="text-violet-400"
+        onClose={onClose}
+        onSubmit={submitExchange}
+        saveLabel="حفظ"
+      >
           <p className="text-xs text-slate-500">{getFundAccountName(displayExchange.fundId)}</p>
           {hasLinkedAccount && (
             <p className="text-xs text-emerald-400/80">مرتبط بحساب — التعديل ينعكس على الصندوق والحساب</p>
@@ -258,12 +252,7 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
               ))}
             </div>
           )}
-
-          <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
-            حفظ التعديل
-          </button>
-        </form>
-      </div>
+      </ModalShell>
     );
   }
 
@@ -415,21 +404,13 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
-      <form
-        onSubmit={submit}
-        className="w-full max-w-md rounded-2xl border border-slate-600 bg-slate-900 p-4 shadow-xl space-y-3 max-h-[90vh] overflow-y-auto"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber-400">
-            <Pencil size={16} />
-            <h3 className="font-semibold">تعديل العملية</h3>
-          </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white">
-            <X size={18} />
-          </button>
-        </div>
-
+    <ModalShell
+      title="تعديل العملية"
+      titleIcon={<Pencil size={16} />}
+      onClose={onClose}
+      onSubmit={submit}
+      saveLabel="حفظ"
+    >
         <p className="text-xs text-slate-500">{getFundAccountName(displayTx.fundId)}</p>
         {lead?.linkId && (
           <p className="text-xs text-emerald-400/80">مرتبطة بحساب — التعديل ينعكس على الصندوق والحساب</p>
@@ -546,11 +527,6 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
             ))}
           </div>
         )}
-
-        <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
-          حفظ التعديل
-        </button>
-      </form>
-    </div>
+    </ModalShell>
   );
 }

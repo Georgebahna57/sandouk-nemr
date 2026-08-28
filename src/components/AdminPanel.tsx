@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Coins, Loader2, MessageCircle, Save, Shield } from 'lucide-react';
+import { ArrowRight, Coins, Loader2, Maximize2, Minimize2, MessageCircle, Save, Shield } from 'lucide-react';
 import { FUNDS } from '../config';
 import { fetchFundWhatsAppPhones, saveFundWhatsAppPhones, type FundWhatsAppMap } from '../lib/fundSettings';
 import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
+import { useFullscreen } from '../hooks/useFullscreen';
 import { ValuationRatesEditor } from './ValuationRatesEditor';
 import { BackupSection } from './BackupSection';
 import { FundDataDiagnostic } from './FundDataDiagnostic';
@@ -83,6 +84,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   const nonAdminProfiles = useMemo(
     () => profiles.filter(p => !p.isAdmin),
@@ -200,25 +202,36 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl px-4 py-6">
-      <header className="mb-6 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="rounded-2xl bg-amber-500/20 p-3">
+    <div className="mx-auto min-h-dvh max-w-3xl px-4 pb-6 pt-0">
+      <header className="sticky top-0 z-40 -mx-4 mb-6 flex items-center justify-between gap-3 border-b border-slate-800/80 bg-slate-950/95 px-4 py-3 backdrop-blur">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="shrink-0 rounded-2xl bg-amber-500/20 p-3">
             <Shield size={24} className="text-amber-400" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold">إدارة المستخدمين</h1>
-            <p className="text-xs text-slate-500">صلاحيات الصناديق لكل مستخدم</p>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold">إعدادات</h1>
+            <p className="truncate text-xs text-slate-500">صلاحيات الصناديق لكل مستخدم</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-400 hover:text-white"
-        >
-          <ArrowRight size={14} />
-          رجوع
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-2.5 py-2 text-xs text-slate-400 hover:text-sky-400 sm:px-3"
+            title={isFullscreen ? 'خروج من ملء الشاشة' : 'ملء الشاشة'}
+          >
+            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'ملء الشاشة'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-2.5 py-2 text-xs text-slate-400 hover:text-white sm:px-3"
+          >
+            <ArrowRight size={14} />
+            إغلاق
+          </button>
+        </div>
       </header>
 
       <div className="mb-4 rounded-xl border border-slate-700 bg-slate-800/60 p-4 text-sm text-slate-400">
