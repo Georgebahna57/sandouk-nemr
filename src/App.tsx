@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
+import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, Maximize2, Minimize2, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { CustomersPanel } from './components/CustomersPanel';
@@ -19,6 +19,7 @@ import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund, isHalabFleilatFund } from './config';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useCloudStore } from './hooks/useCloudStore';
+import { useFullscreen } from './hooks/useFullscreen';
 import { usePermissions } from './hooks/usePermissions';
 import {
   applyTransactionFilters,
@@ -83,6 +84,7 @@ export default function App({ user, onLogout }: Props) {
   const [savingValuationRates, setSavingValuationRates] = useState(false);
   const [dailyJournalOpen, setDailyJournalOpen] = useState(false);
   const [pendingQuery, setPendingQuery] = useState('');
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   const {
     profile,
@@ -322,36 +324,45 @@ export default function App({ user, onLogout }: Props) {
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl px-4 py-6">
-      <header className="mb-6">
+    <div className="mx-auto min-h-dvh max-w-3xl px-4 pb-6 pt-0">
+      <header className="sticky top-0 z-40 -mx-4 mb-6 border-b border-slate-800/80 bg-slate-950/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl p-3" style={{ background: `${fund.accent}22` }}>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="shrink-0 rounded-2xl p-3" style={{ background: `${fund.accent}22` }}>
               <BookOpen size={24} style={{ color: fund.accent }} />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-xl font-bold">صناديق</h1>
-              <p className="text-xs text-slate-500">{profile?.displayName ?? user.email}</p>
+              <p className="truncate text-xs text-slate-500">{profile?.displayName ?? user.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-2.5 py-2 text-xs text-slate-400 hover:text-sky-400 sm:px-3"
+              title={isFullscreen ? 'خروج من ملء الشاشة' : 'ملء الشاشة'}
+            >
+              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'ملء الشاشة'}</span>
+            </button>
             {isAdmin && (
               <button
                 type="button"
                 onClick={() => setShowAdmin(true)}
-                className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-400 hover:text-amber-400"
+                className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-2.5 py-2 text-xs text-slate-400 hover:text-amber-400 sm:px-3"
               >
                 <Settings size={14} />
-                إدارة
+                <span className="hidden xs:inline sm:inline">إعدادات</span>
               </button>
             )}
             <button
               type="button"
               onClick={onLogout}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-400 hover:text-rose-400"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-2.5 py-2 text-xs text-slate-400 hover:text-rose-400 sm:px-3"
             >
               <LogOut size={14} />
-              خروج
+              <span className="hidden sm:inline">خروج</span>
             </button>
           </div>
         </div>
@@ -495,7 +506,7 @@ export default function App({ user, onLogout }: Props) {
           <div className="space-y-4">
             {isAdmin && !(fundWhatsApp[fundId]?.length) && (
               <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                ما في كروبات واتساب لـ {fund.name}. اضغط <strong>إدارة</strong> → واتساب قيد الانتظار → حط روابط الكروبات (سطر لكل كروب).
+                ما في كروبات واتساب لـ {fund.name}. اضغط <strong>إعدادات</strong> → واتساب قيد الانتظار → حط روابط الكروبات (سطر لكل كروب).
               </div>
             )}
             {!readOnly && (
