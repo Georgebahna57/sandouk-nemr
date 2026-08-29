@@ -35,7 +35,21 @@ export async function ensureProfile(user: User): Promise<UserProfile> {
     .eq('id', user.id)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    const fallback = await client
+      .from('profiles')
+      .select('id, email, display_name, is_admin')
+      .eq('id', user.id)
+      .single();
+    if (fallback.error) throw fallback.error;
+    return {
+      id: fallback.data.id,
+      email: fallback.data.email,
+      displayName: fallback.data.display_name || fallbackName,
+      isAdmin: fallback.data.is_admin,
+      accountsOnly: false,
+    };
+  }
 
   return {
     id: data.id,
@@ -77,7 +91,20 @@ export async function fetchAllProfiles(): Promise<UserProfile[]> {
     .select('id, email, display_name, is_admin, accounts_only')
     .order('email');
 
-  if (error) throw error;
+  if (error) {
+    const fallback = await requireClient()
+      .from('profiles')
+      .select('id, email, display_name, is_admin')
+      .order('email');
+    if (fallback.error) throw fallback.error;
+    return (fallback.data ?? []).map(row => ({
+      id: row.id,
+      email: row.email,
+      displayName: row.display_name || row.email,
+      isAdmin: row.is_admin,
+      accountsOnly: false,
+    }));
+  }
 
   return (data ?? []).map(row => ({
     id: row.id,
