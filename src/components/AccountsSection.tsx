@@ -1,4 +1,4 @@
-import { Building2, CheckCircle2, List, Users } from 'lucide-react';
+import { Building2, CheckCircle2, List, Table2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CENTERS_FUND_ID } from '../config';
 import { loadUiPrefs, saveNavPrefs } from '../lib/uiPrefs';
@@ -17,8 +17,9 @@ import type {
 } from '../types';
 import type { ValuationRates } from '../lib/valuationRates';
 import { CustomersPanel } from './CustomersPanel';
+import { TrialBalancePanel } from './TrialBalancePanel';
 
-type AccountsTab = 'list' | 'reconciliations';
+type AccountsTab = 'list' | 'reconciliations' | 'trial_balance';
 
 interface Props {
   transactions: Transaction[];
@@ -46,6 +47,7 @@ const BRANCHES: { id: AccountBranchId; label: string; icon: typeof Users }[] = [
 
 const TABS: { id: AccountsTab; label: string; icon: typeof List }[] = [
   { id: 'list', label: 'قائمة الحسابات', icon: List },
+  { id: 'trial_balance', label: 'ميزان مراجعة', icon: Table2 },
   { id: 'reconciliations', label: 'المطابقات', icon: CheckCircle2 },
 ];
 
@@ -76,9 +78,13 @@ export function AccountsSection({
   const [branch, setBranch] = useState<AccountBranchId>(
     savedNav.accountsBranch ?? defaultBranch,
   );
-  const [tab, setTab] = useState<AccountsTab>(
-    savedNav.accountsTab === 'reconciliations' ? 'reconciliations' : 'list',
-  );
+  const [tab, setTab] = useState<AccountsTab>(() => {
+    const saved = savedNav.accountsTab;
+    if (saved === 'reconciliations' || saved === 'trial_balance' || saved === 'list') {
+      return saved;
+    }
+    return 'list';
+  });
 
   useEffect(() => {
     saveNavPrefs({ accountsBranch: branch, accountsTab: tab });
@@ -160,8 +166,8 @@ export function AccountsSection({
             <h2 className="text-sm font-semibold text-slate-100">{branchTitle}</h2>
             <p className="text-[11px] text-slate-500">
               {branch === 'centers'
-                ? 'حسابات المراكز والمطابقات'
-                : 'كل حسابات الزبائن والمطابقات — بدون اختيار صندوق'}
+                ? 'حسابات المراكز — ميزان مراجعة ومطابقات'
+                : 'حسابات الزبائن — ميزان مراجعة ومطابقات'}
             </p>
           </div>
         </div>
@@ -208,7 +214,23 @@ export function AccountsSection({
         </p>
       )}
 
-      {tab === 'reconciliations' && displayedSummaries.length === 0 ? (
+      {tab === 'trial_balance' ? (
+        <TrialBalancePanel
+          summaries={summaries}
+          customers={customers}
+          defaultFundId={panelFundId}
+          fundOptions={boxFunds}
+          multiFund={branch === 'customers'}
+          canEditFund={canEdit}
+          onAddCustomer={onAddCustomer}
+          onUpdateCustomer={onUpdateCustomer}
+          onAddTransaction={onAddTransaction}
+          onShareAccount={onShareAccount
+            ? s => onShareAccount(summaryFundId(s, panelFundId), s)
+            : undefined}
+          readOnly={branch === 'centers' ? !canEdit(CENTERS_FUND_ID) : false}
+        />
+      ) : tab === 'reconciliations' && displayedSummaries.length === 0 ? (
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-6 text-center">
           <CheckCircle2 size={28} className="mx-auto text-emerald-400" />
           <p className="mt-2 text-sm font-medium text-emerald-300">كل الحسابات مطابقة</p>
