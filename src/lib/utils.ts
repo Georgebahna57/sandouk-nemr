@@ -2,6 +2,7 @@ import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, get
 import { computeHalabAwareBalance } from './halabBalance';
 import { normalizeSyrianTransaction, syrianBalanceAmount, syrianBalanceCurrency } from './syrianCurrency';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
+import { mergeAccountSummaries } from './accountMerge';
 import { INVERSE_RATE_CURRENCIES } from './valuationRates';
 import type {
   AppState,
@@ -389,6 +390,34 @@ export function filterAccountViewTransactions(
   return transactions.filter(tx => transactionAffectsAccountView(tx, fundId, accountName, transactions));
 }
 
+/** حركات حساب مجمّع عبر عدة صناديق */
+export function filterMergedAccountTransactions(
+  transactions: Transaction[],
+  summary: Pick<CustomerSummary, 'name' | 'aliases' | 'fundIds' | 'fundId'>,
+): Transaction[] {
+  const fundIds = summary.fundIds ?? (summary.fundId ? [summary.fundId] : []);
+  if (!fundIds.length) return [];
+
+  const names = new Set<string>(summary.aliases ?? []);
+  names.add(summary.name);
+
+  const seen = new Set<string>();
+  const out: Transaction[] = [];
+
+  for (const fundId of fundIds) {
+    for (const name of names) {
+      for (const tx of filterAccountViewTransactions(transactions, fundId, name)) {
+        if (!seen.has(tx.id)) {
+          seen.add(tx.id);
+          out.push(tx);
+        }
+      }
+    }
+  }
+
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
+}
+
 export function computeAccountBalances(
   transactions: Transaction[],
   fundId: FundId,
@@ -521,6 +550,7 @@ export function buildAccountSummaries(
     return {
       name,
       customerId: customer?.id,
+      fundId,
       sharedFundIds: customer?.sharedFundIds,
       reconciliation: customer?.reconciliation,
       balances,
@@ -535,6 +565,19 @@ export function buildAccountSummaries(
     || isFeeAccountName(s.name)
     || (halabAccountName !== null && s.name === halabAccountName)
   ));
+}
+
+/** حسابات الزبائن من كل الصناديق — دمج الحسابات بنفس الاسم */
+export function buildCustomerAccountsAcrossFunds(
+  transactions: Transaction[],
+  customers: Customer[],
+  boxFundIds: FundId[],
+): CustomerSummary[] {
+  const all: CustomerSummary[] = [];
+  for (const id of boxFundIds) {
+    all.push(...buildAccountSummaries(transactions, customers, id));
+  }
+  return mergeAccountSummaries(all);
 }
 
 /** @deprecated use computeAccountBalances */
@@ -553,6 +596,58 @@ export function buildCustomerSummaries(
   fundId: FundId,
 ): CustomerSummary[] {
   return buildAccountSummaries(transactions, customers, fundId);
+}
+
+/** حركات حساب غير مطابقة (بعد تاريخ المطابقة أو كلها إذا لم تُطابق) */
+export function countUnreconciledAccountTransactions(
+  transactions: Transaction[],
+  fundId: FundId,
+  accountName: string,
+  throughDate?: string,
+): number {
+  const posted = filterAccountViewTransactions(transactions, fundId, accountName)
+    .filter(t => t.status === 'posted');
+  if (!throughDate) return posted.length;
+  return posted.filter(t => t.date > throughDate).length;
+}
+
+export function accountNeedsReconciliation(
+  transactions: Transaction[],
+  fundId: FundId,
+  summary: CustomerSummary,
+): boolean {
+  const fundIds = summary.fundIds ?? (summary.fundId ? [summary.fundId] : [fundId]);
+  const names = [...new Set([summary.name, ...(summary.aliases ?? [])])];
+  const through = summary.reconciliation?.throughDate;
+
+  for (const fid of fundIds) {
+    for (const name of names) {
+      if (countUnreconciledAccountTransactions(transactions, fid, name, through) > 0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** عدد الحسابات بحاجة مطابقة عبر المراكز + زبائن مجمّعين */
+export function countAccountsNeedingReconciliation(
+  transactions: Transaction[],
+  customers: Customer[],
+  boxFundIds: FundId[],
+  includeCenters: boolean,
+): number {
+  let count = 0;
+  if (includeCenters) {
+    const centerSummaries = buildAccountSummaries(transactions, customers, 'marakiz');
+    count += centerSummaries.filter(s => accountNeedsReconciliation(transactions, 'marakiz', s)).length;
+  }
+  if (boxFundIds.length > 0) {
+    const merged = buildCustomerAccountsAcrossFunds(transactions, customers, boxFundIds);
+    const fallbackFund = boxFundIds[0];
+    count += merged.filter(s => accountNeedsReconciliation(transactions, s.fundId ?? fallbackFund, s)).length;
+  }
+  return count;
 }
 
 export function createTransaction(input: Omit<Transaction, 'id' | 'createdAt'>): Transaction {

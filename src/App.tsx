@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
+import { AccountsSection } from './components/AccountsSection';
 import { CustomersPanel } from './components/CustomersPanel';
 import { DailyJournalModal } from './components/DailyJournalModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
@@ -16,13 +17,15 @@ import { ApproveTransactionModal } from './components/ApproveTransactionModal';
 import { BalanceShareImageModal } from './components/BalanceShareImageModal';
 import { PendingAmountTotals } from './components/PendingAmountTotals';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
-import { getFund, isHalabFleilatFund } from './config';
+import { getFund, isBoxFund, isHalabFleilatFund } from './config';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useCloudStore } from './hooks/useCloudStore';
 import { usePermissions } from './hooks/usePermissions';
 import {
   applyTransactionFilters,
+  accountNeedsReconciliation,
   buildAccountSummaries,
+  countAccountsNeedingReconciliation,
   computeBalances,
   computeProjectedFundBalances,
   expandFilteredTransactions,
@@ -34,7 +37,7 @@ import {
   getPendingFundOperationLeads,
   todayIso,
 } from './lib/utils';
-import type { FundId, TransactionFilters, ViewId } from './types';
+import type { AppSectionId, FundId, TransactionFilters, ViewId } from './types';
 import type { User } from '@supabase/supabase-js';
 import { fetchFundWhatsAppPhones, type FundWhatsAppMap } from './lib/fundSettings';
 import { fetchValuationRates, saveValuationRates } from './lib/appSettings';
@@ -47,11 +50,16 @@ import { buildMoneyOutReconciliationMessage } from './lib/halabMirror';
 import { isFeeAccountName } from './lib/fees';
 import type { BalanceSharePayload } from './lib/balanceShare';
 
-const VIEWS: { id: ViewId; label: string; icon: typeof Wallet }[] = [
+const FUND_VIEWS: { id: ViewId; label: string; icon: typeof Wallet }[] = [
   { id: 'ledger', label: 'الصندوق', icon: Wallet },
   { id: 'pending', label: 'قيد الانتظار', icon: Clock },
   { id: 'customers', label: 'الحسابات', icon: Users },
   { id: 'bills', label: 'فواتير', icon: FileText },
+];
+
+const APP_SECTIONS: { id: AppSectionId; label: string; icon: typeof Wallet }[] = [
+  { id: 'funds', label: 'الصناديق', icon: Wallet },
+  { id: 'accounts', label: 'حسابات', icon: Users },
 ];
 
 interface Props {
@@ -61,6 +69,7 @@ interface Props {
 
 export default function App({ user, onLogout }: Props) {
   const [showAdmin, setShowAdmin] = useState(false);
+  const [appSection, setAppSection] = useState<AppSectionId>('funds');
   const [fundId, setFundId] = useState<FundId>('nemr');
   const [view, setView] = useState<ViewId>('ledger');
   const [txFilters, setTxFilters] = useState<TransactionFilters>({});
@@ -86,7 +95,8 @@ export default function App({ user, onLogout }: Props) {
 
   const {
     profile,
-    visibleFunds,
+    visibleBoxFunds,
+    canAccessCenters,
     fundAccess,
     canEdit,
     loading: permsLoading,
@@ -142,11 +152,11 @@ export default function App({ user, onLogout }: Props) {
   const actorName = profile?.displayName ?? user.email?.split('@')[0] ?? 'مستخدم';
 
   useEffect(() => {
-    if (visibleFunds.length === 0) return;
-    if (!visibleFunds.some(f => f.id === fundId)) {
-      setFundId(visibleFunds[0].id);
+    if (visibleBoxFunds.length === 0) return;
+    if (!isBoxFund(fundId) || !visibleBoxFunds.some(f => f.id === fundId)) {
+      setFundId(visibleBoxFunds[0].id);
     }
-  }, [visibleFunds, fundId]);
+  }, [visibleBoxFunds, fundId]);
 
   const balances = useMemo(() => computeBalances(state.transactions, fundId), [state.transactions, fundId]);
 
@@ -194,11 +204,24 @@ export default function App({ user, onLogout }: Props) {
 
   const fundBills = useMemo(() => filterByFund(state.bills, fundId), [state.bills, fundId]);
 
-  const accountSummaries = useMemo(
-    () => view === 'customers'
-      ? buildAccountSummaries(state.transactions, state.customers, fundId)
-      : [],
-    [view, state.transactions, state.customers, fundId],
+  const fundAccountSummaries = useMemo(
+    () => buildAccountSummaries(state.transactions, state.customers, fundId),
+    [state.transactions, state.customers, fundId],
+  );
+
+  const fundAccountsNeedingReconciliation = useMemo(
+    () => fundAccountSummaries.filter(s => accountNeedsReconciliation(state.transactions, fundId, s)).length,
+    [fundAccountSummaries, state.transactions, fundId],
+  );
+
+  const accountsNeedingReconciliation = useMemo(
+    () => countAccountsNeedingReconciliation(
+      state.transactions,
+      state.customers,
+      visibleBoxFunds.map(f => f.id),
+      canAccessCenters,
+    ),
+    [state.transactions, state.customers, visibleBoxFunds, canAccessCenters],
   );
 
   const accountNames = useMemo(
@@ -310,7 +333,7 @@ export default function App({ user, onLogout }: Props) {
     );
   }
 
-  if (visibleFunds.length === 0) {
+  if (visibleBoxFunds.length === 0 && !canAccessCenters) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center px-4 text-center">
         <p className="text-lg font-semibold text-amber-400">صناديق</p>
@@ -364,15 +387,50 @@ export default function App({ user, onLogout }: Props) {
         )}
       </header>
 
+      <nav className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">
+        {APP_SECTIONS.map(s => {
+          const Icon = s.icon;
+          const badge = s.id === 'accounts' && accountsNeedingReconciliation > 0
+            ? accountsNeedingReconciliation
+            : s.id === 'funds' && pending.length > 0
+              ? pending.length
+              : null;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setAppSection(s.id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                appSection === s.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Icon size={16} />
+              {s.label}
+              {badge !== null && (
+                <span className={`rounded-full px-1.5 text-[10px] text-white ${
+                  s.id === 'accounts' ? 'bg-amber-500 text-slate-900' : 'bg-rose-500'
+                }`}>
+                  {badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
       <section className="mb-4">
+        {appSection === 'funds' && (
         <FundSelector
-          funds={visibleFunds}
+          funds={visibleBoxFunds}
           active={fundId}
           fundAccess={fundAccess}
           onChange={setFundId}
         />
+        )}
       </section>
 
+      {appSection === 'funds' && (
+      <>
       <section className="mb-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -422,24 +480,32 @@ export default function App({ user, onLogout }: Props) {
       </section>
 
       <nav className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">
-        {VIEWS.map(v => {
+        {FUND_VIEWS.map(v => {
           const Icon = v.icon;
-          const badge = v.id === 'pending' && pending.length > 0 ? pending.length : null;
+          const badge = v.id === 'pending' && pending.length > 0
+            ? pending.length
+            : v.id === 'customers' && fundAccountsNeedingReconciliation > 0
+              ? fundAccountsNeedingReconciliation
+              : null;
           return (
             <button key={v.id} type="button" onClick={() => setView(v.id)}
               className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-xs font-medium transition sm:text-sm ${view === v.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}>
               <Icon size={15} />
               {v.label}
               {badge !== null && (
-                <span className="rounded-full bg-rose-500 px-1.5 text-[10px] text-white">{badge}</span>
+                <span className={`rounded-full px-1.5 text-[10px] text-white ${
+                  v.id === 'customers' ? 'bg-amber-500 text-slate-900' : 'bg-rose-500'
+                }`}>{badge}</span>
               )}
             </button>
           );
         })}
       </nav>
+      </>
+      )}
 
       <main>
-        {view === 'ledger' && (
+        {appSection === 'funds' && view === 'ledger' && (
           <div className="space-y-4">
             {!readOnly && (
               <>
@@ -453,7 +519,7 @@ export default function App({ user, onLogout }: Props) {
                 />
                 <FundTransferForm
                   fromFundId={fundId}
-                  fundOptions={visibleFunds.filter(f => canEdit(f.id))}
+                  fundOptions={visibleBoxFunds.filter(f => canEdit(f.id))}
                   onAdd={addTransaction}
                 />
               </>
@@ -491,7 +557,7 @@ export default function App({ user, onLogout }: Props) {
           />
         )}
 
-        {view === 'pending' && (
+        {appSection === 'funds' && view === 'pending' && (
           <div className="space-y-4">
             {isAdmin && !(fundWhatsApp[fundId]?.length) && (
               <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
@@ -563,13 +629,13 @@ export default function App({ user, onLogout }: Props) {
           </div>
         )}
 
-        {view === 'customers' && (
+        {appSection === 'funds' && view === 'customers' && (
           <CustomersPanel
-            summaries={accountSummaries}
+            summaries={fundAccountSummaries}
             customers={state.customers}
             transactions={state.transactions}
             fundId={fundId}
-            fundOptions={visibleFunds}
+            fundOptions={visibleBoxFunds}
             onAddCustomer={canManageAccounts ? addCustomer : undefined}
             onUpdateCustomer={canManageAccounts ? updateCustomer : undefined}
             onDeleteCustomer={canManageAccounts ? deleteCustomer : undefined}
@@ -609,7 +675,52 @@ export default function App({ user, onLogout }: Props) {
           />
         )}
 
-        {view === 'bills' && (
+        {appSection === 'accounts' && (
+          <AccountsSection
+            transactions={state.transactions}
+            customers={state.customers}
+            boxFunds={visibleBoxFunds}
+            canAccessCenters={canAccessCenters}
+            canEdit={canEdit}
+            onAddCustomer={addCustomer}
+            onUpdateCustomer={updateCustomer}
+            onDeleteCustomer={deleteCustomer}
+            onAddTransaction={addTransaction}
+            onDeleteTransaction={isAdmin ? deleteTransaction : undefined}
+            onEditTransaction={isAdmin ? setEditingTxId : undefined}
+            onShareAccount={(shareFundId, summary) => {
+              const customer = state.customers.find(
+                c => c.fundId === shareFundId && (c.id === summary.customerId || c.name === summary.name),
+              );
+              setBalanceShare({
+                payload: {
+                  kind: 'account',
+                  fundId: shareFundId,
+                  accountName: summary.name,
+                  balances: summary.balances,
+                  date: today,
+                },
+                destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[shareFundId]),
+              });
+            }}
+            onMoneyOutReconciliation={(shareFundId, summary) => {
+              const customer = state.customers.find(
+                c => c.fundId === shareFundId && (c.id === summary.customerId || c.name === summary.name),
+              );
+              setWhatsappPrompt({
+                message: buildMoneyOutReconciliationMessage(summary.balances, today),
+                destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[shareFundId]),
+                title: 'مطابقة موني آوت',
+                subtitle: 'رصيد حساب حلب — انسخ أو أرسل على واتساب',
+              });
+            }}
+            valuationRates={valuationRates}
+            isAdmin={isAdmin}
+            actorName={actorName}
+          />
+        )}
+
+        {appSection === 'funds' && view === 'bills' && (
           <BillsPanel
             fundId={fundId}
             bills={fundBills}

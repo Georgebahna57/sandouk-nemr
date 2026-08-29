@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Coins, Loader2, MessageCircle, Save, Shield } from 'lucide-react';
-import { FUNDS } from '../config';
+import { FUNDS, isCentersFund } from '../config';
 import { fetchFundWhatsAppPhones, saveFundWhatsAppPhones, type FundWhatsAppMap } from '../lib/fundSettings';
 import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
 import { ValuationRatesEditor } from './ValuationRatesEditor';
@@ -277,7 +277,9 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
         <div className="space-y-3">
           {FUNDS.map(fund => (
             <div key={fund.id} className="rounded-xl bg-slate-900/50 px-3 py-2 space-y-1">
-              <span className="text-sm font-medium">{fund.name}</span>
+              <span className="text-sm font-medium">
+                {isCentersFund(fund.id) ? 'مراكز (حسابات)' : fund.name}
+              </span>
               <textarea
                 dir="ltr"
                 rows={4}
@@ -359,7 +361,9 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
                       const access = perms[fund.id] ?? 'hidden';
                       return (
                         <div key={fund.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-900/50 px-3 py-2">
-                          <span className="text-sm">{fund.name}</span>
+                          <span className="text-sm">
+                            {isCentersFund(fund.id) ? 'مراكز (حسابات)' : fund.name}
+                          </span>
                           <select
                             value={access}
                             onChange={e => setPermission(profile.id, fund.id, e.target.value as FundAccess)}

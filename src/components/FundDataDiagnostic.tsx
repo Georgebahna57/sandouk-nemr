@@ -1,6 +1,6 @@
 import { Loader2, Wrench } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { FUNDS } from '../config';
+import { BOX_FUNDS } from '../config';
 import {
   getHalabUsdBalanceBreakdown,
   halabBalanceSideLabel,
@@ -17,7 +17,7 @@ export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
   const [busy, setBusy] = useState(false);
   const [repairMsg, setRepairMsg] = useState<string | null>(null);
 
-  const rows = FUNDS.map(fund => ({
+  const rows = BOX_FUNDS.map(fund => ({
     fund,
     stats: getFundTransactionStats(appState.transactions, fund.id),
   }));

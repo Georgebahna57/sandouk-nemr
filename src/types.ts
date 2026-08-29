@@ -165,6 +165,14 @@ export type CustomerBalances = Record<Currency, CustomerCurrencyBalance>;
 export interface CustomerSummary {
   name: string;
   customerId?: string;
+  /** صندوق الحساب (الأساسي عند الدمج) */
+  fundId?: FundId;
+  /** صناديق مرتبطة بعد دمج حسابات بنفس الاسم */
+  fundIds?: FundId[];
+  /** أسماء أصلية قبل التوحيد (كندا / canada…) */
+  aliases?: string[];
+  /** حساب مجمّع من أكثر من صندوق */
+  merged?: boolean;
   sharedFundIds?: FundId[];
   reconciliation?: AccountReconciliation;
   balances: CustomerBalances;
@@ -178,6 +186,12 @@ export interface AppState {
 }
 
 export type ViewId = 'ledger' | 'pending' | 'customers' | 'bills';
+
+/** القسم الرئيسي: عمليات الصناديق أو حسابات ومطابقات */
+export type AppSectionId = 'funds' | 'accounts';
+
+/** فرع الحسابات: مراكز أو زبائن */
+export type AccountBranchId = 'centers' | 'customers';
 
 export interface TransactionEditRecord {
   at: string;

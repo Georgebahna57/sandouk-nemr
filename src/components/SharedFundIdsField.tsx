@@ -1,18 +1,18 @@
-import { FUNDS } from '../config';
+import { BOX_FUNDS } from '../config';
 import type { FundId } from '../types';
 
 interface Props {
   homeFundId: FundId;
   value: FundId[];
   onChange: (ids: FundId[]) => void;
-  fundOptions?: typeof FUNDS;
+  fundOptions?: typeof BOX_FUNDS;
 }
 
 export function SharedFundIdsField({
   homeFundId,
   value,
   onChange,
-  fundOptions = FUNDS,
+  fundOptions = BOX_FUNDS,
 }: Props) {
   const options = fundOptions.filter(f => f.id !== homeFundId);
 
@@ -56,7 +56,7 @@ export function SharedFundIdsField({
   );
 }
 
-export function formatSharedFundLabels(ids: FundId[] | undefined, fundOptions = FUNDS): string {
+export function formatSharedFundLabels(ids: FundId[] | undefined, fundOptions = BOX_FUNDS): string {
   if (!ids?.length) return '';
   return ids
     .map(id => fundOptions.find(f => f.id === id)?.shortName ?? id)

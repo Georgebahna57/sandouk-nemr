@@ -1,6 +1,6 @@
 import { Pencil, X } from 'lucide-react';
 import { useState } from 'react';
-import { FUNDS, canRegisterCustomerName } from '../config';
+import { BOX_FUNDS, canRegisterCustomerName } from '../config';
 import type { Customer, Fund, FundId } from '../types';
 import { SharedFundIdsField } from './SharedFundIdsField';
 
@@ -14,7 +14,7 @@ interface Props {
 
 export function EditCustomerModal({
   customer,
-  fundOptions = FUNDS,
+  fundOptions = BOX_FUNDS,
   onClose,
   onSave,
   nameTaken,

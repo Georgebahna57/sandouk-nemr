@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { FUNDS } from '../config';
+import { FUNDS, isBoxFund } from '../config';
 import {
   ensureProfile,
   fetchMyPermissions,
@@ -59,6 +59,16 @@ export function usePermissions(user: User | null) {
     [fundAccess],
   );
 
+  const visibleBoxFunds = useMemo(
+    () => visibleFunds.filter(f => isBoxFund(f.id)),
+    [visibleFunds],
+  );
+
+  const canAccessCenters = useMemo(
+    () => canViewFund(fundAccess.marakiz),
+    [fundAccess],
+  );
+
   const getAccess = useCallback((fundId: FundId) => fundAccess[fundId], [fundAccess]);
   const canEdit = useCallback((fundId: FundId) => canEditFund(fundAccess[fundId]), [fundAccess]);
 
@@ -67,6 +77,8 @@ export function usePermissions(user: User | null) {
     permissions,
     fundAccess,
     visibleFunds,
+    visibleBoxFunds,
+    canAccessCenters,
     loading,
     error,
     isAdmin: profile?.isAdmin ?? false,

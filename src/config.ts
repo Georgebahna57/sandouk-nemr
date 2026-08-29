@@ -16,9 +16,23 @@ export const FUNDS: Fund[] = [
   { id: 'aura', name: 'صندوق اورا', shortName: 'اورا', accent: '#8b5cf6' },
   { id: 'zalqa', name: 'صندوق زلقا', shortName: 'زلقا', accent: '#10b981' },
   { id: 'george', name: 'صندوق جورج', shortName: 'جورج', accent: '#3b82f6' },
-  { id: 'marakiz', name: 'صندوق مراكز', shortName: 'مراكز', accent: '#06b6d4' },
+  { id: 'marakiz', name: 'مراكز', shortName: 'مراكز', accent: '#06b6d4' },
   { id: 'halabFleilat', name: 'حلب - الفيلات', shortName: 'حلب', accent: '#e11d48' },
 ];
+
+/** معرّف فرع المراكز — ليس صندوقاً نقدياً */
+export const CENTERS_FUND_ID: FundId = 'marakiz';
+
+/** صناديق نقدية فقط (بدون مراكز) */
+export const BOX_FUNDS: Fund[] = FUNDS.filter(f => f.id !== CENTERS_FUND_ID);
+
+export function isBoxFund(fundId: FundId): boolean {
+  return fundId !== CENTERS_FUND_ID;
+}
+
+export function isCentersFund(fundId: FundId): boolean {
+  return fundId === CENTERS_FUND_ID;
+}
 
 export const CURRENCIES: AssetConfig[] = [
   { id: 'USD', label: 'دولار أمريكي', symbol: '$', kind: 'money', unit: 'مبلغ' },
@@ -80,7 +94,11 @@ export function defaultCounterpartyForFund(fundId: FundId, accountNames: readonl
 }
 
 const FUND_ACCOUNT_NAMES = new Set(
-  FUNDS.flatMap(f => (f.id === 'halabFleilat' ? [f.shortName, f.name] : [f.name])),
+  FUNDS.flatMap(f => {
+    if (f.id === 'halabFleilat') return [f.shortName, f.name];
+    if (f.id === 'marakiz') return [f.name, 'صندوق مراكز'];
+    return [f.name];
+  }),
 );
 
 export function isFundAccountName(name: string): boolean {

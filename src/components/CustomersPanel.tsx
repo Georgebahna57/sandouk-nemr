@@ -1,8 +1,9 @@
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CURRENCIES, getFund, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
-import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
+import { isMergedAccountSummary } from '../lib/accountMerge';
+import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
 import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
@@ -33,6 +34,12 @@ interface Props {
   isAdmin?: boolean;
   actorName?: string;
   readOnly?: boolean;
+  /** داخل قسم الحسابات — يخفي التعريف المكرر */
+  embedded?: boolean;
+  reconciliationFocus?: boolean;
+  /** حسابات زبائن مجمّعة من كل الصناديق */
+  multiFundCustomers?: boolean;
+  canEditFund?: (fundId: FundId) => boolean;
 }
 
 export function CustomersPanel({
@@ -53,6 +60,10 @@ export function CustomersPanel({
   isAdmin = false,
   actorName,
   readOnly = false,
+  embedded = false,
+  reconciliationFocus = false,
+  multiFundCustomers = false,
+  canEditFund,
 }: Props) {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -61,10 +72,56 @@ export function CustomersPanel({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [sharedFundIds, setSharedFundIds] = useState<FundId[]>([]);
+  const [newCustomerFundId, setNewCustomerFundId] = useState<FundId>(fundId);
   const [nameError, setNameError] = useState('');
   const [valuationMode, setValuationMode] = useState<AccountValuationMode>('breakdown');
 
   const funds = fundOptions ?? [];
+
+  const editableFunds = useMemo(
+    () => (canEditFund ? funds.filter(f => canEditFund(f.id)) : funds),
+    [funds, canEditFund],
+  );
+
+  useEffect(() => {
+    if (multiFundCustomers && editableFunds.length > 0 && !editableFunds.some(f => f.id === newCustomerFundId)) {
+      setNewCustomerFundId(editableFunds[0].id);
+    }
+  }, [multiFundCustomers, editableFunds, newCustomerFundId]);
+
+  function resolveFund(summary: CustomerSummary): FundId {
+    return summary.fundId ?? fundId;
+  }
+
+  function resolveFundIds(summary: CustomerSummary): FundId[] {
+    if (summary.fundIds?.length) return summary.fundIds;
+    const fid = resolveFund(summary);
+    return fid ? [fid] : [];
+  }
+
+  function accountTransactionsForSummary(summary: CustomerSummary): Transaction[] {
+    if (multiFundCustomers && isMergedAccountSummary(summary)) {
+      return enrichAccountTransactionsForDisplay(
+        filterMergedAccountTransactions(transactions, summary),
+        transactions,
+      );
+    }
+    const summaryFund = resolveFund(summary);
+    return enrichAccountTransactionsForDisplay(
+      filterAccountViewTransactions(transactions, summaryFund, summary.name),
+      transactions,
+    );
+  }
+
+  function summaryKey(summary: CustomerSummary): string {
+    return `${resolveFund(summary)}:${summary.name}`;
+  }
+
+  function isSummaryReadOnly(summary: CustomerSummary): boolean {
+    if (readOnly && !multiFundCustomers) return true;
+    if (multiFundCustomers && canEditFund) return !canEditFund(resolveFund(summary));
+    return readOnly;
+  }
 
   const fund = getFund(fundId);
 
@@ -84,7 +141,8 @@ export function CustomersPanel({
   function submitCustomer(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !onAddCustomer) return;
-    if (!canRegisterCustomerName(name.trim(), fundId)) {
+    const targetFundId = multiFundCustomers ? newCustomerFundId : fundId;
+    if (!canRegisterCustomerName(name.trim(), targetFundId)) {
       setNameError('هالاسم محجوز لحساب الصندوق');
       return;
     }
@@ -94,7 +152,7 @@ export function CustomersPanel({
     }
     setNameError('');
     onAddCustomer(createCustomer({
-      fundId,
+      fundId: targetFundId,
       name: name.trim(),
       phone: phone.trim() || undefined,
       sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
@@ -105,26 +163,46 @@ export function CustomersPanel({
   }
 
   function resolveCustomer(summary: CustomerSummary): Customer | undefined {
-    return findCustomerForAccount(customers, summary.name, fundId)
-      ?? (summary.customerId ? customers.find(c => c.id === summary.customerId) : undefined);
+    const fundIds = resolveFundIds(summary);
+    const names = [...new Set([summary.name, ...(summary.aliases ?? [])])];
+    for (const fid of fundIds) {
+      for (const name of names) {
+        const found = findCustomerForAccount(customers, name, fid);
+        if (found) return found;
+      }
+    }
+    return summary.customerId ? customers.find(c => c.id === summary.customerId) : undefined;
   }
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-slate-500">
-        حسابات {fund.name} — يمكن مشاركة حساب مع صناديق محددة تختارها
-      </p>
+      {!embedded && (
+        <p className="text-xs text-slate-500">
+          حسابات {fund.name} — يمكن مشاركة حساب مع صناديق محددة تختارها
+        </p>
+      )}
 
-      {!readOnly && onAddCustomer && (
+      {!readOnly && onAddCustomer && !reconciliationFocus && (multiFundCustomers ? editableFunds.length > 0 : true) && (
       <form onSubmit={submitCustomer} className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4 space-y-3">
         <h3 className="font-semibold text-amber-400">حساب جديد</h3>
+        {multiFundCustomers && editableFunds.length > 0 && (
+          <select
+            value={newCustomerFundId}
+            onChange={e => setNewCustomerFundId(e.target.value as FundId)}
+            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+          >
+            {editableFunds.map(f => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        )}
         <input type="text" placeholder="اسم الحساب" value={name} onChange={e => { setName(e.target.value); setNameError(''); }}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" required />
         {nameError && <p className="text-xs text-rose-400">{nameError}</p>}
         <input type="text" placeholder="هاتف (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
         <SharedFundIdsField
-          homeFundId={fundId}
+          homeFundId={multiFundCustomers ? newCustomerFundId : fundId}
           value={sharedFundIds}
           onChange={setSharedFundIds}
           fundOptions={funds}
@@ -141,7 +219,7 @@ export function CustomersPanel({
           className="w-full rounded-xl border border-slate-600 bg-slate-900 py-2.5 pr-9 pl-3 text-sm" />
       </div>
 
-      {!readOnly && onAddTransaction && (
+      {!readOnly && onAddTransaction && !reconciliationFocus && !multiFundCustomers && (
         <AccountTransferForm
           accountNames={transferAccountNames}
           fundId={fundId}
@@ -167,26 +245,37 @@ export function CustomersPanel({
       ) : (
         <div className="space-y-2">
           {filtered.map(summary => {
-            const isOpen = expanded === summary.name;
-            const accountTx = enrichAccountTransactionsForDisplay(
-              filterAccountViewTransactions(transactions, fundId, summary.name),
-              transactions,
-            );
+            const summaryFund = resolveFund(summary);
+            const isOpen = expanded === summaryKey(summary);
+            const accountTx = accountTransactionsForSummary(summary);
+            const summaryReadOnly = isSummaryReadOnly(summary);
+            const summaryFundLabel = isMergedAccountSummary(summary)
+              ? 'مجمّع'
+              : getFund(summaryFund).shortName;
             const activeCurrencies = CURRENCIES.filter(c => {
               const b = summary.balances[c.id];
               return b && (b.receipts !== 0 || b.payments !== 0 || b.balance !== 0);
             });
 
             return (
-              <div key={summary.customerId ?? summary.name} className="rounded-2xl border border-slate-700 bg-slate-800/60 overflow-hidden">
+              <div key={summaryKey(summary)} className="rounded-2xl border border-slate-700 bg-slate-800/60 overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => setExpanded(isOpen ? null : summary.name)}
+                  onClick={() => setExpanded(isOpen ? null : summaryKey(summary))}
                   className="flex w-full items-center justify-between gap-2 p-3 text-right hover:bg-slate-700/30"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <User size={16} className="shrink-0 text-amber-400" />
                     <span className="truncate font-medium">{summary.name}</span>
+                    {multiFundCustomers && (
+                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] ${
+                        isMergedAccountSummary(summary)
+                          ? 'bg-violet-500/15 text-violet-300'
+                          : 'bg-slate-700 text-slate-400'
+                      }`}>
+                        {summaryFundLabel}
+                      </span>
+                    )}
                     {summary.sharedFundIds && summary.sharedFundIds.length > 0 && (
                       <span className="shrink-0 rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-300" title={formatSharedFundLabels(summary.sharedFundIds, funds)}>
                         مشترك
@@ -211,7 +300,7 @@ export function CustomersPanel({
                         كشف
                       </button>
                     )}
-                    {onMoneyOutReconciliation && isMoneyOutReconciliationAccount(fundId, summary.name) && (
+                    {onMoneyOutReconciliation && isMoneyOutReconciliationAccount(summaryFund, summary.name) && (
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); onMoneyOutReconciliation(summary); }}
@@ -233,7 +322,7 @@ export function CustomersPanel({
                         مشاركة
                       </button>
                     )}
-                    {summary.customerId && onDeleteCustomer && !readOnly && (
+                    {summary.customerId && onDeleteCustomer && !summaryReadOnly && (
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); onDeleteCustomer(summary.customerId!); }}
@@ -242,7 +331,7 @@ export function CustomersPanel({
                         <Trash2 size={14} />
                       </button>
                     )}
-                    {!readOnly && onUpdateCustomer && resolveCustomer(summary) && (
+                    {!summaryReadOnly && onUpdateCustomer && resolveCustomer(summary) && (
                       <button
                         type="button"
                         onClick={e => {
@@ -277,16 +366,16 @@ export function CustomersPanel({
                       <ReconciliationBar
                         customer={resolveCustomer(summary)!}
                         actorName={actorName}
-                        readOnly={readOnly}
+                        readOnly={summaryReadOnly}
                         onSave={async (customer) => {
                           await onUpdateCustomer(customer, customer.name);
                         }}
                       />
                     )}
-                    {!readOnly && onAddTransaction && (
+                    {!summaryReadOnly && onAddTransaction && (
                       <AccountTransactionForm
                         accountName={summary.name}
-                        fundId={fundId}
+                        fundId={summaryFund}
                         fundOptions={funds}
                         otherAccountNames={filtered
                           .map(s => s.name)
@@ -318,16 +407,17 @@ export function CustomersPanel({
           onClose={() => setEditingCustomer(null)}
           onSave={async (updated, previousName) => {
             await onUpdateCustomer(updated, previousName);
-            if (expanded === previousName) setExpanded(updated.name);
+            const prevKey = `${editingCustomer.fundId}:${previousName}`;
+            if (expanded === prevKey) setExpanded(`${updated.fundId}:${updated.name}`);
           }}
-          nameTaken={name => accountExistsInFund(customers, fundId, name, editingCustomer.id)}
+          nameTaken={name => accountExistsInFund(customers, editingCustomer.fundId, name, editingCustomer.id)}
         />
       )}
 
       {statementAccount && (
         <AccountStatementModal
           accountName={statementAccount.name}
-          fundId={fundId}
+          fundId={statementAccount.fundId ?? fundId}
           transactions={transactions}
           reconciledThroughDate={statementAccount.reconciliation?.throughDate}
           onClose={() => setStatementAccount(null)}
