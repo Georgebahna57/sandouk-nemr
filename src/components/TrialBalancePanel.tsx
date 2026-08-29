@@ -63,7 +63,7 @@ export function TrialBalancePanel({
       transactions,
       {
         currency: showAllCurrencies ? undefined : viewCurrency,
-        hideZero: hideZero && !search.trim(),
+        hideZero,
       },
     ),
     [summaries, customers, defaultFundId, transactions, showAllCurrencies, viewCurrency, hideZero, search],

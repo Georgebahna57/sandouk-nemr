@@ -82,8 +82,7 @@ export function buildTrialBalanceLines(
       if (options?.hideZero
         && line.debit === 0
         && line.credit === 0
-        && line.balance === 0
-        && !line.customer) {
+        && line.balance === 0) {
         continue;
       }
       lines.push(line);
