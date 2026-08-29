@@ -39,6 +39,14 @@ import {
 } from '../lib/localMirror';
 import { logAudit } from '../lib/auditLog';
 import { runAllHalabRepairs } from '../lib/halabBalance';
+import {
+  buildAllImportTransactions,
+  TRIAL_BALANCE_IMPORT_NOTE,
+  TRIAL_BALANCE_OPENING_NOTE,
+  type TrialBalanceImportAccount,
+} from '../lib/trialBalanceImport';
+import { createCustomer, findCustomerForAccount } from '../lib/utils';
+import type { FundId } from '../types';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
 
@@ -562,6 +570,69 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     });
   }, [runSync]);
 
+  const importTrialBalance = useCallback(async (
+    accounts: TrialBalanceImportAccount[],
+    fundId: FundId,
+  ) => {
+    const importMarkers = [TRIAL_BALANCE_IMPORT_NOTE, TRIAL_BALANCE_OPENING_NOTE];
+    const accountNames = accounts.map(a => a.name.trim());
+
+    savePreDestructiveSnapshot(stateRef.current, 'pre-import');
+
+    const deleteIds = stateRef.current.transactions
+      .filter(t =>
+        t.fundId === fundId
+        && t.ledger === 'account'
+        && (
+          importMarkers.some(m => (t.note ?? '').includes(m))
+          || accountNames.includes((t.party ?? '').trim())
+        ),
+      )
+      .map(t => t.id);
+
+    let newCustomers: Customer[] = [];
+    const customerUpdates: Customer[] = [];
+
+    for (const acc of accounts) {
+      const name = acc.name.trim();
+      const existing = findCustomerForAccount(stateRef.current.customers, name, fundId)
+        ?? stateRef.current.customers.find(c => c.fundId === fundId && c.name === name);
+      if (!existing) {
+        newCustomers.push(createCustomer({
+          fundId,
+          name,
+          accountNumber: acc.code?.trim() || undefined,
+        }));
+      } else if (acc.code?.trim() && existing.accountNumber !== acc.code.trim()) {
+        customerUpdates.push({ ...existing, accountNumber: acc.code.trim() });
+      }
+    }
+
+    const importTxs = buildAllImportTransactions(accounts, fundId);
+
+    setState(prev => {
+      const filteredTx = prev.transactions.filter(t => !deleteIds.includes(t.id));
+      const mergedCustomers = [...prev.customers];
+      for (const c of newCustomers) mergedCustomers.unshift(c);
+      for (const u of customerUpdates) {
+        const idx = mergedCustomers.findIndex(c => c.id === u.id);
+        if (idx >= 0) mergedCustomers[idx] = u;
+      }
+      return {
+        ...prev,
+        customers: mergedCustomers,
+        transactions: mergeUniqueTransactions(importTxs, filteredTx),
+      };
+    });
+
+    await runSync(async () => {
+      if (deleteIds.length) await removeTransactions(deleteIds);
+      for (const c of newCustomers) await upsertCustomer(c);
+      for (const u of customerUpdates) await upsertCustomer(u);
+      if (importTxs.length) await upsertTransactions(importTxs);
+    });
+  }, [runSync]);
+
   return {
     state,
     loading,
@@ -577,6 +648,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     addCustomer,
     updateCustomer,
     deleteCustomer,
+    importTrialBalance,
     addComment,
     claimTransaction,
     releaseClaim,

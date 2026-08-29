@@ -13,6 +13,7 @@ export interface TrialBalanceRow {
   status: TrialBalanceStatus;
   customer?: Customer;
   phone?: string;
+  accountNumber?: string;
 }
 
 export function trialBalanceStatus(balance: number): TrialBalanceStatus {
@@ -49,6 +50,7 @@ export function buildTrialBalanceRows(
       status: trialBalanceStatus(balance),
       customer,
       phone: customer?.phone?.trim() || undefined,
+      accountNumber: customer?.accountNumber ?? summary.accountNumber,
     };
   }).sort((a, b) => a.summary.name.localeCompare(b.summary.name, 'ar'));
 }
@@ -109,12 +111,13 @@ export function downloadTrialBalanceExcel(
     `${currency} - ${label}`,
     'ميزان مراجعة بالعملات',
     '',
-    'اسم الحساب,مدين (صادر),دائن (وارد),الرصيد النهائي,الحالة,واتساب',
+    'اسم الحساب,رقم الحساب,مدين (صادر),دائن (وارد),الرصيد النهائي,الحالة,واتساب',
   ];
 
   for (const row of rows) {
     lines.push([
       csvEscape(row.summary.name),
+      csvEscape(row.accountNumber ?? row.summary.accountNumber ?? ''),
       formatTrialAmount(row.debit, currency),
       formatTrialAmount(row.credit, currency),
       formatTrialAmount(row.balance, currency),

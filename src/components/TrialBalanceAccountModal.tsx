@@ -28,6 +28,7 @@ export function TrialBalanceAccountModal({
 }: Props) {
   const isRegister = !customer;
   const [name, setName] = useState(customer?.name ?? defaultName);
+  const [accountNumber, setAccountNumber] = useState(customer?.accountNumber ?? '');
   const [phone, setPhone] = useState(customer?.phone ?? '');
   const [targetFundId, setTargetFundId] = useState<FundId>(customer?.fundId ?? fundId);
   const [sharedFundIds, setSharedFundIds] = useState<FundId[]>(customer?.sharedFundIds ?? []);
@@ -53,6 +54,7 @@ export function TrialBalanceAccountModal({
         await onUpdateCustomer({
           ...customer,
           name: trimmed,
+          accountNumber: accountNumber.trim() || undefined,
           phone: phone.trim() || undefined,
           sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
         }, customer.name);
@@ -60,6 +62,7 @@ export function TrialBalanceAccountModal({
         const newCustomer = createCustomer({
           fundId: targetFundId,
           name: trimmed,
+          accountNumber: accountNumber.trim() || undefined,
           phone: phone.trim() || undefined,
           sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
         });
@@ -122,7 +125,15 @@ export function TrialBalanceAccountModal({
         />
         <input
           type="text"
-          placeholder="واتساب / رقم (اختياري)"
+          placeholder="رقم الحساب (مثل 4011-1114)"
+          value={accountNumber}
+          onChange={e => setAccountNumber(e.target.value)}
+          className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+          dir="ltr"
+        />
+        <input
+          type="text"
+          placeholder="واتساب (اختياري)"
           value={phone}
           onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"

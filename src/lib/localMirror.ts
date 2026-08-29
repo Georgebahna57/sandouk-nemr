@@ -5,7 +5,7 @@ import { saveState } from './utils';
 const SNAPSHOT_INDEX_KEY = 'sandouk-nemr-snapshots-v1';
 const MAX_SNAPSHOTS = 8;
 
-export type SnapshotReason = 'auto' | 'pre-delete' | 'pre-replace' | 'manual';
+export type SnapshotReason = 'auto' | 'pre-delete' | 'pre-replace' | 'pre-import' | 'manual';
 
 export type SnapshotMeta = {
   id: string;
@@ -144,6 +144,7 @@ const REASON_LABELS: Record<SnapshotReason, string> = {
   auto: 'تلقائي',
   'pre-delete': 'قبل حذف',
   'pre-replace': 'قبل استبدال',
+  'pre-import': 'قبل استيراد',
   manual: 'يدوي',
 };
 

@@ -126,6 +126,7 @@ function mapCustomer(row: Record<string, unknown>): Customer | null {
     id: row.id as string,
     fundId: row.fund_id as Customer['fundId'],
     name: row.name as string,
+    accountNumber: decoded.accountNumber,
     phone: (row.phone as string) || undefined,
     note: decoded.userNote,
     reconciliation: decoded.reconciliation,
@@ -238,7 +239,10 @@ function customerToRow(customer: Customer) {
     fund_id: customer.fundId,
     name: customer.name,
     phone: customer.phone ?? null,
-    note: encodeCustomerNote(customer.note, { reconciliation: customer.reconciliation }) ?? null,
+    note: encodeCustomerNote(customer.note, {
+      reconciliation: customer.reconciliation,
+      accountNumber: customer.accountNumber,
+    }) ?? null,
     shared_fund_ids: customer.sharedFundIds?.length ? customer.sharedFundIds : [],
     created_at: customer.createdAt,
   };

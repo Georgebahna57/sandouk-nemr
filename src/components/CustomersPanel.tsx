@@ -72,6 +72,7 @@ export function CustomersPanel({
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [statementAccount, setStatementAccount] = useState<CustomerSummary | null>(null);
   const [name, setName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
   const [phone, setPhone] = useState('');
   const [sharedFundIds, setSharedFundIds] = useState<FundId[]>([]);
   const [newCustomerFundId, setNewCustomerFundId] = useState<FundId>(fundId);
@@ -161,10 +162,12 @@ export function CustomersPanel({
     onAddCustomer(createCustomer({
       fundId: targetFundId,
       name: name.trim(),
+      accountNumber: accountNumber.trim() || undefined,
       phone: phone.trim() || undefined,
       sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
     }));
     setName('');
+    setAccountNumber('');
     setPhone('');
     setSharedFundIds([]);
   }
@@ -206,7 +209,9 @@ export function CustomersPanel({
         <input type="text" placeholder="اسم الحساب" value={name} onChange={e => { setName(e.target.value); setNameError(''); }}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" required />
         {nameError && <p className="text-xs text-rose-400">{nameError}</p>}
-        <input type="text" placeholder="واتساب / رقم (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
+        <input type="text" placeholder="رقم الحساب (اختياري)" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}
+          className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" dir="ltr" />
+        <input type="text" placeholder="واتساب (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
         <SharedFundIdsField
           homeFundId={multiFundCustomers ? newCustomerFundId : fundId}

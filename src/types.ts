@@ -33,6 +33,8 @@ export interface Customer {
   id: string;
   fundId: FundId;
   name: string;
+  /** رقم الحساب — من نظام المحاسبة (مثل 4011-1114) */
+  accountNumber?: string;
   phone?: string;
   note?: string;
   /** صناديق إضافية يظهر فيها الحساب (غير صندوقه الأساسي) */
@@ -165,6 +167,7 @@ export type CustomerBalances = Record<Currency, CustomerCurrencyBalance>;
 export interface CustomerSummary {
   name: string;
   customerId?: string;
+  accountNumber?: string;
   /** صندوق الحساب (الأساسي عند الدمج) */
   fundId?: FundId;
   /** صناديق مرتبطة بعد دمج حسابات بنفس الاسم */

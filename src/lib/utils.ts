@@ -550,6 +550,7 @@ export function buildAccountSummaries(
     return {
       name,
       customerId: customer?.id,
+      accountNumber: customer?.accountNumber,
       fundId,
       sharedFundIds: customer?.sharedFundIds,
       reconciliation: customer?.reconciliation,

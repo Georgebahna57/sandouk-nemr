@@ -159,6 +159,7 @@ export default function App({ user, onLogout }: Props) {
     releaseClaim,
     restoreBackup,
     repairHalabData,
+    importTrialBalance,
   } = useCloudStore(true, user.email ? {
     userId: user.id,
     email: user.email,
@@ -468,6 +469,8 @@ export default function App({ user, onLogout }: Props) {
         }}
         onAddOpeningBalance={addTransaction}
         onRepairHalab={repairHalabData}
+        onImportTrialBalance={importTrialBalance}
+        importingTrialBalance={syncing}
       />
     );
   }

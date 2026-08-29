@@ -20,6 +20,7 @@ export function EditCustomerModal({
   nameTaken,
 }: Props) {
   const [name, setName] = useState(customer.name);
+  const [accountNumber, setAccountNumber] = useState(customer.accountNumber ?? '');
   const [phone, setPhone] = useState(customer.phone ?? '');
   const [sharedFundIds, setSharedFundIds] = useState<FundId[]>(customer.sharedFundIds ?? []);
   const [error, setError] = useState('');
@@ -43,6 +44,7 @@ export function EditCustomerModal({
       await Promise.resolve(onSave({
         ...customer,
         name: trimmed,
+        accountNumber: accountNumber.trim() || undefined,
         phone: phone.trim() || undefined,
         sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
       }, customer.name));
@@ -79,6 +81,15 @@ export function EditCustomerModal({
           required
         />
         {error && <p className="text-xs text-rose-400">{error}</p>}
+
+        <input
+          type="text"
+          placeholder="رقم الحساب (مثل 4011-1114)"
+          value={accountNumber}
+          onChange={e => setAccountNumber(e.target.value)}
+          className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+          dir="ltr"
+        />
 
         <input
           type="text"

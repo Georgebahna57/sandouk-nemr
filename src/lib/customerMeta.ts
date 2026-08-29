@@ -6,11 +6,17 @@ interface CustomerMeta {
   rt?: string;
   ra?: string;
   rb?: string;
+  ac?: string;
+}
+
+export function isTransactionReconciled(txDate: string, reconciledThroughDate?: string): boolean {
+  if (!reconciledThroughDate) return false;
+  return txDate <= reconciledThroughDate;
 }
 
 export function encodeCustomerNote(
   userNote: string | undefined,
-  meta: { reconciliation?: AccountReconciliation },
+  meta: { reconciliation?: AccountReconciliation; accountNumber?: string },
 ): string | undefined {
   const payload: CustomerMeta = {};
   if (meta.reconciliation?.throughDate) {
@@ -18,6 +24,7 @@ export function encodeCustomerNote(
     payload.ra = meta.reconciliation.markedAt;
     if (meta.reconciliation.markedByName) payload.rb = meta.reconciliation.markedByName;
   }
+  if (meta.accountNumber?.trim()) payload.ac = meta.accountNumber.trim();
 
   const hasMeta = Object.keys(payload).length > 0;
   const trimmed = userNote?.trim();
@@ -29,6 +36,7 @@ export function encodeCustomerNote(
 export function decodeCustomerNote(note?: string): {
   userNote?: string;
   reconciliation?: AccountReconciliation;
+  accountNumber?: string;
 } {
   if (!note?.startsWith(META_PREFIX)) {
     return { userNote: note?.trim() || undefined };
@@ -47,13 +55,12 @@ export function decodeCustomerNote(note?: string): {
         markedByName: meta.rb,
       }
       : undefined;
-    return { userNote, reconciliation };
+    return {
+      userNote,
+      reconciliation,
+      accountNumber: meta.ac?.trim() || undefined,
+    };
   } catch {
     return { userNote: note.trim() || undefined };
   }
-}
-
-export function isTransactionReconciled(txDate: string, throughDate?: string): boolean {
-  if (!throughDate) return false;
-  return txDate <= throughDate;
 }

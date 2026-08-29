@@ -55,6 +55,7 @@ export function TrialBalancePanel({
   const [editingRow, setEditingRow] = useState<TrialBalanceRow | null>(null);
 
   const [newName, setNewName] = useState('');
+  const [newAccountNumber, setNewAccountNumber] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newFundId, setNewFundId] = useState<FundId>(defaultFundId);
   const [newDebit, setNewDebit] = useState('');
@@ -82,7 +83,8 @@ export function TrialBalancePanel({
         return !!row.customer;
       }
       if (!q) return true;
-      return row.summary.name.toLowerCase().includes(q);
+      const hay = `${row.summary.name} ${row.accountNumber ?? ''} ${row.summary.accountNumber ?? ''}`.toLowerCase();
+      return hay.includes(q);
     });
   }, [rows, search, hideZero]);
 
@@ -116,6 +118,7 @@ export function TrialBalancePanel({
     const customer = createCustomer({
       fundId: targetFund,
       name: trimmed,
+      accountNumber: newAccountNumber.trim() || undefined,
       phone: newPhone.trim() || undefined,
     });
     await onAddCustomer(customer);
@@ -131,6 +134,7 @@ export function TrialBalancePanel({
       if (txs.length) await onAddTransaction(txs);
     }
     setNewName('');
+    setNewAccountNumber('');
     setNewPhone('');
     setNewDebit('');
     setNewCredit('');
@@ -219,6 +223,14 @@ export function TrialBalancePanel({
             />
             <input
               type="text"
+              placeholder="رقم الحساب (اختياري)"
+              value={newAccountNumber}
+              onChange={e => setNewAccountNumber(e.target.value)}
+              className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+              dir="ltr"
+            />
+            <input
+              type="text"
               placeholder="واتساب (اختياري)"
               value={newPhone}
               onChange={e => setNewPhone(e.target.value)}
@@ -254,9 +266,10 @@ export function TrialBalancePanel({
       )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-700">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-700 bg-slate-800/80 text-xs text-slate-400">
+              <th className="px-3 py-2.5 text-right font-medium">رقم</th>
               <th className="px-3 py-2.5 text-right font-medium">اسم الحساب</th>
               <th className="px-3 py-2.5 text-right font-medium">واتساب</th>
               <th className="px-3 py-2.5 text-right font-medium">مدين</th>
@@ -269,7 +282,7 @@ export function TrialBalancePanel({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={readOnly ? 6 : 7} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={readOnly ? 7 : 8} className="px-3 py-8 text-center text-slate-500">
                   لا يوجد حسابات لهالعملة
                 </td>
               </tr>
@@ -281,6 +294,9 @@ export function TrialBalancePanel({
                     key={`${row.fundId}:${row.summary.name}`}
                     className="border-b border-slate-700/60 hover:bg-slate-800/40"
                   >
+                    <td className="px-3 py-2 text-xs text-slate-500 tabular-nums" dir="ltr">
+                      {row.accountNumber ?? row.summary.accountNumber ?? '—'}
+                    </td>
                     <td className="px-3 py-2 font-medium text-slate-100 max-w-[180px] truncate">
                       {row.summary.name}
                     </td>
