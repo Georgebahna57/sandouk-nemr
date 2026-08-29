@@ -1,4 +1,4 @@
-import { getCurrencyLabel } from '../config';
+import { CURRENCIES } from '../config';
 import type { Currency, Customer, CustomerSummary, FundId, Transaction } from '../types';
 import { createAccountTransaction, formatValueWithUnit } from './utils';
 import { TRIAL_BALANCE_IMPORT_NOTE } from './trialBalanceImport';
@@ -6,12 +6,105 @@ import { TRIAL_BALANCE_IMPORT_NOTE } from './trialBalanceImport';
 export interface TrialBalanceRow {
   summary: CustomerSummary;
   fundId: FundId;
+  currency: Currency;
   debit: number;
   credit: number;
   balance: number;
   customer?: Customer;
   phone?: string;
   accountNumber?: string;
+}
+
+function resolveTrialBalanceCustomer(
+  summary: CustomerSummary,
+  customers: Customer[],
+  fundId: FundId,
+): Customer | undefined {
+  const names = [summary.name, ...(summary.aliases ?? [])];
+  for (const name of names) {
+    const found = customers.find(c => c.id === summary.customerId)
+      ?? customers.find(c => c.name === name && (c.fundId === fundId || c.sharedFundIds?.includes(fundId)));
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function buildTrialBalanceLine(
+  summary: CustomerSummary,
+  customers: Customer[],
+  currency: Currency,
+  defaultFundId: FundId,
+  transactions?: Transaction[],
+): TrialBalanceRow {
+  const fundId = summary.fundId ?? defaultFundId;
+  const b = summary.balances[currency];
+  const balance = b?.balance ?? 0;
+  const movement = transactions
+    ? trialBalanceMovementTotals(
+      transactions,
+      fundId,
+      summary.name,
+      summary.aliases,
+      currency,
+    )
+    : null;
+  const debit = movement?.debit ?? (b?.receipts ?? 0);
+  const credit = movement?.credit ?? (b?.payments ?? 0);
+  const customer = resolveTrialBalanceCustomer(summary, customers, fundId);
+  return {
+    summary,
+    fundId,
+    currency,
+    debit,
+    credit,
+    balance,
+    customer,
+    phone: customer?.phone?.trim() || undefined,
+    accountNumber: customer?.accountNumber ?? summary.accountNumber,
+  };
+}
+
+export function buildTrialBalanceLines(
+  summaries: CustomerSummary[],
+  customers: Customer[],
+  defaultFundId: FundId,
+  transactions?: Transaction[],
+  options?: { currency?: Currency; hideZero?: boolean },
+): TrialBalanceRow[] {
+  const currencies = options?.currency
+    ? [options.currency]
+    : CURRENCIES.map(c => c.id);
+
+  const lines: TrialBalanceRow[] = [];
+  for (const summary of summaries) {
+    for (const currency of currencies) {
+      const line = buildTrialBalanceLine(summary, customers, currency, defaultFundId, transactions);
+      if (options?.hideZero
+        && line.debit === 0
+        && line.credit === 0
+        && line.balance === 0
+        && !line.customer) {
+        continue;
+      }
+      lines.push(line);
+    }
+  }
+
+  return lines.sort((a, b) => {
+    const nameCmp = a.summary.name.localeCompare(b.summary.name, 'ar');
+    if (nameCmp !== 0) return nameCmp;
+    return a.currency.localeCompare(b.currency);
+  });
+}
+
+export function buildTrialBalanceRows(
+  summaries: CustomerSummary[],
+  customers: Customer[],
+  currency: Currency,
+  defaultFundId: FundId,
+  transactions?: Transaction[],
+): TrialBalanceRow[] {
+  return buildTrialBalanceLines(summaries, customers, defaultFundId, transactions, { currency });
 }
 
 function trialBalanceMovementTotals(
@@ -39,48 +132,6 @@ function trialBalanceMovementTotals(
     if (tx.kind === 'payment') credit += tx.amount;
   }
   return { debit, credit };
-}
-
-export function buildTrialBalanceRows(
-  summaries: CustomerSummary[],
-  customers: Customer[],
-  currency: Currency,
-  defaultFundId: FundId,
-  transactions?: Transaction[],
-): TrialBalanceRow[] {
-  return summaries.map(summary => {
-    const fundId = summary.fundId ?? defaultFundId;
-    const b = summary.balances[currency];
-    const balance = b?.balance ?? 0;
-    const movement = transactions
-      ? trialBalanceMovementTotals(
-        transactions,
-        fundId,
-        summary.name,
-        summary.aliases,
-        currency,
-      )
-      : null;
-    const debit = movement?.debit ?? (b?.receipts ?? 0);
-    const credit = movement?.credit ?? (b?.payments ?? 0);
-    const names = [summary.name, ...(summary.aliases ?? [])];
-    let customer: Customer | undefined;
-    for (const name of names) {
-      customer = customers.find(c => c.id === summary.customerId)
-        ?? customers.find(c => c.name === name && (c.fundId === fundId || c.sharedFundIds?.includes(fundId)));
-      if (customer) break;
-    }
-    return {
-      summary,
-      fundId,
-      debit,
-      credit,
-      balance,
-      customer,
-      phone: customer?.phone?.trim() || undefined,
-      accountNumber: customer?.accountNumber ?? summary.accountNumber,
-    };
-  }).sort((a, b) => a.summary.name.localeCompare(b.summary.name, 'ar'));
 }
 
 export function buildAccountOpeningTransactions(
@@ -131,24 +182,23 @@ function formatTrialAmount(value: number, currency: Currency): string {
 }
 
 export function downloadTrialBalanceExcel(
-  currency: Currency,
   rows: TrialBalanceRow[],
+  label?: string,
 ): void {
-  const label = getCurrencyLabel(currency);
   const lines = [
-    `${currency} - ${label}`,
-    'ميزان مراجعة بالعملات',
+    label ?? 'ميزان مراجعة بالعملات',
     '',
-    'اسم الحساب,رقم الحساب,مدين (عليه),دائن (له),الرصيد النهائي,واتساب',
+    'اسم الحساب,رقم الحساب,عملة,مدين (عليه),دائن (له),الرصيد النهائي,واتساب',
   ];
 
   for (const row of rows) {
     lines.push([
       csvEscape(row.summary.name),
       csvEscape(row.accountNumber ?? row.summary.accountNumber ?? ''),
-      formatTrialAmount(row.debit, currency),
-      formatTrialAmount(row.credit, currency),
-      formatTrialAmount(row.balance, currency),
+      row.currency,
+      formatTrialAmount(row.debit, row.currency),
+      formatTrialAmount(row.credit, row.currency),
+      formatTrialAmount(row.balance, row.currency),
       csvEscape(row.phone ?? ''),
     ].join(','));
   }
@@ -159,7 +209,9 @@ export function downloadTrialBalanceExcel(
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `ميزان-${currency}.xls`;
+  const currencies = new Set(rows.map(r => r.currency));
+  const fileCur = currencies.size === 1 ? [...currencies][0] : 'كل';
+  a.download = `ميزان-${fileCur}.xls`;
   a.click();
   URL.revokeObjectURL(url);
 }
