@@ -137,14 +137,13 @@ export function TrialBalancePanel({
               <th className="px-3 py-2.5 text-right font-medium">مدين (عليه)</th>
               <th className="px-3 py-2.5 text-right font-medium">دائن (له)</th>
               <th className="px-3 py-2.5 text-right font-medium">رصيد نهائي</th>
-              <th className="px-3 py-2.5 text-center font-medium">حالة</th>
               {!readOnly && <th className="px-3 py-2.5 text-center font-medium">إجراء</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={readOnly ? 7 : 8} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={readOnly ? 6 : 7} className="px-3 py-8 text-center text-slate-500">
                   لا يوجد حسابات لهالعملة
                 </td>
               </tr>
@@ -173,17 +172,6 @@ export function TrialBalancePanel({
                     </td>
                     <td className="px-3 py-2 tabular-nums text-right font-medium text-slate-100">
                       {formatCell(row.balance, currency)}
-                    </td>
-                    <td className="px-3 py-2 text-center text-xs">
-                      <span className={`rounded-md px-2 py-0.5 ${
-                        row.status === 'زايد'
-                          ? 'bg-emerald-500/15 text-emerald-300'
-                          : row.status === 'ناقص'
-                            ? 'bg-rose-500/15 text-rose-300'
-                            : 'bg-slate-700 text-slate-400'
-                      }`}>
-                        {row.status}
-                      </span>
                     </td>
                     {!readOnly && (
                       <td className="px-3 py-2">
@@ -220,7 +208,7 @@ export function TrialBalancePanel({
           {filtered.length > 0 && (
             <tfoot>
               <tr className="border-t border-slate-600 bg-slate-800/60 text-xs font-semibold">
-                <td className="px-3 py-2.5 text-slate-300" colSpan={2}>المجموع</td>
+                <td className="px-3 py-2.5 text-slate-300" colSpan={3}>المجموع</td>
                 <td className="px-3 py-2.5 tabular-nums text-right text-rose-300">
                   {formatCell(totals.debit, currency)}
                 </td>
@@ -230,7 +218,7 @@ export function TrialBalancePanel({
                 <td className="px-3 py-2.5 tabular-nums text-right text-slate-200">
                   {formatCell(totals.balance, currency)}
                 </td>
-                <td colSpan={readOnly ? 1 : 2} />
+                {!readOnly && <td />}
               </tr>
             </tfoot>
           )}

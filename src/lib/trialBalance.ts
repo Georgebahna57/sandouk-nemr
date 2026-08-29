@@ -3,24 +3,15 @@ import type { Currency, Customer, CustomerSummary, FundId, Transaction } from '.
 import { createAccountTransaction, formatValueWithUnit } from './utils';
 import { TRIAL_BALANCE_IMPORT_NOTE } from './trialBalanceImport';
 
-export type TrialBalanceStatus = 'زايد' | 'ناقص' | 'متعادل';
-
 export interface TrialBalanceRow {
   summary: CustomerSummary;
   fundId: FundId;
   debit: number;
   credit: number;
   balance: number;
-  status: TrialBalanceStatus;
   customer?: Customer;
   phone?: string;
   accountNumber?: string;
-}
-
-export function trialBalanceStatus(balance: number): TrialBalanceStatus {
-  if (balance > 0) return 'زايد';
-  if (balance < 0) return 'ناقص';
-  return 'متعادل';
 }
 
 function trialBalanceMovementTotals(
@@ -85,7 +76,6 @@ export function buildTrialBalanceRows(
       debit,
       credit,
       balance,
-      status: trialBalanceStatus(balance),
       customer,
       phone: customer?.phone?.trim() || undefined,
       accountNumber: customer?.accountNumber ?? summary.accountNumber,
@@ -149,7 +139,7 @@ export function downloadTrialBalanceExcel(
     `${currency} - ${label}`,
     'ميزان مراجعة بالعملات',
     '',
-    'اسم الحساب,رقم الحساب,مدين (عليه),دائن (له),الرصيد النهائي,الحالة,واتساب',
+    'اسم الحساب,رقم الحساب,مدين (عليه),دائن (له),الرصيد النهائي,واتساب',
   ];
 
   for (const row of rows) {
@@ -159,7 +149,6 @@ export function downloadTrialBalanceExcel(
       formatTrialAmount(row.debit, currency),
       formatTrialAmount(row.credit, currency),
       formatTrialAmount(row.balance, currency),
-      row.status,
       csvEscape(row.phone ?? ''),
     ].join(','));
   }
