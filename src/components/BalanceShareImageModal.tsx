@@ -6,7 +6,11 @@ import {
   shareImageBlob,
   type BalanceSharePayload,
 } from '../lib/balanceShare';
-import { openWhatsAppApp } from '../lib/whatsapp';
+import {
+  getDestinationLabel,
+  normalizeWhatsAppPhone,
+  openWhatsAppApp,
+} from '../lib/whatsapp';
 import { BalanceShareCard } from './BalanceShareCard';
 
 interface Props {
@@ -82,7 +86,14 @@ export function BalanceShareImageModal({ payload, destinations = [], onClose }: 
   }
 
   const targets = destinations.map(s => s.trim()).filter(Boolean);
+  const phoneTarget = targets.find(d => normalizeWhatsAppPhone(d));
   const title = payload.kind === 'fund' ? 'مشاركة رصيد الصندوق' : 'مشاركة رصيد الحساب';
+
+  function sendImageToPhone() {
+    if (!blob || !phoneTarget) return;
+    downloadBlob(blob, filename);
+    openWhatsAppApp(phoneTarget, '');
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
@@ -116,10 +127,25 @@ export function BalanceShareImageModal({ payload, destinations = [], onClose }: 
 
         {blob && (
           <div className="space-y-2">
+            {phoneTarget && (
+              <button
+                type="button"
+                onClick={sendImageToPhone}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-500"
+              >
+                <MessageCircle size={16} />
+                إرسال الصورة لـ {getDestinationLabel(phoneTarget, 0)}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleShare}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-500"
+              className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold ${
+                phoneTarget
+                  ? 'border border-slate-600 text-slate-200 hover:border-emerald-500/50'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-500'
+              }`}
             >
               <Share2 size={16} />
               {shared ? 'تم — اختر واتساب من القائمة' : 'مشاركة الصورة'}
@@ -136,8 +162,10 @@ export function BalanceShareImageModal({ payload, destinations = [], onClose }: 
 
             {targets.length > 0 && (
               <div className="space-y-2 border-t border-slate-700 pt-2">
-                <p className="text-xs text-slate-500">أو افتح واتساب ثم أرفق الصورة المحفوظة:</p>
-                {targets.map((dest, index) => (
+                <p className="text-xs text-slate-500">
+                  {phoneTarget ? 'أو اختر وجهة أخرى:' : 'أو افتح واتساب ثم أرفق الصورة المحفوظة:'}
+                </p>
+                {targets.filter(d => d !== phoneTarget).map((dest, index) => (
                   <button
                     key={`${dest}-${index}`}
                     type="button"

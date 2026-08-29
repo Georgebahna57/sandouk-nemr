@@ -82,7 +82,7 @@ export function EditCustomerModal({
 
         <input
           type="text"
-          placeholder="هاتف (اختياري)"
+          placeholder="واتساب / رقم (اختياري)"
           value={phone}
           onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"

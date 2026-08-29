@@ -7,6 +7,7 @@ import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDispla
 import { isFeeAccountName } from '../lib/fees';
 import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
+import { AccountWhatsAppQuickActions } from './AccountWhatsAppQuickActions';
 import { AccountTransactionForm } from './AccountTransactionForm';
 import { AccountTransferForm } from './AccountTransferForm';
 import { EditCustomerModal } from './EditCustomerModal';
@@ -199,7 +200,7 @@ export function CustomersPanel({
         <input type="text" placeholder="اسم الحساب" value={name} onChange={e => { setName(e.target.value); setNameError(''); }}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" required />
         {nameError && <p className="text-xs text-rose-400">{nameError}</p>}
-        <input type="text" placeholder="هاتف (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
+        <input type="text" placeholder="واتساب / رقم (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
         <SharedFundIdsField
           homeFundId={multiFundCustomers ? newCustomerFundId : fundId}
@@ -256,6 +257,7 @@ export function CustomersPanel({
               const b = summary.balances[c.id];
               return b && (b.receipts !== 0 || b.payments !== 0 || b.balance !== 0);
             });
+            const customerPhone = resolveCustomer(summary)?.phone?.trim();
 
             return (
               <div key={summaryKey(summary)} className="rounded-2xl border border-slate-700 bg-slate-800/60 overflow-hidden">
@@ -311,7 +313,7 @@ export function CustomersPanel({
                         موني آوت
                       </button>
                     )}
-                    {onShareAccount && activeCurrencies.length > 0 && (
+                    {onShareAccount && activeCurrencies.length > 0 && !customerPhone && (
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); onShareAccount(summary); }}
@@ -321,6 +323,17 @@ export function CustomersPanel({
                         <Share2 size={12} />
                         مشاركة
                       </button>
+                    )}
+                    {customerPhone && (
+                      <AccountWhatsAppQuickActions
+                        phone={customerPhone}
+                        fundId={summaryFund}
+                        summary={summary}
+                        onShareImage={onShareAccount && activeCurrencies.length > 0
+                          ? () => onShareAccount(summary)
+                          : undefined}
+                        compact
+                      />
                     )}
                     {summary.customerId && onDeleteCustomer && !summaryReadOnly && (
                       <button
@@ -362,6 +375,16 @@ export function CustomersPanel({
 
                 {isOpen && (
                   <div className="border-t border-slate-700 p-3 space-y-3">
+                    {customerPhone && (
+                      <AccountWhatsAppQuickActions
+                        phone={customerPhone}
+                        fundId={summaryFund}
+                        summary={summary}
+                        onShareImage={onShareAccount && activeCurrencies.length > 0
+                          ? () => onShareAccount(summary)
+                          : undefined}
+                      />
+                    )}
                     {resolveCustomer(summary) && onUpdateCustomer && (
                       <ReconciliationBar
                         customer={resolveCustomer(summary)!}

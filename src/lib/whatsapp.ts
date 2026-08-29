@@ -152,6 +152,33 @@ export function buildAccountBalanceWhatsAppMessage(
   return lines.join('\n');
 }
 
+/** رسالة مشاركة رصيد حساب (نص) */
+export function buildAccountShareWhatsAppMessage(
+  fundId: FundId,
+  accountName: string,
+  balances: CustomerBalances,
+  dateIso?: string,
+): string {
+  const fund = getFund(fundId);
+  const lines: string[] = [
+    `📤 رصيد حساب — ${accountName}`,
+    `الصندوق: ${fund.name}`,
+    `التاريخ: ${formatDateAr(dateIso ?? todayIso())}`,
+    '',
+  ];
+
+  let hasBalance = false;
+  for (const c of CURRENCIES) {
+    const b = balances[c.id];
+    if (b.balance === 0 && b.receipts === 0 && b.payments === 0) continue;
+    hasBalance = true;
+    lines.push(`• ${getCurrencyLabel(c.id)}: ${formatValueWithUnit(b.balance, c.id)}`);
+  }
+
+  if (!hasBalance) lines.push('لا يوجد رصيد');
+  return lines.join('\n');
+}
+
 /** وجهات الإرسال: رقم الزبون أولاً، وإلا كروبات الصندوق، وإلا واتساب بدون رقم */
 export function resolveShareDestinations(
   preferredPhone?: string,
