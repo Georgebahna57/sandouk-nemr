@@ -823,6 +823,9 @@ export default function App({ user, onLogout }: Props) {
                   accountName: summary.name,
                   balances: summary.balances,
                   date: today,
+                  transactions: state.transactions,
+                  reconciledThroughDate: summary.reconciliation?.throughDate,
+                  accountNumber: summary.accountNumber,
                 },
                 destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[fundId]),
               });
@@ -869,6 +872,9 @@ export default function App({ user, onLogout }: Props) {
                   accountName: summary.name,
                   balances: summary.balances,
                   date: today,
+                  transactions: state.transactions,
+                  reconciledThroughDate: summary.reconciliation?.throughDate,
+                  accountNumber: summary.accountNumber,
                 },
                 destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[shareFundId]),
               });

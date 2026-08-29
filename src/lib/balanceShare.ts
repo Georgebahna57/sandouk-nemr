@@ -1,6 +1,11 @@
 import { CURRENCIES, getFund, isWeightCurrency } from '../config';
+import { halabBalanceSideLabel } from './halabBalance';
 import { isBalanceDisplayCurrency } from './syrianCurrency';
-import type { CustomerBalances, FundBalances, FundId, Transaction } from '../types';
+import type { CustomerBalances, Currency, FundBalances, FundId, Transaction } from '../types';
+import {
+  buildAccountStatementRows,
+  type AccountStatementRow,
+} from './accountStatement';
 import {
   describeTransaction,
   formatAmount,
@@ -20,10 +25,31 @@ export type FundBalanceRow = {
 
 export type AccountBalanceRow = {
   label: string;
+  receiptsLabel: string;
+  paymentsLabel: string;
+  balanceLabel: string;
   receipts: string;
   payments: string;
   balance: string;
   balanceTone: 'positive' | 'negative' | 'neutral';
+};
+
+function customerSideLabel(currency: Currency, balance: number): 'لنا' | 'لكم' | 'متعادل' {
+  const side = halabBalanceSideLabel(currency, balance);
+  if (side === 'متعادل') return 'متعادل';
+  return side === 'لهم' ? 'لكم' : 'لنا';
+}
+
+export type AccountStatementShareRow = {
+  date: string;
+  currencyLabel: string;
+  description: string;
+  note?: string;
+  debit?: string;
+  credit?: string;
+  balance: string;
+  reconciled: boolean;
+  isOpening: boolean;
 };
 
 function balanceStatus(balance: number): { status: FundBalanceRow['status']; tone: FundBalanceRow['tone'] } {
@@ -63,8 +89,12 @@ export function getAccountBalanceShareRows(balances: CustomerBalances): AccountB
     if (!isBalanceDisplayCurrency(c.id)) continue;
     const b = balances[c.id];
     if (b.receipts === 0 && b.payments === 0) continue;
+    const balanceSide = customerSideLabel(c.id, b.balance);
     rows.push({
       label: c.label,
+      receiptsLabel: 'وارد (لكم)',
+      paymentsLabel: 'صادر (لنا)',
+      balanceLabel: balanceSide === 'متعادل' ? 'رصيد' : `رصيد (${balanceSide})`,
       receipts: formatValueWithUnit(b.receipts, c.id),
       payments: formatValueWithUnit(b.payments, c.id),
       balance: formatValueWithUnit(b.balance, c.id),
@@ -72,6 +102,32 @@ export function getAccountBalanceShareRows(balances: CustomerBalances): AccountB
     });
   }
   return rows;
+}
+
+function isOpeningStatementRow(id: string): boolean {
+  return id === 'opening-balance' || id.startsWith('opening-balance-');
+}
+
+export function getAccountStatementShareRows(
+  transactions: Transaction[],
+  fundId: FundId,
+  accountName: string,
+  reconciledThroughDate?: string,
+): AccountStatementShareRow[] {
+  const build = buildAccountStatementRows(transactions, fundId, accountName, {
+    reconciledThroughDate,
+  });
+  return build.rows.map((row: AccountStatementRow) => ({
+    date: isOpeningStatementRow(row.id) ? '—' : formatDateAr(row.date),
+    currencyLabel: CURRENCIES.find(c => c.id === row.currency)?.label ?? row.currency,
+    description: row.description,
+    note: row.note,
+    debit: row.debit != null ? formatValueWithUnit(row.debit, row.currency) : undefined,
+    credit: row.credit != null ? formatValueWithUnit(row.credit, row.currency) : undefined,
+    balance: formatValueWithUnit(row.runningBalance, row.currency),
+    reconciled: row.reconciled,
+    isOpening: isOpeningStatementRow(row.id),
+  }));
 }
 
 export type DailyOperationRow = {
@@ -118,7 +174,7 @@ export type BalanceSharePayload =
     dailyTransactions?: Transaction[];
     pendingTransactions?: Transaction[];
   }
-  | { kind: 'account'; fundId: FundId; accountName: string; balances: CustomerBalances; date?: string };
+  | { kind: 'account'; fundId: FundId; accountName: string; balances: CustomerBalances; date?: string; transactions?: Transaction[]; reconciledThroughDate?: string; accountNumber?: string };
 
 export function getBalanceShareMeta(payload: BalanceSharePayload) {
   const fund = getFund(payload.fundId);
@@ -130,6 +186,7 @@ export function getBalanceShareMeta(payload: BalanceSharePayload) {
       title: `رصيد ${fund.name}`,
       subtitle: date,
       rows: getFundBalanceShareRows(payload.balances),
+      statementRows: [] as AccountStatementShareRow[],
       emptyText: 'لا يوجد رصيد',
       operations,
       operationsEmptyText: 'لا توجد عمليات اليوم',
@@ -139,8 +196,21 @@ export function getBalanceShareMeta(payload: BalanceSharePayload) {
   }
   return {
     title: `مطابقة حساب — ${payload.accountName}`,
-    subtitle: `${fund.name} · ${date}`,
+    subtitle: [
+      fund.name,
+      payload.accountNumber ? `رقم ${payload.accountNumber}` : '',
+      date,
+      payload.reconciledThroughDate ? `مطابق حتى ${formatDateAr(payload.reconciledThroughDate)}` : '',
+    ].filter(Boolean).join(' · '),
     rows: getAccountBalanceShareRows(payload.balances),
+    statementRows: payload.transactions
+      ? getAccountStatementShareRows(
+        payload.transactions,
+        payload.fundId,
+        payload.accountName,
+        payload.reconciledThroughDate,
+      )
+      : [],
     emptyText: 'لا يوجد حركة على الحساب',
     operations: [] as DailyOperationRow[],
     operationsEmptyText: '',

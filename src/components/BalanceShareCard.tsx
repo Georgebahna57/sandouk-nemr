@@ -74,6 +74,9 @@ interface Props {
 export const BalanceShareCard = forwardRef<HTMLDivElement, Props>(function BalanceShareCard({ payload }, ref) {
   const meta = getBalanceShareMeta(payload);
   const isFund = payload.kind === 'fund';
+  const showCurrencyColumn = meta.statementRows.some((r, i, arr) =>
+    i > 0 && arr[i - 1].currencyLabel !== r.currencyLabel,
+  ) || new Set(meta.statementRows.map(r => r.currencyLabel)).size > 1;
 
   return (
     <div
@@ -81,7 +84,7 @@ export const BalanceShareCard = forwardRef<HTMLDivElement, Props>(function Balan
       dir="rtl"
       lang="ar"
       style={{
-        width: 380,
+        width: 420,
         background: 'linear-gradient(180deg, #0f172a 0%, #111827 100%)',
         color: '#f8fafc',
         fontFamily: 'Tahoma, "Segoe UI", Arial, sans-serif',
@@ -95,7 +98,7 @@ export const BalanceShareCard = forwardRef<HTMLDivElement, Props>(function Balan
         <p style={{ margin: '8px 0 0', fontSize: 13, color: '#cbd5e1' }}>{meta.subtitle}</p>
       </div>
 
-      <div style={{ padding: '16px 22px 18px', borderBottom: isFund ? '1px solid #334155' : undefined }}>
+      <div style={{ padding: '16px 22px 18px', borderBottom: '1px solid #334155' }}>
         <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: '#94a3b8' }}>الرصيد</p>
         {meta.rows.length === 0 ? (
           <p style={{ margin: 0, fontSize: 14, color: '#94a3b8', textAlign: 'center' }}>{meta.emptyText}</p>
@@ -139,15 +142,15 @@ export const BalanceShareCard = forwardRef<HTMLDivElement, Props>(function Balan
                 <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>{row.label}</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, fontSize: 12 }}>
                   <div>
-                    <p style={{ margin: 0, color: '#94a3b8' }}>وارد</p>
+                    <p style={{ margin: 0, color: '#94a3b8' }}>{row.receiptsLabel}</p>
                     <p style={{ margin: '4px 0 0', color: '#34d399', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{row.receipts}</p>
                   </div>
                   <div>
-                    <p style={{ margin: 0, color: '#94a3b8' }}>صادر</p>
+                    <p style={{ margin: 0, color: '#94a3b8' }}>{row.paymentsLabel}</p>
                     <p style={{ margin: '4px 0 0', color: '#fb7185', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{row.payments}</p>
                   </div>
                   <div>
-                    <p style={{ margin: 0, color: '#94a3b8' }}>رصيد</p>
+                    <p style={{ margin: 0, color: '#94a3b8' }}>{row.balanceLabel}</p>
                     <p style={{ margin: '4px 0 0', color: TONE_COLOR[row.balanceTone], fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{row.balance}</p>
                   </div>
                 </div>
@@ -156,6 +159,53 @@ export const BalanceShareCard = forwardRef<HTMLDivElement, Props>(function Balan
           </div>
         )}
       </div>
+
+      {!isFund && meta.statementRows.length > 0 && (
+        <div style={{ padding: '16px 22px 18px', borderTop: '1px solid #334155' }}>
+          <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: '#94a3b8' }}>كشف الحركات</p>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ color: '#94a3b8', borderBottom: '1px solid #334155' }}>
+                <th style={{ padding: '6px 4px', textAlign: 'right' }}>التاريخ</th>
+                {showCurrencyColumn && <th style={{ padding: '6px 4px', textAlign: 'right' }}>العملة</th>}
+                <th style={{ padding: '6px 4px', textAlign: 'right' }}>البيان</th>
+                <th style={{ padding: '6px 4px', textAlign: 'right' }}>مدين (عليه)</th>
+                <th style={{ padding: '6px 4px', textAlign: 'right' }}>دائن (له)</th>
+                <th style={{ padding: '6px 4px', textAlign: 'right' }}>الرصيد</th>
+              </tr>
+            </thead>
+            <tbody>
+              {meta.statementRows.map((row, index) => (
+                <tr
+                  key={`${row.date}-${row.description}-${index}`}
+                  style={{
+                    borderBottom: '1px solid #1e293b',
+                    background: row.isOpening ? '#1e3a5f22' : row.reconciled ? '#064e3b15' : 'transparent',
+                  }}
+                >
+                  <td style={{ padding: '6px 4px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{row.date}</td>
+                  {showCurrencyColumn && (
+                    <td style={{ padding: '6px 4px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{row.currencyLabel}</td>
+                  )}
+                  <td style={{ padding: '6px 4px', color: row.isOpening ? '#7dd3fc' : '#e2e8f0', lineHeight: 1.4 }}>
+                    {row.description}
+                    {row.note && <span style={{ display: 'block', fontSize: 10, color: '#64748b' }}>{row.note}</span>}
+                  </td>
+                  <td style={{ padding: '6px 4px', color: '#fb7185', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {row.debit ?? '—'}
+                  </td>
+                  <td style={{ padding: '6px 4px', color: '#34d399', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {row.credit ?? '—'}
+                  </td>
+                  <td style={{ padding: '6px 4px', color: '#f8fafc', fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {row.balance}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {isFund && (
         <>

@@ -27,6 +27,12 @@ const KIND_FILTERS: { id: StatementKindFilter; label: string }[] = [
   { id: 'exchange', label: 'تبديل' },
 ];
 
+type CurrencyFilter = 'all' | Currency;
+
+function isOpeningRow(id: string): boolean {
+  return id === 'opening-balance' || id.startsWith('opening-balance-');
+}
+
 export function AccountStatementModal({
   accountName,
   fundId,
@@ -38,23 +44,36 @@ export function AccountStatementModal({
     () => statementActiveCurrencies(transactions, fundId, accountName),
     [transactions, fundId, accountName],
   );
-  const [currency, setCurrency] = useState<Currency>(currencies[0] ?? 'USD');
+  const [currencyFilter, setCurrencyFilter] = useState<CurrencyFilter>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [kindFilter, setKindFilter] = useState<StatementKindFilter>('all');
 
   const build = useMemo(
     () => buildAccountStatementRows(transactions, fundId, accountName, {
-      currency,
+      currency: currencyFilter === 'all' ? undefined : currencyFilter,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       reconciledThroughDate,
       kindFilter,
     }),
-    [transactions, fundId, accountName, currency, dateFrom, dateTo, reconciledThroughDate, kindFilter],
+    [transactions, fundId, accountName, currencyFilter, dateFrom, dateTo, reconciledThroughDate, kindFilter],
   );
 
-  const filteredRows = build.rows.filter(r => r.currency === currency);
+  const showAllCurrencies = currencyFilter === 'all';
+  const displayRows = showAllCurrencies
+    ? build.rows
+    : build.rows.filter(r => r.currency === currencyFilter);
+
+  const summaryCurrencies = showAllCurrencies
+    ? currencies.filter(c => {
+      const open = build.openingByCurrency[c] ?? 0;
+      const close = build.closingByCurrency[c] ?? 0;
+      return open !== 0 || close !== 0 || build.rows.some(r => r.currency === c);
+    })
+    : [currencyFilter];
+
+  const exportCurrency = currencyFilter === 'all' ? currencies[0] ?? 'USD' : currencyFilter;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -77,10 +96,11 @@ export function AccountStatementModal({
             <div>
               <label className="mb-1 block text-[10px] text-slate-500">العملة</label>
               <select
-                value={currency}
-                onChange={e => setCurrency(e.target.value as Currency)}
+                value={currencyFilter}
+                onChange={e => setCurrencyFilter(e.target.value as CurrencyFilter)}
                 className="w-full rounded-lg border border-slate-600 bg-slate-800 px-2 py-2 text-xs"
               >
+                <option value="all">جميع العملات</option>
                 {currencies.map(c => (
                   <option key={c} value={c}>{getCurrencyLabel(c)}</option>
                 ))}
@@ -119,13 +139,24 @@ export function AccountStatementModal({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex gap-3 text-xs">
-              <span className="text-slate-500">
-                افتتاح: <span className="font-semibold text-slate-200">{formatValueWithUnit(build.openingBalance, currency)}</span>
-              </span>
-              <span className="text-slate-500">
-                إغلاق: <span className="font-semibold text-emerald-400">{formatValueWithUnit(build.closingBalance, currency)}</span>
-              </span>
+            <div className="flex flex-wrap gap-3 text-xs">
+              {summaryCurrencies.map(c => {
+                const open = build.openingByCurrency[c] ?? 0;
+                const close = build.closingByCurrency[c] ?? 0;
+                return (
+                  <div key={c} className="flex gap-2 text-slate-500">
+                    {showAllCurrencies && (
+                      <span className="font-medium text-slate-400">{getCurrencyLabel(c)}:</span>
+                    )}
+                    <span>
+                      افتتاح: <span className="font-semibold text-slate-200">{formatValueWithUnit(open, c)}</span>
+                    </span>
+                    <span>
+                      إغلاق: <span className="font-semibold text-emerald-400">{formatValueWithUnit(close, c)}</span>
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div className="flex gap-2">
               <button
@@ -135,11 +166,17 @@ export function AccountStatementModal({
                     accountName,
                     fundId,
                     build,
-                    currency,
+                    exportCurrency,
                     dateFrom || undefined,
                     dateTo || undefined,
+                    showAllCurrencies,
                   );
-                  downloadAccountStatementExcel(accountName, fundId, csv, currency);
+                  downloadAccountStatementExcel(
+                    accountName,
+                    fundId,
+                    csv,
+                    showAllCurrencies ? 'all' : exportCurrency,
+                  );
                 }}
                 className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-2 text-xs font-medium text-white hover:bg-emerald-500"
               >
@@ -152,7 +189,7 @@ export function AccountStatementModal({
                   accountName,
                   fundId,
                   build,
-                  currency,
+                  showAllCurrencies ? undefined : exportCurrency,
                   reconciledThroughDate,
                   dateFrom || undefined,
                   dateTo || undefined,
@@ -173,13 +210,14 @@ export function AccountStatementModal({
         </div>
 
         <div className="overflow-auto flex-1 p-4">
-          {filteredRows.length === 0 ? (
+          {displayRows.length === 0 ? (
             <p className="text-center text-sm text-slate-500">لا توجد حركات ضمن الفترة المحددة</p>
           ) : (
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-slate-700 text-slate-400">
                   <th className="py-2 text-right font-medium">التاريخ</th>
+                  {showAllCurrencies && <th className="py-2 text-right font-medium">العملة</th>}
                   <th className="py-2 text-right font-medium">البيان</th>
                   <th className="py-2 text-right font-medium">مدين (عليه)</th>
                   <th className="py-2 text-right font-medium">دائن (له)</th>
@@ -188,16 +226,21 @@ export function AccountStatementModal({
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map(row => (
+                {displayRows.map(row => (
                   <tr
                     key={row.id}
-                    className={`border-b border-slate-800/80 ${row.reconciled ? 'bg-emerald-500/5' : ''} ${row.id === 'opening-balance' ? 'bg-sky-500/10' : ''}`}
+                    className={`border-b border-slate-800/80 ${row.reconciled ? 'bg-emerald-500/5' : ''} ${isOpeningRow(row.id) ? 'bg-sky-500/10' : ''}`}
                   >
                     <td className="py-2 text-slate-400 whitespace-nowrap">
-                      {row.id === 'opening-balance' ? '—' : formatDateAr(row.date)}
+                      {isOpeningRow(row.id) ? '—' : formatDateAr(row.date)}
                     </td>
+                    {showAllCurrencies && (
+                      <td className="py-2 text-slate-400 whitespace-nowrap">
+                        {getCurrencyLabel(row.currency)}
+                      </td>
+                    )}
                     <td className="py-2 pr-2">
-                      <span className={row.id === 'opening-balance' ? 'font-semibold text-sky-300' : 'text-slate-200'}>
+                      <span className={isOpeningRow(row.id) ? 'font-semibold text-sky-300' : 'text-slate-200'}>
                         {row.description}
                       </span>
                       {row.note && <p className="text-[10px] text-slate-500">{row.note}</p>}
