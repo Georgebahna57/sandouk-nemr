@@ -1,14 +1,13 @@
-import { Download, Pencil, Plus, Search } from 'lucide-react';
+import { Download, Pencil, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CURRENCIES, canRegisterCustomerName, getCurrencyLabel, isWeightCurrency } from '../config';
-import { accountExistsInFund, createCustomer, todayIso } from '../lib/utils';
+import { CURRENCIES, isWeightCurrency } from '../config';
+import { accountExistsInFund } from '../lib/utils';
 import {
-  buildAccountOpeningTransactions,
   buildTrialBalanceRows,
   downloadTrialBalanceExcel,
   type TrialBalanceRow,
 } from '../lib/trialBalance';
-import type { Currency, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
+import type { Currency, Customer, CustomerSummary, Fund, FundId } from '../types';
 import { AccountWhatsAppQuickActions } from './AccountWhatsAppQuickActions';
 import { TrialBalanceAccountModal } from './TrialBalanceAccountModal';
 
@@ -17,11 +16,8 @@ interface Props {
   customers: Customer[];
   defaultFundId: FundId;
   fundOptions?: Fund[];
-  multiFund?: boolean;
   canEditFund?: (fundId: FundId) => boolean;
-  onAddCustomer?: (customer: Customer) => void | Promise<void>;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
-  onAddTransaction?: (tx: Transaction | Transaction[]) => void | Promise<void>;
   onShareAccount?: (summary: CustomerSummary) => void;
   readOnly?: boolean;
 }
@@ -41,11 +37,8 @@ export function TrialBalancePanel({
   customers,
   defaultFundId,
   fundOptions = [],
-  multiFund = false,
   canEditFund,
-  onAddCustomer,
   onUpdateCustomer,
-  onAddTransaction,
   onShareAccount,
   readOnly = false,
 }: Props) {
@@ -53,23 +46,6 @@ export function TrialBalancePanel({
   const [search, setSearch] = useState('');
   const [hideZero, setHideZero] = useState(false);
   const [editingRow, setEditingRow] = useState<TrialBalanceRow | null>(null);
-
-  const [newName, setNewName] = useState('');
-  const [newAccountNumber, setNewAccountNumber] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newFundId, setNewFundId] = useState<FundId>(defaultFundId);
-  const [newDebit, setNewDebit] = useState('');
-  const [newCredit, setNewCredit] = useState('');
-  const [addError, setAddError] = useState('');
-
-  const editableFunds = useMemo(
-    () => (canEditFund ? fundOptions.filter(f => canEditFund(f.id)) : fundOptions),
-    [fundOptions, canEditFund],
-  );
-
-  const canAdd = !readOnly && onAddCustomer && (
-    multiFund ? editableFunds.length > 0 : true
-  );
 
   const rows = useMemo(
     () => buildTrialBalanceRows(summaries, customers, currency, defaultFundId),
@@ -93,52 +69,6 @@ export function TrialBalancePanel({
     credit: filtered.reduce((s, r) => s + r.credit, 0),
     balance: filtered.reduce((s, r) => s + r.balance, 0),
   }), [filtered]);
-
-  async function submitNewAccount(e: React.FormEvent) {
-    e.preventDefault();
-    if (!onAddCustomer) return;
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    const targetFund = multiFund ? newFundId : defaultFundId;
-    if (!canRegisterCustomerName(trimmed, targetFund)) {
-      setAddError('هالاسم محجوز لحساب الصندوق');
-      return;
-    }
-    if (accountExistsInFund(customers, targetFund, trimmed)) {
-      setAddError('في حساب بنفس الاسم');
-      return;
-    }
-    const debit = parseFloat(newDebit.replace(/,/g, '')) || 0;
-    const credit = parseFloat(newCredit.replace(/,/g, '')) || 0;
-    if (debit < 0 || credit < 0) {
-      setAddError('المبالغ يجب أن تكون موجبة');
-      return;
-    }
-    setAddError('');
-    const customer = createCustomer({
-      fundId: targetFund,
-      name: trimmed,
-      accountNumber: newAccountNumber.trim() || undefined,
-      phone: newPhone.trim() || undefined,
-    });
-    await onAddCustomer(customer);
-    if ((debit > 0 || credit > 0) && onAddTransaction) {
-      const txs = buildAccountOpeningTransactions(
-        targetFund,
-        trimmed,
-        currency,
-        debit,
-        credit,
-        todayIso(),
-      );
-      if (txs.length) await onAddTransaction(txs);
-    }
-    setNewName('');
-    setNewAccountNumber('');
-    setNewPhone('');
-    setNewDebit('');
-    setNewCredit('');
-  }
 
   return (
     <div className="space-y-4">
@@ -194,76 +124,6 @@ export function TrialBalancePanel({
           Excel
         </button>
       </div>
-
-      {canAdd && (
-        <form
-          onSubmit={submitNewAccount}
-          className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4 space-y-3"
-        >
-          <h3 className="text-sm font-semibold text-amber-400">حساب جديد — {getCurrencyLabel(currency)}</h3>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {multiFund && editableFunds.length > 0 && (
-              <select
-                value={newFundId}
-                onChange={e => setNewFundId(e.target.value as FundId)}
-                className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm sm:col-span-2"
-              >
-                {editableFunds.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
-            )}
-            <input
-              type="text"
-              placeholder="اسم الحساب"
-              value={newName}
-              onChange={e => { setNewName(e.target.value); setAddError(''); }}
-              className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-              required
-            />
-            <input
-              type="text"
-              placeholder="رقم الحساب (اختياري)"
-              value={newAccountNumber}
-              onChange={e => setNewAccountNumber(e.target.value)}
-              className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-              dir="ltr"
-            />
-            <input
-              type="text"
-              placeholder="واتساب (اختياري)"
-              value={newPhone}
-              onChange={e => setNewPhone(e.target.value)}
-              className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-              dir="ltr"
-            />
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="مدين (صادر)"
-              value={newDebit}
-              onChange={e => setNewDebit(e.target.value)}
-              className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-            />
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="دائن (وارد)"
-              value={newCredit}
-              onChange={e => setNewCredit(e.target.value)}
-              className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-            />
-          </div>
-          {addError && <p className="text-xs text-rose-400">{addError}</p>}
-          <button
-            type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 py-2.5 text-sm font-semibold text-slate-900"
-          >
-            <Plus size={16} />
-            إضافة حساب
-          </button>
-        </form>
-      )}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-700">
         <table className="w-full min-w-[720px] text-sm">
@@ -326,7 +186,7 @@ export function TrialBalancePanel({
                     {!readOnly && (
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-center gap-1">
-                          {!rowReadOnly && (onUpdateCustomer || onAddCustomer) && (
+                          {!rowReadOnly && row.customer && onUpdateCustomer && (
                             <button
                               type="button"
                               onClick={() => setEditingRow(row)}
@@ -375,14 +235,13 @@ export function TrialBalancePanel({
         </table>
       </div>
 
-      {editingRow && (
+      {editingRow?.customer && (
         <TrialBalanceAccountModal
           customer={editingRow.customer}
           defaultName={editingRow.summary.name}
           fundId={editingRow.fundId}
           fundOptions={fundOptions}
           onClose={() => setEditingRow(null)}
-          onAddCustomer={onAddCustomer}
           onUpdateCustomer={onUpdateCustomer}
           nameTaken={name => accountExistsInFund(
             customers,

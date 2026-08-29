@@ -37,8 +37,10 @@ function loadEnv() {
   if (!existsSync(path)) throw new Error('ملف .env غير موجود');
   const text = readFileSync(path, 'utf8').replace(/^\uFEFF/, '');
   const env = {};
-  for (const line of text.split('\n')) {
-    const m = line.match(/^([^#=]+)=(.*)$/);
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const m = trimmed.match(/^([^#=]+)=(.*)$/);
     if (m) env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
   }
   return env;
@@ -131,6 +133,33 @@ async function batchInsert(supabase, table, rows) {
   }
 }
 
+async function getSupabaseClient(env) {
+  const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const serviceKey =
+    env.SUPABASE_SERVICE_ROLE_KEY
+    || env.VITE_SUPABASE_SERVICE_ROLE_KEY
+    || process.env.SUPABASE_SERVICE_ROLE_KEY
+    || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceKey) return createClient(url, serviceKey);
+
+  const anonKey = env.VITE_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) {
+    throw new Error('عيّن VITE_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY (أو anon + بريد) في .env');
+  }
+
+  const client = createClient(url, anonKey);
+  const email = env.SUPABASE_IMPORT_EMAIL || process.env.SUPABASE_IMPORT_EMAIL;
+  const password = env.SUPABASE_IMPORT_PASSWORD || process.env.SUPABASE_IMPORT_PASSWORD;
+  if (email && password) {
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(`فشل تسجيل الدخول: ${error.message}`);
+    console.log('تم تسجيل الدخول:', email);
+  } else {
+    throw new Error('بدون service_role — عيّن SUPABASE_IMPORT_EMAIL و SUPABASE_IMPORT_PASSWORD في .env');
+  }
+  return client;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
@@ -150,14 +179,6 @@ async function main() {
   }
 
   const env = loadEnv();
-  const url = env.VITE_SUPABASE_URL || env.SUPABASE_URL;
-  const key = env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    console.error('عيّن VITE_SUPABASE_URL و SUPABASE_SERVICE_ROLE_KEY في .env');
-    console.error('من Supabase → Project Settings → API → service_role');
-    process.exit(1);
-  }
-
   const wb = XLSX.readFile(sourceFile);
   const accounts = parseWorkbook(wb);
   console.log(`ملف: ${sourceFile}`);
@@ -179,7 +200,7 @@ async function main() {
     return;
   }
 
-  const supabase = createClient(url, key);
+  const supabase = await getSupabaseClient(env);
   const accountNames = accounts.map(a => a.name);
 
   const { data: existingCustomers, error: cErr } = await supabase
@@ -187,6 +208,8 @@ async function main() {
     .select('id, name, fund_id')
     .eq('fund_id', fundId);
   if (cErr) throw cErr;
+
+  const existingByName = new Map((existingCustomers ?? []).map(c => [c.name.trim(), c]));
 
   const { data: existingTx, error: tErr } = await supabase
     .from('transactions')
@@ -207,6 +230,16 @@ async function main() {
   console.log(`حذف حركات سابقة: ${deleteIds.length}`);
   if (deleteIds.length) await batchDelete(supabase, 'transactions', deleteIds);
 
+  const customerUpdates = accounts
+    .filter(a => a.code?.trim() && existingByName.has(a.name.trim()))
+    .map(a => ({
+      id: existingByName.get(a.name.trim()).id,
+      note: encodeCustomerNote(
+        a.code ? `رقم: ${a.code}` : undefined,
+        a.code,
+      ),
+    }));
+
   const existingNames = new Set((existingCustomers ?? []).map(c => c.name.trim()));
   const newCustomers = accounts
     .filter(a => !existingNames.has(a.name.trim()))
@@ -222,7 +255,14 @@ async function main() {
     }));
 
   console.log(`حسابات جديدة: ${newCustomers.length}`);
+  console.log(`تحديث أرقام: ${customerUpdates.length}`);
   if (newCustomers.length) await batchInsert(supabase, 'customers', newCustomers);
+  if (customerUpdates.length) {
+    for (const c of customerUpdates) {
+      const { error } = await supabase.from('customers').update({ note: c.note }).eq('id', c.id);
+      if (error) throw error;
+    }
+  }
 
   console.log('إضافة حركات...');
   await batchInsert(supabase, 'transactions', allTxs);

@@ -1,5 +1,5 @@
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CURRENCIES, getFund, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
 import { isMergedAccountSummary } from '../lib/accountMerge';
@@ -75,7 +75,6 @@ export function CustomersPanel({
   const [accountNumber, setAccountNumber] = useState('');
   const [phone, setPhone] = useState('');
   const [sharedFundIds, setSharedFundIds] = useState<FundId[]>([]);
-  const [newCustomerFundId, setNewCustomerFundId] = useState<FundId>(fundId);
   const [nameError, setNameError] = useState('');
   const [valuationMode, setValuationMode] = useState<AccountValuationMode>('breakdown');
   const [pendingDelete, setPendingDelete] = useState<{
@@ -90,12 +89,6 @@ export function CustomersPanel({
     () => (canEditFund ? funds.filter(f => canEditFund(f.id)) : funds),
     [funds, canEditFund],
   );
-
-  useEffect(() => {
-    if (multiFundCustomers && editableFunds.length > 0 && !editableFunds.some(f => f.id === newCustomerFundId)) {
-      setNewCustomerFundId(editableFunds[0].id);
-    }
-  }, [multiFundCustomers, editableFunds, newCustomerFundId]);
 
   function resolveFund(summary: CustomerSummary): FundId {
     return summary.fundId ?? fundId;
@@ -149,7 +142,7 @@ export function CustomersPanel({
   function submitCustomer(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !onAddCustomer) return;
-    const targetFundId = multiFundCustomers ? newCustomerFundId : fundId;
+    const targetFundId = fundId;
     if (!canRegisterCustomerName(name.trim(), targetFundId)) {
       setNameError('هالاسم محجوز لحساب الصندوق');
       return;
@@ -195,17 +188,6 @@ export function CustomersPanel({
       {!readOnly && onAddCustomer && !reconciliationFocus && (multiFundCustomers ? editableFunds.length > 0 : true) && (
       <form onSubmit={submitCustomer} className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4 space-y-3">
         <h3 className="font-semibold text-amber-400">حساب جديد</h3>
-        {multiFundCustomers && editableFunds.length > 0 && (
-          <select
-            value={newCustomerFundId}
-            onChange={e => setNewCustomerFundId(e.target.value as FundId)}
-            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-          >
-            {editableFunds.map(f => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
-        )}
         <input type="text" placeholder="اسم الحساب" value={name} onChange={e => { setName(e.target.value); setNameError(''); }}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" required />
         {nameError && <p className="text-xs text-rose-400">{nameError}</p>}
@@ -214,7 +196,7 @@ export function CustomersPanel({
         <input type="text" placeholder="واتساب (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
         <SharedFundIdsField
-          homeFundId={multiFundCustomers ? newCustomerFundId : fundId}
+          homeFundId={fundId}
           value={sharedFundIds}
           onChange={setSharedFundIds}
           fundOptions={funds}

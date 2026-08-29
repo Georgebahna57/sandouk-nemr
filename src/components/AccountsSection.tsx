@@ -220,11 +220,8 @@ export function AccountsSection({
           customers={customers}
           defaultFundId={panelFundId}
           fundOptions={boxFunds}
-          multiFund={branch === 'customers'}
           canEditFund={canEdit}
-          onAddCustomer={onAddCustomer}
           onUpdateCustomer={onUpdateCustomer}
-          onAddTransaction={onAddTransaction}
           onShareAccount={onShareAccount
             ? s => onShareAccount(summaryFundId(s, panelFundId), s)
             : undefined}
