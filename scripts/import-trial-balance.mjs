@@ -106,9 +106,9 @@ function buildTxs(fundId, accountName, currency, row, date) {
     created_at: new Date().toISOString(),
   });
 
-  if (credit > 0) txs.push(mk('receipt', credit, IMPORT_NOTE));
-  if (debit > 0) txs.push(mk('payment', debit, IMPORT_NOTE));
-  const openingNet = balance - (credit - debit);
+  if (credit > 0) txs.push(mk('payment', credit, IMPORT_NOTE));
+  if (debit > 0) txs.push(mk('receipt', debit, IMPORT_NOTE));
+  const openingNet = balance - (debit - credit);
   if (openingNet > 0) txs.push(mk('receipt', openingNet, OPENING_NOTE));
   else if (openingNet < 0) txs.push(mk('payment', Math.abs(openingNet), OPENING_NOTE));
   return txs;

@@ -125,8 +125,8 @@ export function buildAccountStatementRows(
             date: tx.date,
             description,
             currency: tx.currency,
-            debit: delta < 0 ? Math.abs(delta) : undefined,
-            credit: delta > 0 ? delta : undefined,
+            debit: delta > 0 ? delta : undefined,
+            credit: delta < 0 ? Math.abs(delta) : undefined,
             runningBalance: runningByCurrency[tx.currency] ?? 0,
             reconciled: isTransactionReconciled(tx.date, opts.reconciledThroughDate),
             note: tx.note,
@@ -142,8 +142,8 @@ export function buildAccountStatementRows(
             date: tx.date,
             description: `↳ ${getCurrencyLabel(tx.exchangeToCurrency)}`,
             currency: tx.exchangeToCurrency,
-            debit: delta < 0 ? Math.abs(delta) : undefined,
-            credit: delta > 0 ? delta : undefined,
+            debit: delta > 0 ? delta : undefined,
+            credit: delta < 0 ? Math.abs(delta) : undefined,
             runningBalance: runningByCurrency[tx.exchangeToCurrency] ?? 0,
             reconciled: isTransactionReconciled(tx.date, opts.reconciledThroughDate),
             note: tx.note,
@@ -163,8 +163,8 @@ export function buildAccountStatementRows(
         date: tx.date,
         description,
         currency: tx.currency,
-        debit: delta < 0 ? Math.abs(delta) : undefined,
-        credit: delta > 0 ? delta : undefined,
+        debit: delta > 0 ? delta : undefined,
+        credit: delta < 0 ? Math.abs(delta) : undefined,
         runningBalance: runningByCurrency[tx.currency] ?? 0,
         reconciled: isTransactionReconciled(tx.date, opts.reconciledThroughDate),
         note: tx.note,
@@ -252,7 +252,7 @@ export function buildAccountStatementCsv(
     `رصيد افتتاحي,${formatStatementAmount(build.openingBalance, currency)}`,
     `رصيد إغلاق,${formatStatementAmount(build.closingBalance, currency)}`,
     '',
-    'التاريخ,البيان,مدين,دائن,الرصيد,مطابق,ملاحظة',
+    'التاريخ,البيان,مدين (عليه),دائن (له),الرصيد,مطابق,ملاحظة',
   ];
 
   for (const row of rows.filter(r => r.currency === currency)) {
@@ -353,8 +353,8 @@ export function buildAccountStatementPrintHtml(
       <tr>
         <th>التاريخ</th>
         <th>البيان</th>
-        <th>مدين</th>
-        <th>دائن</th>
+        <th>مدين (عليه)</th>
+        <th>دائن (له)</th>
         <th>الرصيد</th>
         <th>مطابق</th>
       </tr>

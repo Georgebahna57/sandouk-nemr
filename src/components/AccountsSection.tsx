@@ -218,6 +218,7 @@ export function AccountsSection({
         <TrialBalancePanel
           summaries={summaries}
           customers={customers}
+          transactions={transactions}
           defaultFundId={panelFundId}
           fundOptions={boxFunds}
           canEditFund={canEdit}

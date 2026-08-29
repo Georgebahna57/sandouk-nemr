@@ -113,24 +113,24 @@ export function buildTrialBalanceImportTransactions(
     status: 'posted' as const,
   };
 
-  if (credit > 0) {
-    txs.push(createAccountTransaction({
-      ...base,
-      kind: 'receipt',
-      amount: credit,
-      note: TRIAL_BALANCE_IMPORT_NOTE,
-    }));
-  }
   if (debit > 0) {
     txs.push(createAccountTransaction({
       ...base,
-      kind: 'payment',
+      kind: 'receipt',
       amount: debit,
       note: TRIAL_BALANCE_IMPORT_NOTE,
     }));
   }
+  if (credit > 0) {
+    txs.push(createAccountTransaction({
+      ...base,
+      kind: 'payment',
+      amount: credit,
+      note: TRIAL_BALANCE_IMPORT_NOTE,
+    }));
+  }
 
-  const openingNet = balance - (credit - debit);
+  const openingNet = balance - (debit - credit);
   if (openingNet > 0) {
     txs.push(createAccountTransaction({
       ...base,

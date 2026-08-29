@@ -1,6 +1,7 @@
 import { getCurrencyLabel } from '../config';
 import type { Currency, Customer, CustomerSummary, FundId, Transaction } from '../types';
 import { createAccountTransaction, formatValueWithUnit } from './utils';
+import { TRIAL_BALANCE_IMPORT_NOTE } from './trialBalanceImport';
 
 export type TrialBalanceStatus = 'زايد' | 'ناقص' | 'متعادل';
 
@@ -22,18 +23,55 @@ export function trialBalanceStatus(balance: number): TrialBalanceStatus {
   return 'متعادل';
 }
 
+function trialBalanceMovementTotals(
+  transactions: Transaction[],
+  fundId: FundId,
+  accountName: string,
+  aliases: string[] | undefined,
+  currency: Currency,
+): { debit: number; credit: number } | null {
+  const names = new Set([accountName, ...(aliases ?? [])]);
+  const importTxs = transactions.filter(t =>
+    t.ledger === 'account'
+    && t.status === 'posted'
+    && t.fundId === fundId
+    && names.has(t.party)
+    && t.currency === currency
+    && (t.note ?? '').includes(TRIAL_BALANCE_IMPORT_NOTE),
+  );
+  if (importTxs.length === 0) return null;
+
+  let debit = 0;
+  let credit = 0;
+  for (const tx of importTxs) {
+    if (tx.kind === 'receipt') debit += tx.amount;
+    if (tx.kind === 'payment') credit += tx.amount;
+  }
+  return { debit, credit };
+}
+
 export function buildTrialBalanceRows(
   summaries: CustomerSummary[],
   customers: Customer[],
   currency: Currency,
   defaultFundId: FundId,
+  transactions?: Transaction[],
 ): TrialBalanceRow[] {
   return summaries.map(summary => {
     const fundId = summary.fundId ?? defaultFundId;
     const b = summary.balances[currency];
-    const debit = b?.payments ?? 0;
-    const credit = b?.receipts ?? 0;
     const balance = b?.balance ?? 0;
+    const movement = transactions
+      ? trialBalanceMovementTotals(
+        transactions,
+        fundId,
+        summary.name,
+        summary.aliases,
+        currency,
+      )
+      : null;
+    const debit = movement?.debit ?? (b?.receipts ?? 0);
+    const credit = movement?.credit ?? (b?.payments ?? 0);
     const names = [summary.name, ...(summary.aliases ?? [])];
     let customer: Customer | undefined;
     for (const name of names) {
@@ -65,25 +103,25 @@ export function buildAccountOpeningTransactions(
 ): Transaction[] {
   const txs: Transaction[] = [];
   const note = 'رصيد افتتاحي — ميزان مراجعة';
-  if (credit > 0) {
+  if (debit > 0) {
     txs.push(createAccountTransaction({
       fundId,
       party: accountName,
       kind: 'receipt',
       currency,
-      amount: credit,
+      amount: debit,
       date,
       status: 'posted',
       note,
     }));
   }
-  if (debit > 0) {
+  if (credit > 0) {
     txs.push(createAccountTransaction({
       fundId,
       party: accountName,
       kind: 'payment',
       currency,
-      amount: debit,
+      amount: credit,
       date,
       status: 'posted',
       note,
@@ -111,7 +149,7 @@ export function downloadTrialBalanceExcel(
     `${currency} - ${label}`,
     'ميزان مراجعة بالعملات',
     '',
-    'اسم الحساب,رقم الحساب,مدين (صادر),دائن (وارد),الرصيد النهائي,الحالة,واتساب',
+    'اسم الحساب,رقم الحساب,مدين (عليه),دائن (له),الرصيد النهائي,الحالة,واتساب',
   ];
 
   for (const row of rows) {

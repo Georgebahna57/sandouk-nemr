@@ -65,7 +65,7 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
       if (!row) continue;
       if (row.credit > 0) n++;
       if (row.debit > 0) n++;
-      const opening = row.balance - (row.credit - row.debit);
+      const opening = row.balance - (row.debit - row.credit);
       if (opening > 0) n++;
       if (opening < 0) n++;
     }

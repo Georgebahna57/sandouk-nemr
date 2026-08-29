@@ -181,8 +181,8 @@ export function AccountStatementModal({
                 <tr className="border-b border-slate-700 text-slate-400">
                   <th className="py-2 text-right font-medium">التاريخ</th>
                   <th className="py-2 text-right font-medium">البيان</th>
-                  <th className="py-2 text-right font-medium">مدين</th>
-                  <th className="py-2 text-right font-medium">دائن</th>
+                  <th className="py-2 text-right font-medium">مدين (عليه)</th>
+                  <th className="py-2 text-right font-medium">دائن (له)</th>
                   <th className="py-2 text-right font-medium">الرصيد</th>
                   <th className="py-2 text-center font-medium">✓</th>
                 </tr>

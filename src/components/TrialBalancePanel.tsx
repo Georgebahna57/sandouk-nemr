@@ -7,13 +7,14 @@ import {
   downloadTrialBalanceExcel,
   type TrialBalanceRow,
 } from '../lib/trialBalance';
-import type { Currency, Customer, CustomerSummary, Fund, FundId } from '../types';
+import type { Currency, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountWhatsAppQuickActions } from './AccountWhatsAppQuickActions';
 import { TrialBalanceAccountModal } from './TrialBalanceAccountModal';
 
 interface Props {
   summaries: CustomerSummary[];
   customers: Customer[];
+  transactions?: Transaction[];
   defaultFundId: FundId;
   fundOptions?: Fund[];
   canEditFund?: (fundId: FundId) => boolean;
@@ -35,6 +36,7 @@ function formatCell(value: number, currency: Currency): string {
 export function TrialBalancePanel({
   summaries,
   customers,
+  transactions = [],
   defaultFundId,
   fundOptions = [],
   canEditFund,
@@ -48,8 +50,8 @@ export function TrialBalancePanel({
   const [editingRow, setEditingRow] = useState<TrialBalanceRow | null>(null);
 
   const rows = useMemo(
-    () => buildTrialBalanceRows(summaries, customers, currency, defaultFundId),
-    [summaries, customers, currency, defaultFundId],
+    () => buildTrialBalanceRows(summaries, customers, currency, defaultFundId, transactions),
+    [summaries, customers, currency, defaultFundId, transactions],
   );
 
   const filtered = useMemo(() => {
@@ -75,7 +77,7 @@ export function TrialBalancePanel({
       <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-3">
         <p className="text-sm font-medium text-sky-300">ميزان مراجعة بالعملات</p>
         <p className="text-[11px] text-slate-500 mt-0.5">
-          مدين = صادر · دائن = وارد · الرصيد النهائي لكل عملة — مثل ملف Excel
+          مدين (عليه) · دائن (له) · الرصيد النهائي لكل عملة — مثل ملف Excel
         </p>
       </div>
 
@@ -132,8 +134,8 @@ export function TrialBalancePanel({
               <th className="px-3 py-2.5 text-right font-medium">رقم</th>
               <th className="px-3 py-2.5 text-right font-medium">اسم الحساب</th>
               <th className="px-3 py-2.5 text-right font-medium">واتساب</th>
-              <th className="px-3 py-2.5 text-right font-medium">مدين</th>
-              <th className="px-3 py-2.5 text-right font-medium">دائن</th>
+              <th className="px-3 py-2.5 text-right font-medium">مدين (عليه)</th>
+              <th className="px-3 py-2.5 text-right font-medium">دائن (له)</th>
               <th className="px-3 py-2.5 text-right font-medium">رصيد نهائي</th>
               <th className="px-3 py-2.5 text-center font-medium">حالة</th>
               {!readOnly && <th className="px-3 py-2.5 text-center font-medium">إجراء</th>}
