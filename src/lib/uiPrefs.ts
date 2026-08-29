@@ -2,7 +2,7 @@ import type { AccountBranchId, AppSectionId, FundId, ViewId } from '../types';
 
 const PREFIX = 'sandouk-ui-';
 
-export type DisplayMode = 'default' | 'highContrast';
+export type DisplayMode = 'day' | 'night';
 
 export interface NavPrefs {
   appSection: AppSectionId;
@@ -19,10 +19,16 @@ export interface UiPrefs {
 }
 
 const DEFAULTS: UiPrefs = {
-  displayMode: 'default',
+  displayMode: 'night',
   pendingNotify: true,
   nav: {},
 };
+
+function normalizeDisplayMode(raw: unknown): DisplayMode {
+  if (raw === 'day') return 'day';
+  // ترحيل الإعدادات القديمة (default / highContrast) → ليلي
+  return 'night';
+}
 
 function readRaw(): UiPrefs {
   try {
@@ -30,7 +36,7 @@ function readRaw(): UiPrefs {
     if (!raw) return { ...DEFAULTS };
     const parsed = JSON.parse(raw) as Partial<UiPrefs>;
     return {
-      displayMode: parsed.displayMode === 'highContrast' ? 'highContrast' : 'default',
+      displayMode: normalizeDisplayMode(parsed.displayMode),
       pendingNotify: parsed.pendingNotify !== false,
       nav: parsed.nav ?? {},
     };
@@ -61,7 +67,11 @@ export function saveNavPrefs(patch: Partial<NavPrefs>) {
 }
 
 export function applyDisplayMode(mode: DisplayMode) {
-  document.documentElement.dataset.display = mode;
+  document.documentElement.dataset.theme = mode;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', mode === 'day' ? '#f1f5f9' : '#0f172a');
+  }
 }
 
 export function initDisplayMode() {

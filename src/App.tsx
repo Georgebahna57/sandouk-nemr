@@ -52,7 +52,7 @@ import { buildApprovalWhatsAppMessage, resolveShareDestinations } from './lib/wh
 import { buildMoneyOutReconciliationMessage } from './lib/halabMirror';
 import { isFeeAccountName } from './lib/fees';
 import type { BalanceSharePayload } from './lib/balanceShare';
-import { loadUiPrefs, saveNavPrefs, saveUiPrefs, type DisplayMode } from './lib/uiPrefs';
+import { loadUiPrefs, saveNavPrefs, saveUiPrefs, applyDisplayMode, type DisplayMode } from './lib/uiPrefs';
 import { fetchMessageTemplates } from './lib/messageTemplates';
 import { downloadDailyOperationsExcel } from './lib/excelExport';
 
@@ -173,7 +173,7 @@ export default function App({ user, onLogout }: Props) {
 
   useEffect(() => {
     saveUiPrefs({ displayMode, pendingNotify });
-    document.documentElement.dataset.display = displayMode;
+    applyDisplayMode(displayMode);
   }, [displayMode, pendingNotify]);
 
   useEffect(() => {
