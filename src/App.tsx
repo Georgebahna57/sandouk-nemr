@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { AccountsSection } from './components/AccountsSection';
@@ -15,6 +15,8 @@ import { AdminPanel } from './components/AdminPanel';
 import { ApproveAllPendingModal } from './components/ApproveAllPendingModal';
 import { ApproveTransactionModal } from './components/ApproveTransactionModal';
 import { BalanceShareImageModal } from './components/BalanceShareImageModal';
+import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
+import { DisplayModeToggle } from './components/DisplayModeToggle';
 import { PendingAmountTotals } from './components/PendingAmountTotals';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund, isBoxFund, isHalabFleilatFund } from './config';
@@ -28,6 +30,7 @@ import {
   countAccountsNeedingReconciliation,
   computeBalances,
   computeProjectedFundBalances,
+  describeTransaction,
   expandFilteredTransactions,
   filterByFund,
   filterTransactions,
@@ -49,6 +52,26 @@ import { buildApprovalWhatsAppMessage, resolveShareDestinations } from './lib/wh
 import { buildMoneyOutReconciliationMessage } from './lib/halabMirror';
 import { isFeeAccountName } from './lib/fees';
 import type { BalanceSharePayload } from './lib/balanceShare';
+import { loadUiPrefs, saveNavPrefs, saveUiPrefs, type DisplayMode } from './lib/uiPrefs';
+import { fetchMessageTemplates } from './lib/messageTemplates';
+import { downloadDailyOperationsExcel } from './lib/excelExport';
+
+function playPendingBeep() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.value = 0.12;
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.stop(ctx.currentTime + 0.2);
+  } catch {
+    // ignore
+  }
+}
 
 const FUND_VIEWS: { id: ViewId; label: string; icon: typeof Wallet }[] = [
   { id: 'ledger', label: 'الصندوق', icon: Wallet },
@@ -68,10 +91,19 @@ interface Props {
 }
 
 export default function App({ user, onLogout }: Props) {
+  const initialPrefs = loadUiPrefs();
   const [showAdmin, setShowAdmin] = useState(false);
-  const [appSection, setAppSection] = useState<AppSectionId>('funds');
-  const [fundId, setFundId] = useState<FundId>('nemr');
-  const [view, setView] = useState<ViewId>('ledger');
+  const [appSection, setAppSection] = useState<AppSectionId>(
+    initialPrefs.nav.appSection ?? 'funds',
+  );
+  const [fundId, setFundId] = useState<FundId>(initialPrefs.nav.fundId ?? 'nemr');
+  const [view, setView] = useState<ViewId>(initialPrefs.nav.view ?? 'ledger');
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(initialPrefs.displayMode);
+  const [pendingNotify, setPendingNotify] = useState(initialPrefs.pendingNotify);
+  const [pendingFlash, setPendingFlash] = useState(false);
+  const [pendingDeleteTxId, setPendingDeleteTxId] = useState<string | null>(null);
+  const prevPendingCountRef = useRef<number | null>(null);
+  const navRestoredRef = useRef(false);
   const [txFilters, setTxFilters] = useState<TransactionFilters>({});
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [fundWhatsApp, setFundWhatsApp] = useState<FundWhatsAppMap>({});
@@ -96,7 +128,10 @@ export default function App({ user, onLogout }: Props) {
   const {
     profile,
     visibleBoxFunds,
+    accountAccessibleFunds,
+    accountsOnly,
     canAccessCenters,
+    canAccessAccountsSection,
     fundAccess,
     canEdit,
     loading: permsLoading,
@@ -133,7 +168,48 @@ export default function App({ user, onLogout }: Props) {
   useEffect(() => {
     fetchFundWhatsAppPhones().then(setFundWhatsApp);
     fetchValuationRates().then(setValuationRates);
+    fetchMessageTemplates();
   }, [showAdmin]);
+
+  useEffect(() => {
+    saveUiPrefs({ displayMode, pendingNotify });
+    document.documentElement.dataset.display = displayMode;
+  }, [displayMode, pendingNotify]);
+
+  useEffect(() => {
+    saveNavPrefs({ appSection, fundId, view });
+  }, [appSection, fundId, view]);
+
+  const accountBoxFunds = useMemo(
+    () => accountAccessibleFunds.filter(f => isBoxFund(f.id)),
+    [accountAccessibleFunds],
+  );
+
+  const visibleSections = useMemo(
+    () => APP_SECTIONS.filter(s => (
+      s.id === 'funds' ? visibleBoxFunds.length > 0 : canAccessAccountsSection
+    )),
+    [visibleBoxFunds.length, canAccessAccountsSection],
+  );
+
+  useEffect(() => {
+    if (permsLoading || navRestoredRef.current) return;
+    navRestoredRef.current = true;
+    const prefs = loadUiPrefs().nav;
+
+    if (accountsOnly || visibleBoxFunds.length === 0) {
+      if (canAccessAccountsSection) setAppSection('accounts');
+    } else if (prefs.appSection === 'accounts' && canAccessAccountsSection) {
+      setAppSection('accounts');
+    } else if (prefs.appSection === 'funds') {
+      setAppSection('funds');
+    }
+
+    if (prefs.fundId && visibleBoxFunds.some(f => f.id === prefs.fundId)) {
+      setFundId(prefs.fundId);
+    }
+    if (prefs.view) setView(prefs.view);
+  }, [permsLoading, accountsOnly, visibleBoxFunds, canAccessAccountsSection]);
 
   useEffect(() => {
     setPendingQuery('');
@@ -218,10 +294,10 @@ export default function App({ user, onLogout }: Props) {
     () => countAccountsNeedingReconciliation(
       state.transactions,
       state.customers,
-      visibleBoxFunds.map(f => f.id),
+      accountBoxFunds.map(f => f.id),
       canAccessCenters,
     ),
-    [state.transactions, state.customers, visibleBoxFunds, canAccessCenters],
+    [state.transactions, state.customers, accountBoxFunds, canAccessCenters],
   );
 
   const accountNames = useMemo(
@@ -233,6 +309,78 @@ export default function App({ user, onLogout }: Props) {
     () => getPendingFundOperationLeads(state.transactions, fundId),
     [state.transactions, fundId],
   );
+
+  const closeAllModals = useCallback(() => {
+    setEditingTxId(null);
+    setApprovingTxId(null);
+    setApprovingAllPending(false);
+    setBalanceShare(null);
+    setWhatsappPrompt(null);
+    setDailyJournalOpen(false);
+    setPendingDeleteTxId(null);
+    setShowAdmin(false);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+      if (e.key === 'Escape') {
+        closeAllModals();
+        return;
+      }
+
+      if (typing || showAdmin) return;
+
+      if (e.key === 'p' || e.key === 'P') {
+        if (visibleBoxFunds.length > 0) {
+          setAppSection('funds');
+          setView('pending');
+        }
+        return;
+      }
+
+      if (e.key === 'n' || e.key === 'N') {
+        if (appSection === 'funds' && (view === 'ledger' || view === 'pending') && !readOnly) {
+          setView(view === 'pending' ? 'pending' : 'ledger');
+          requestAnimationFrame(() => {
+            const el = document.getElementById('new-transaction-form');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            const input = el?.querySelector('input, select, textarea') as HTMLElement | null;
+            input?.focus();
+          });
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [appSection, view, readOnly, showAdmin, visibleBoxFunds.length, closeAllModals]);
+
+  useEffect(() => {
+    if (appSection !== 'funds') {
+      prevPendingCountRef.current = pending.length;
+      return;
+    }
+    const prev = prevPendingCountRef.current;
+    if (prev !== null && pending.length > prev && pendingNotify) {
+      playPendingBeep();
+      setPendingFlash(true);
+      window.setTimeout(() => setPendingFlash(false), 4000);
+    }
+    prevPendingCountRef.current = pending.length;
+  }, [pending.length, appSection, pendingNotify]);
+
+  const requestDeleteTransaction = useCallback((id: string) => {
+    setPendingDeleteTxId(id);
+  }, []);
+
+  async function confirmDeleteTransaction() {
+    if (!pendingDeleteTxId) return;
+    await deleteTransaction(pendingDeleteTxId);
+    setPendingDeleteTxId(null);
+  }
 
   const handlePendingWhatsApp = useCallback((payload: { message: string; destinations: string[] }) => {
     setWhatsappPrompt({
@@ -333,7 +481,7 @@ export default function App({ user, onLogout }: Props) {
     );
   }
 
-  if (visibleBoxFunds.length === 0 && !canAccessCenters) {
+  if (visibleBoxFunds.length === 0 && !canAccessAccountsSection) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center px-4 text-center">
         <p className="text-lg font-semibold text-amber-400">صناديق</p>
@@ -358,6 +506,12 @@ export default function App({ user, onLogout }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <DisplayModeToggle
+              mode={displayMode}
+              pendingNotify={pendingNotify}
+              onModeChange={setDisplayMode}
+              onPendingNotifyChange={setPendingNotify}
+            />
             {isAdmin && (
               <button
                 type="button"
@@ -385,10 +539,15 @@ export default function App({ user, onLogout }: Props) {
             {syncError ?? permsError ?? 'جاري الحفظ على السحابة...'}
           </div>
         )}
+        {pendingFlash && (
+          <div className="mt-3 rounded-xl border border-amber-500/50 bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-200 animate-pulse">
+            ⏳ قيد انتظار جديد — {pending.length} عملية بالانتظار
+          </div>
+        )}
       </header>
 
       <nav className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">
-        {APP_SECTIONS.map(s => {
+        {visibleSections.map(s => {
           const Icon = s.icon;
           const badge = s.id === 'accounts' && accountsNeedingReconciliation > 0
             ? accountsNeedingReconciliation
@@ -443,6 +602,14 @@ export default function App({ user, onLogout }: Props) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => downloadDailyOperationsExcel(state.transactions, fundId, today)}
+              className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/20"
+            >
+              <Download size={12} />
+              Excel
+            </button>
             <button
               type="button"
               onClick={() => setDailyJournalOpen(true)}
@@ -537,7 +704,7 @@ export default function App({ user, onLogout }: Props) {
               <TransactionList
                 transactions={filteredPosted}
                 compact
-                onDelete={isAdmin ? deleteTransaction : undefined}
+                onDelete={isAdmin ? requestDeleteTransaction : undefined}
                 onEdit={isAdmin ? setEditingTxId : undefined}
               />
             </div>
@@ -617,7 +784,7 @@ export default function App({ user, onLogout }: Props) {
               showApprove={!readOnly}
               showCoordination
               onApprove={readOnly ? undefined : id => setApprovingTxId(id)}
-              onDelete={isAdmin ? deleteTransaction : undefined}
+              onDelete={isAdmin ? requestDeleteTransaction : undefined}
               onEdit={!readOnly ? setEditingTxId : undefined}
               currentUserId={user.id}
               teamMembers={teamMembers.map(m => ({ id: m.id, displayName: m.displayName }))}
@@ -638,9 +805,9 @@ export default function App({ user, onLogout }: Props) {
             fundOptions={visibleBoxFunds}
             onAddCustomer={canManageAccounts ? addCustomer : undefined}
             onUpdateCustomer={canManageAccounts ? updateCustomer : undefined}
-            onDeleteCustomer={canManageAccounts ? deleteCustomer : undefined}
+            onDeleteCustomer={isAdmin ? deleteCustomer : undefined}
             onAddTransaction={canManageAccounts ? addTransaction : undefined}
-            onDeleteTransaction={isAdmin ? deleteTransaction : undefined}
+            onDeleteTransaction={isAdmin ? requestDeleteTransaction : undefined}
             onEditTransaction={isAdmin ? setEditingTxId : undefined}
             onShareAccount={summary => {
               const customer = state.customers.find(
@@ -679,14 +846,14 @@ export default function App({ user, onLogout }: Props) {
           <AccountsSection
             transactions={state.transactions}
             customers={state.customers}
-            boxFunds={visibleBoxFunds}
+            boxFunds={accountBoxFunds}
             canAccessCenters={canAccessCenters}
             canEdit={canEdit}
             onAddCustomer={addCustomer}
             onUpdateCustomer={updateCustomer}
-            onDeleteCustomer={deleteCustomer}
+            onDeleteCustomer={isAdmin ? deleteCustomer : undefined}
             onAddTransaction={addTransaction}
-            onDeleteTransaction={isAdmin ? deleteTransaction : undefined}
+            onDeleteTransaction={isAdmin ? requestDeleteTransaction : undefined}
             onEditTransaction={isAdmin ? setEditingTxId : undefined}
             onShareAccount={(shareFundId, summary) => {
               const customer = state.customers.find(
@@ -731,8 +898,9 @@ export default function App({ user, onLogout }: Props) {
         )}
       </main>
 
-      <footer className="mt-8 text-center text-xs text-slate-600">
-        البيانات محفوظة على السحابة — كل صندوق له حسابه الافتراضي
+      <footer className="mt-8 space-y-1 text-center text-xs text-slate-600">
+        <p>البيانات محفوظة على السحابة — كل صندوق له حسابه الافتراضي</p>
+        <p className="text-[10px] text-slate-700">N حركة · P انتظار · Esc إغلاق</p>
       </footer>
 
       {approvingAllPending && isHalabFleilatFund(fundId) && (
@@ -789,6 +957,21 @@ export default function App({ user, onLogout }: Props) {
           onClose={() => setDailyJournalOpen(false)}
         />
       )}
+
+      {pendingDeleteTxId && (() => {
+        const tx = state.transactions.find(t => t.id === pendingDeleteTxId);
+        return (
+          <ConfirmDeleteModal
+            title="حذف الحركة؟"
+            message="متأكد من حذف هذه الحركة؟"
+            warning={tx ? describeTransaction(tx) : undefined}
+            confirmLabel="حذف الحركة"
+            busy={syncing}
+            onCancel={() => setPendingDeleteTxId(null)}
+            onConfirm={confirmDeleteTransaction}
+          />
+        );
+      })()}
     </div>
   );
 }

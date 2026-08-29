@@ -31,7 +31,7 @@ export async function ensureProfile(user: User): Promise<UserProfile> {
 
   const { data, error } = await client
     .from('profiles')
-    .select('id, email, display_name, is_admin')
+    .select('id, email, display_name, is_admin, accounts_only')
     .eq('id', user.id)
     .single();
 
@@ -42,6 +42,7 @@ export async function ensureProfile(user: User): Promise<UserProfile> {
     email: data.email,
     displayName: data.display_name || fallbackName,
     isAdmin: data.is_admin,
+    accountsOnly: data.accounts_only ?? false,
   };
 }
 
@@ -73,7 +74,7 @@ export async function fetchMyPermissions(userId: string): Promise<Partial<Record
 export async function fetchAllProfiles(): Promise<UserProfile[]> {
   const { data, error } = await requireClient()
     .from('profiles')
-    .select('id, email, display_name, is_admin')
+    .select('id, email, display_name, is_admin, accounts_only')
     .order('email');
 
   if (error) throw error;
@@ -83,6 +84,7 @@ export async function fetchAllProfiles(): Promise<UserProfile[]> {
     email: row.email,
     displayName: row.display_name || row.email,
     isAdmin: row.is_admin,
+    accountsOnly: row.accounts_only ?? false,
   }));
 }
 
@@ -130,6 +132,14 @@ export async function setUserAdmin(userId: string, isAdmin: boolean) {
   const { error } = await requireClient()
     .from('profiles')
     .update({ is_admin: isAdmin })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+export async function setUserAccountsOnly(userId: string, accountsOnly: boolean) {
+  const { error } = await requireClient()
+    .from('profiles')
+    .update({ accounts_only: accountsOnly })
     .eq('id', userId);
   if (error) throw error;
 }

@@ -14,3 +14,41 @@ body {
 input, select, textarea, button {
   font-family: inherit;
 }
+
+[data-display="highContrast"] body {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+[data-display="highContrast"] .text-slate-400,
+[data-display="highContrast"] .text-slate-500,
+[data-display="highContrast"] .text-slate-600 {
+  color: #d4d4d4 !important;
+}
+
+[data-display="highContrast"] .border-slate-600,
+[data-display="highContrast"] .border-slate-700 {
+  border-color: #888888 !important;
+  border-width: 2px;
+}
+
+[data-display="highContrast"] .bg-slate-800\/50,
+[data-display="highContrast"] .bg-slate-800\/60,
+[data-display="highContrast"] .bg-slate-800\/40,
+[data-display="highContrast"] .bg-slate-800\/80,
+[data-display="highContrast"] .bg-slate-900\/50,
+[data-display="highContrast"] .bg-slate-900\/60 {
+  background-color: #141414 !important;
+}
+
+[data-display="highContrast"] .text-amber-400,
+[data-display="highContrast"] .text-amber-300 {
+  color: #ffcc00 !important;
+}
+
+[data-display="highContrast"] button,
+[data-display="highContrast"] input,
+[data-display="highContrast"] select,
+[data-display="highContrast"] textarea {
+  font-weight: 500;
+}

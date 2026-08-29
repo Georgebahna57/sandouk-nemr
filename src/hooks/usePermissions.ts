@@ -59,14 +59,26 @@ export function usePermissions(user: User | null) {
     [fundAccess],
   );
 
+  const accountsOnly = profile?.accountsOnly ?? false;
+
   const visibleBoxFunds = useMemo(
-    () => visibleFunds.filter(f => isBoxFund(f.id)),
+    () => accountsOnly ? [] : visibleFunds.filter(f => isBoxFund(f.id)),
+    [visibleFunds, accountsOnly],
+  );
+
+  const accountAccessibleFunds = useMemo(
+    () => visibleFunds.filter(f => isBoxFund(f.id) || f.id === 'marakiz'),
     [visibleFunds],
   );
 
   const canAccessCenters = useMemo(
     () => canViewFund(fundAccess.marakiz),
     [fundAccess],
+  );
+
+  const canAccessAccountsSection = useMemo(
+    () => accountAccessibleFunds.length > 0 || canAccessCenters,
+    [accountAccessibleFunds, canAccessCenters],
   );
 
   const getAccess = useCallback((fundId: FundId) => fundAccess[fundId], [fundAccess]);
@@ -78,7 +90,10 @@ export function usePermissions(user: User | null) {
     fundAccess,
     visibleFunds,
     visibleBoxFunds,
+    accountAccessibleFunds,
+    accountsOnly,
     canAccessCenters,
+    canAccessAccountsSection,
     loading,
     error,
     isAdmin: profile?.isAdmin ?? false,

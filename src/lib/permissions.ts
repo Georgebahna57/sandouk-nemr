@@ -7,6 +7,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   isAdmin: boolean;
+  accountsOnly: boolean;
 }
 
 export interface FundPermissionRow {

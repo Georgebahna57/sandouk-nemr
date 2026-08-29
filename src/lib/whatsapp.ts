@@ -2,6 +2,7 @@ import { CURRENCIES, getCurrencyLabel, getFund, isWeightCurrency } from '../conf
 import type { CustomerBalances, FundBalances, FundId, Transaction } from '../types';
 import { describeTransaction, formatAmount, formatDateAr, formatFee, formatIntermediary, formatValueWithUnit, todayIso } from './utils';
 import { formatTransactionFees } from './fees';
+import { applyMessageTemplate, loadMessageTemplatesLocal } from './messageTemplates';
 
 /** يحوّل الرقم لصيغة wa.me (أرقام فقط مع رمز الدولة) */
 export function normalizeWhatsAppPhone(raw: string): string | null {
@@ -66,23 +67,25 @@ export function buildPendingWhatsAppMessage(
   const lead = transactions[0];
   if (!lead) return '';
 
-  const lines: string[] = [
-    `⏳ قيد انتظار — ${fund.name}`,
-    `التاريخ: ${formatDateAr(lead.date)}`,
-  ];
-
+  const detailLines: string[] = [];
   for (const tx of transactions) {
-    lines.push(`• ${describeTransaction(tx)}`);
+    detailLines.push(`• ${describeTransaction(tx)}`);
   }
 
   const via = formatIntermediary(lead.intermediary);
-  if (via) lines.push(`بيد: ${via}`);
+  if (via) detailLines.push(`بيد: ${via}`);
   const fee = formatTransactionFees(lead) ?? formatFee(lead.fee);
-  if (fee) lines.push(`أجور/عمولة: ${fee}`);
-  if (lead.note) lines.push(`ملاحظة: ${lead.note}`);
-  if (actorName) lines.push(`أضافها: ${actorName}`);
+  if (fee) detailLines.push(`أجور/عمولة: ${fee}`);
+  if (lead.note) detailLines.push(`ملاحظة: ${lead.note}`);
+  if (actorName) detailLines.push(`أضافها: ${actorName}`);
 
-  return lines.join('\n');
+  const templates = loadMessageTemplatesLocal();
+  return applyMessageTemplate(templates.pending, {
+    fund: fund.name,
+    date: formatDateAr(lead.date),
+    lines: detailLines.join('\n'),
+    actor: actorName ?? '',
+  });
 }
 
 function balanceStatusLabel(balance: number): string {
@@ -98,11 +101,8 @@ export function buildFundBalanceWhatsAppMessage(
   dateIso?: string,
 ): string {
   const fund = getFund(fundId);
-  const lines: string[] = [
-    `📊 رصيد ${fund.name}`,
-    `التاريخ: ${formatDateAr(dateIso ?? todayIso())}`,
-    '',
-  ];
+  const date = formatDateAr(dateIso ?? todayIso());
+  const lineItems: string[] = [];
 
   let hasBalance = false;
   for (const c of CURRENCIES) {
@@ -112,14 +112,20 @@ export function buildFundBalanceWhatsAppMessage(
     const amount = formatAmount(Math.abs(b.balance), c.id);
     const status = balanceStatusLabel(b.balance);
     if (isWeightCurrency(c.id)) {
-      lines.push(`• ${c.label}: ${b.balance < 0 ? '-' : ''}${amount} غ (${status})`);
+      lineItems.push(`• ${c.label}: ${b.balance < 0 ? '-' : ''}${amount} غ (${status})`);
     } else {
-      lines.push(`• ${c.label}: ${b.balance < 0 ? '-' : ''}${amount} ${c.symbol} (${status})`);
+      lineItems.push(`• ${c.label}: ${b.balance < 0 ? '-' : ''}${amount} ${c.symbol} (${status})`);
     }
   }
 
-  if (!hasBalance) lines.push('لا يوجد رصيد');
-  return lines.join('\n');
+  if (!hasBalance) lineItems.push('لا يوجد رصيد');
+
+  const templates = loadMessageTemplatesLocal();
+  return applyMessageTemplate(templates.balance, {
+    fund: fund.name,
+    date,
+    lines: lineItems.join('\n'),
+  });
 }
 
 /** رسالة مطابقة حساب زبون */
@@ -130,26 +136,29 @@ export function buildAccountBalanceWhatsAppMessage(
   dateIso?: string,
 ): string {
   const fund = getFund(fundId);
-  const lines: string[] = [
-    `📋 مطابقة حساب — ${accountName}`,
-    `الصندوق: ${fund.name}`,
-    `التاريخ: ${formatDateAr(dateIso ?? todayIso())}`,
-    '',
-  ];
+  const date = formatDateAr(dateIso ?? todayIso());
+  const lineItems: string[] = [];
 
   let hasActivity = false;
   for (const c of CURRENCIES) {
     const b = balances[c.id];
     if (b.receipts === 0 && b.payments === 0) continue;
     hasActivity = true;
-    lines.push(`• ${getCurrencyLabel(c.id)}:`);
-    lines.push(`  وارد: ${formatValueWithUnit(b.receipts, c.id)}`);
-    lines.push(`  صادر: ${formatValueWithUnit(b.payments, c.id)}`);
-    lines.push(`  رصيد: ${formatValueWithUnit(b.balance, c.id)}`);
+    lineItems.push(`• ${getCurrencyLabel(c.id)}:`);
+    lineItems.push(`  وارد: ${formatValueWithUnit(b.receipts, c.id)}`);
+    lineItems.push(`  صادر: ${formatValueWithUnit(b.payments, c.id)}`);
+    lineItems.push(`  رصيد: ${formatValueWithUnit(b.balance, c.id)}`);
   }
 
-  if (!hasActivity) lines.push('لا يوجد حركة على الحساب');
-  return lines.join('\n');
+  if (!hasActivity) lineItems.push('لا يوجد حركة على الحساب');
+
+  const templates = loadMessageTemplatesLocal();
+  return applyMessageTemplate(templates.reconciliation, {
+    account: accountName,
+    fund: fund.name,
+    date,
+    lines: lineItems.join('\n'),
+  });
 }
 
 /** رسالة مشاركة رصيد حساب (نص) */
@@ -160,23 +169,26 @@ export function buildAccountShareWhatsAppMessage(
   dateIso?: string,
 ): string {
   const fund = getFund(fundId);
-  const lines: string[] = [
-    `📤 رصيد حساب — ${accountName}`,
-    `الصندوق: ${fund.name}`,
-    `التاريخ: ${formatDateAr(dateIso ?? todayIso())}`,
-    '',
-  ];
+  const date = formatDateAr(dateIso ?? todayIso());
+  const lineItems: string[] = [];
 
   let hasBalance = false;
   for (const c of CURRENCIES) {
     const b = balances[c.id];
     if (b.balance === 0 && b.receipts === 0 && b.payments === 0) continue;
     hasBalance = true;
-    lines.push(`• ${getCurrencyLabel(c.id)}: ${formatValueWithUnit(b.balance, c.id)}`);
+    lineItems.push(`• ${getCurrencyLabel(c.id)}: ${formatValueWithUnit(b.balance, c.id)}`);
   }
 
-  if (!hasBalance) lines.push('لا يوجد رصيد');
-  return lines.join('\n');
+  if (!hasBalance) lineItems.push('لا يوجد رصيد');
+
+  const templates = loadMessageTemplatesLocal();
+  return applyMessageTemplate(templates.balance_share, {
+    account: accountName,
+    fund: fund.name,
+    date,
+    lines: lineItems.join('\n'),
+  });
 }
 
 /** وجهات الإرسال: رقم الزبون أولاً، وإلا كروبات الصندوق، وإلا واتساب بدون رقم */

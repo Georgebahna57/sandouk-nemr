@@ -15,6 +15,7 @@ import {
   fetchAllPermissions,
   fetchAllProfiles,
   saveUserFundPermissions,
+  setUserAccountsOnly,
   setUserAdmin,
   updateDisplayName,
 } from '../lib/profile';
@@ -24,6 +25,8 @@ import {
   type UserProfile,
 } from '../lib/permissions';
 import type { FundId } from '../types';
+import { AuditLogSection } from './AuditLogSection';
+import { MessageTemplatesSection } from './MessageTemplatesSection';
 
 interface Props {
   onBack: () => void;
@@ -191,6 +194,20 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
     }
   }
 
+  async function toggleAccountsOnly(userId: string, accountsOnly: boolean) {
+    setSaving(true);
+    setError(null);
+    try {
+      await setUserAccountsOnly(userId, accountsOnly);
+      await load();
+      setSuccess(accountsOnly ? 'تم تفعيل حسابات فقط' : 'تم إلغاء حسابات فقط');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل التحديث');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
@@ -263,6 +280,10 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
           saving={savingValuationRates}
         />
       </div>
+
+      <MessageTemplatesSection />
+
+      <AuditLogSection />
 
       <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
         <div className="mb-3 flex items-center gap-2">
@@ -352,6 +373,17 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
                   />
                   مسؤول
                 </label>
+                {!isAdmin && (
+                  <label className="flex items-center gap-2 text-xs text-slate-400">
+                    <input
+                      type="checkbox"
+                      checked={profile.accountsOnly}
+                      onChange={e => toggleAccountsOnly(profile.id, e.target.checked)}
+                      disabled={saving}
+                    />
+                    حسابات فقط
+                  </label>
+                )}
               </div>
 
               {!isAdmin && (

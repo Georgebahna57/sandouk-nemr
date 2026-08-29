@@ -281,7 +281,7 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
   }
 
   return (
-    <form onSubmit={submit} className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4 space-y-3">
+    <form id="new-transaction-form" onSubmit={submit} className="rounded-2xl border border-slate-700 bg-slate-800/80 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-amber-400">دخل / خرج الصندوق</h3>

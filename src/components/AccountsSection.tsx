@@ -1,6 +1,7 @@
 import { Building2, CheckCircle2, List, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CENTERS_FUND_ID } from '../config';
+import { loadUiPrefs, saveNavPrefs } from '../lib/uiPrefs';
 import {
   accountNeedsReconciliation,
   buildAccountSummaries,
@@ -70,9 +71,18 @@ export function AccountsSection({
   isAdmin = false,
   actorName,
 }: Props) {
+  const savedNav = loadUiPrefs().nav;
   const defaultBranch: AccountBranchId = boxFunds.length > 0 ? 'customers' : 'centers';
-  const [branch, setBranch] = useState<AccountBranchId>(defaultBranch);
-  const [tab, setTab] = useState<AccountsTab>('list');
+  const [branch, setBranch] = useState<AccountBranchId>(
+    savedNav.accountsBranch ?? defaultBranch,
+  );
+  const [tab, setTab] = useState<AccountsTab>(
+    savedNav.accountsTab === 'reconciliations' ? 'reconciliations' : 'list',
+  );
+
+  useEffect(() => {
+    saveNavPrefs({ accountsBranch: branch, accountsTab: tab });
+  }, [branch, tab]);
 
   const boxFundIds = useMemo(() => boxFunds.map(f => f.id), [boxFunds]);
 

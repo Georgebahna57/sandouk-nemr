@@ -3,11 +3,12 @@ import { useMemo, useState } from 'react';
 import { getCurrencyLabel, getFund } from '../config';
 import {
   buildAccountStatementRows,
-  downloadAccountStatementCsv,
+  buildAccountStatementCsv,
   printAccountStatement,
   statementActiveCurrencies,
   type StatementKindFilter,
 } from '../lib/accountStatement';
+import { downloadAccountStatementExcel } from '../lib/excelExport';
 import { formatDateAr, formatValueWithUnit } from '../lib/utils';
 import type { Currency, FundId, Transaction } from '../types';
 
@@ -129,14 +130,17 @@ export function AccountStatementModal({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => downloadAccountStatementCsv(
-                  accountName,
-                  fundId,
-                  build,
-                  currency,
-                  dateFrom || undefined,
-                  dateTo || undefined,
-                )}
+                onClick={() => {
+                  const csv = buildAccountStatementCsv(
+                    accountName,
+                    fundId,
+                    build,
+                    currency,
+                    dateFrom || undefined,
+                    dateTo || undefined,
+                  );
+                  downloadAccountStatementExcel(accountName, fundId, csv, currency);
+                }}
                 className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 py-2 text-xs font-medium text-white hover:bg-emerald-500"
               >
                 <Download size={14} />

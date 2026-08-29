@@ -1,9 +1,9 @@
-import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CURRENCIES, getFund, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
 import { isMergedAccountSummary } from '../lib/accountMerge';
-import { accountExistsInFund, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
+import { accountExistsInFund, accountNeedsReconciliation, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
 import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
@@ -16,6 +16,7 @@ import { formatSharedFundLabels, SharedFundIdsField } from './SharedFundIdsField
 import { AccountValuationToolbar, AccountValuationView } from './AccountValuationView';
 import type { AccountValuationMode, ValuationRates } from '../lib/valuationRates';
 import { TransactionList } from './TransactionList';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 interface Props {
   summaries: CustomerSummary[];
@@ -76,6 +77,11 @@ export function CustomersPanel({
   const [newCustomerFundId, setNewCustomerFundId] = useState<FundId>(fundId);
   const [nameError, setNameError] = useState('');
   const [valuationMode, setValuationMode] = useState<AccountValuationMode>('breakdown');
+  const [pendingDelete, setPendingDelete] = useState<{
+    customerId: string;
+    name: string;
+    txCount: number;
+  } | null>(null);
 
   const funds = fundOptions ?? [];
 
@@ -258,17 +264,38 @@ export function CustomersPanel({
               return b && (b.receipts !== 0 || b.payments !== 0 || b.balance !== 0);
             });
             const customerPhone = resolveCustomer(summary)?.phone?.trim();
+            const needsRecon = accountNeedsReconciliation(
+              transactions,
+              summaryFund,
+              summary,
+            );
 
             return (
-              <div key={summaryKey(summary)} className="rounded-2xl border border-slate-700 bg-slate-800/60 overflow-hidden">
+              <div
+                key={summaryKey(summary)}
+                className={`rounded-2xl border overflow-hidden ${
+                  needsRecon
+                    ? 'border-amber-500/60 bg-amber-500/10'
+                    : 'border-slate-700 bg-slate-800/60'
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : summaryKey(summary))}
                   className="flex w-full items-center justify-between gap-2 p-3 text-right hover:bg-slate-700/30"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <User size={16} className="shrink-0 text-amber-400" />
+                    <User size={16} className={`shrink-0 ${needsRecon ? 'text-amber-300' : 'text-amber-400'}`} />
                     <span className="truncate font-medium">{summary.name}</span>
+                    {needsRecon && (
+                      <span
+                        className="shrink-0 inline-flex items-center gap-0.5 rounded-md bg-amber-500/25 px-1.5 py-0.5 text-[10px] text-amber-200"
+                        title="حركة بعد آخر مطابقة"
+                      >
+                        <AlertTriangle size={10} />
+                        مطابقة
+                      </span>
+                    )}
                     {multiFundCustomers && (
                       <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] ${
                         isMergedAccountSummary(summary)
@@ -335,10 +362,17 @@ export function CustomersPanel({
                         compact
                       />
                     )}
-                    {summary.customerId && onDeleteCustomer && !summaryReadOnly && (
+                    {summary.customerId && onDeleteCustomer && isAdmin && !summaryReadOnly && (
                       <button
                         type="button"
-                        onClick={e => { e.stopPropagation(); onDeleteCustomer(summary.customerId!); }}
+                        onClick={e => {
+                          e.stopPropagation();
+                          setPendingDelete({
+                            customerId: summary.customerId!,
+                            name: summary.name,
+                            txCount: accountTx.length,
+                          });
+                        }}
                         className="rounded-lg p-1 text-slate-500 hover:text-rose-400"
                       >
                         <Trash2 size={14} />
@@ -444,6 +478,22 @@ export function CustomersPanel({
           transactions={transactions}
           reconciledThroughDate={statementAccount.reconciliation?.throughDate}
           onClose={() => setStatementAccount(null)}
+        />
+      )}
+
+      {pendingDelete && onDeleteCustomer && (
+        <ConfirmDeleteModal
+          title="حذف الحساب؟"
+          message={`متأكد من حذف «${pendingDelete.name}»؟`}
+          warning={pendingDelete.txCount > 0
+            ? `⚠️ يوجد ${pendingDelete.txCount} حركة على هذا الحساب — الحذف يزيل التسجيل فقط (الحركات تبقى).`
+            : 'لا يوجد حركات على هذا الحساب.'}
+          confirmLabel="حذف الحساب"
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            onDeleteCustomer(pendingDelete.customerId);
+            setPendingDelete(null);
+          }}
         />
       )}
     </div>

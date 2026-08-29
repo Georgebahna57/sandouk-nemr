@@ -1,7 +1,16 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AuthGate } from './AuthGate';
+import { initDisplayMode } from './lib/uiPrefs';
 import './index.css';
+
+initDisplayMode();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -18,6 +18,7 @@ import {
   appendEditHistory,
   applyCustomerRename,
   backfillLinkedAccountFields,
+  describeTransaction,
   getDeletionGroupIds,
   getOperationGroupIds,
   loadState,
@@ -36,6 +37,7 @@ import {
   saveManualSnapshot,
   savePreDestructiveSnapshot,
 } from '../lib/localMirror';
+import { logAudit } from '../lib/auditLog';
 import { runAllHalabRepairs } from '../lib/halabBalance';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
@@ -282,6 +284,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [runSync]);
 
   const deleteTransaction = useCallback(async (id: string) => {
+    const tx = stateRef.current.transactions.find(t => t.id === id);
     savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
     let removeIds: string[] = [id];
     setState(prev => {
@@ -289,7 +292,18 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       return { ...prev, transactions: prev.transactions.filter(tx => !removeIds.includes(tx.id)) };
     });
     await runSync(() => removeTransactions(removeIds));
-  }, [runSync]);
+    if (tx && actor) {
+      logAudit({
+        userId: actor.userId,
+        userName: actor.displayName,
+        action: 'transaction_delete',
+        entityType: 'transaction',
+        entityId: id,
+        fundId: tx.fundId,
+        details: describeTransaction(tx),
+      });
+    }
+  }, [actor, runSync]);
 
   const editTransactions = useCallback(async (updated: Transaction[], summary: string) => {
     const stamped = updated.map(tx => appendEditHistory(normalizeSyrianTransaction(tx) as Transaction, summary, actor));
@@ -309,6 +323,17 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       const feeUpsert = syncResult.upsert.filter(t => !upsertIds.has(t.id));
       await upsertTransactions([...stamped, ...feeUpsert]);
     });
+    if (actor) {
+      logAudit({
+        userId: actor.userId,
+        userName: actor.displayName,
+        action: 'transaction_edit',
+        entityType: 'transaction',
+        entityId: stamped[0]?.id,
+        fundId: stamped[0]?.fundId,
+        details: summary,
+      });
+    }
   }, [actor, runSync]);
 
   const addBill = useCallback(async (bill: Bill) => {
@@ -328,6 +353,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [runSync]);
 
   const updateCustomer = useCallback(async (updated: Customer, previousName: string) => {
+    const prevCustomer = stateRef.current.customers.find(c => c.id === updated.id);
     const nameChanged = updated.name.trim() !== previousName.trim();
     let changedTxs: Transaction[] = [];
 
@@ -355,13 +381,55 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       await upsertCustomer(updated);
       if (changedTxs.length) await upsertTransactions(changedTxs);
     });
-  }, [runSync]);
+
+    if (actor) {
+      const prevRecon = prevCustomer?.reconciliation?.throughDate;
+      const newRecon = updated.reconciliation?.throughDate;
+      if (prevRecon !== newRecon) {
+        logAudit({
+          userId: actor.userId,
+          userName: actor.displayName,
+          action: 'reconciliation',
+          entityType: 'customer',
+          entityId: updated.id,
+          fundId: updated.fundId,
+          details: newRecon
+            ? `مطابق حتى ${newRecon}`
+            : 'إلغاء المطابقة',
+        });
+      } else if (nameChanged || updated.phone !== prevCustomer?.phone) {
+        logAudit({
+          userId: actor.userId,
+          userName: actor.displayName,
+          action: 'customer_update',
+          entityType: 'customer',
+          entityId: updated.id,
+          fundId: updated.fundId,
+          details: nameChanged
+            ? `تغيير الاسم: ${previousName} → ${updated.name}`
+            : `تعديل حساب ${updated.name}`,
+        });
+      }
+    }
+  }, [actor, runSync]);
 
   const deleteCustomer = useCallback(async (id: string) => {
+    const customer = stateRef.current.customers.find(c => c.id === id);
     savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
     setState(prev => ({ ...prev, customers: prev.customers.filter(c => c.id !== id) }));
     await runSync(() => removeCustomer(id));
-  }, [runSync]);
+    if (customer && actor) {
+      logAudit({
+        userId: actor.userId,
+        userName: actor.displayName,
+        action: 'customer_delete',
+        entityType: 'customer',
+        entityId: id,
+        fundId: customer.fundId,
+        details: customer.name,
+      });
+    }
+  }, [actor, runSync]);
 
   const addComment = useCallback(async (id: string, text: string) => {
     const trimmed = text.trim();
