@@ -58,3 +58,22 @@ export function formatNemrRestoreDelta(_currency: Currency, delta: number): stri
   const sign = delta > 0 ? '+' : '−';
   return `${sign}${Math.abs(delta).toLocaleString('en-US')}`;
 }
+
+/** آخر حركات صندوق نمر التي لها سجل تعديل */
+export function getRecentlyEditedNemrFundTransactions(
+  transactions: Transaction[],
+  limit = 3,
+): Transaction[] {
+  return transactions
+    .filter(
+      tx => tx.fundId === 'nemr'
+        && (tx.ledger ?? 'fund') === 'fund'
+        && (tx.editHistory?.length ?? 0) > 0,
+    )
+    .sort((a, b) => {
+      const aAt = a.editHistory![a.editHistory!.length - 1]?.at ?? '';
+      const bAt = b.editHistory![b.editHistory!.length - 1]?.at ?? '';
+      return bAt.localeCompare(aAt);
+    })
+    .slice(0, limit);
+}

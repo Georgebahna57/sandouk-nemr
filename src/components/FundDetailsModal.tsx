@@ -2,6 +2,10 @@ import { Info, MessageCircle, Users, Wallet, X } from 'lucide-react';
 import { useMemo } from 'react';
 import { CURRENCIES, getFund } from '../config';
 import { isBalanceDisplayCurrency } from '../lib/syrianCurrency';
+import {
+  formatNemrRestoreDelta,
+  previewNemrBalanceRestore,
+} from '../lib/nemrBalanceRestore';
 import { formatAmount, formatDateAr, getFundTransactionStats } from '../lib/utils';
 import type { Customer, FundBalances, FundId, Transaction } from '../types';
 
@@ -45,6 +49,10 @@ export function FundDetailsModal({
   });
 
   const whatsappList = (whatsappDestinations ?? []).filter(Boolean);
+
+  const nemrRef = fundId === 'nemr'
+    ? previewNemrBalanceRestore(transactions)
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center">
@@ -102,6 +110,21 @@ export function FundDetailsModal({
               </div>
             )}
           </div>
+
+          {nemrRef && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs">
+              <p className="font-medium text-amber-300">مقارنة بالمرجع (قبل آخر تعديل)</p>
+              <p className="mt-1 text-slate-400">
+                دولار: فرق {formatNemrRestoreDelta('USD', nemrRef.deltaUsd)}
+              </p>
+              <p className="text-slate-400">
+                يورو: فرق {formatNemrRestoreDelta('EUR', nemrRef.deltaEur)}
+              </p>
+              {nemrRef.needsRestore && (
+                <p className="mt-1 text-amber-200/90">الرصيد لا يطابق المرجع — استعده من الإدارة</p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-xl border border-slate-700 bg-slate-800/50 px-3 py-2.5">
