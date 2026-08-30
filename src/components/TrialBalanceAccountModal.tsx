@@ -1,6 +1,6 @@
 import { Pencil, X } from 'lucide-react';
 import { useState } from 'react';
-import { BOX_FUNDS, canRegisterCustomerName } from '../config';
+import { BOX_FUNDS, canRegisterCustomerName, getFund } from '../config';
 import type { Customer, Fund, FundId } from '../types';
 import { createCustomer } from '../lib/utils';
 import { SharedFundIdsField } from './SharedFundIdsField';
@@ -10,10 +10,11 @@ interface Props {
   defaultName: string;
   fundId: FundId;
   fundOptions?: Fund[];
+  transferFundOptions?: Fund[];
   onClose: () => void;
   onAddCustomer?: (customer: Customer) => void | Promise<void>;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
-  nameTaken?: (name: string) => boolean;
+  nameTaken?: (name: string, fundId: FundId) => boolean;
 }
 
 export function TrialBalanceAccountModal({
@@ -21,6 +22,7 @@ export function TrialBalanceAccountModal({
   defaultName,
   fundId,
   fundOptions = BOX_FUNDS,
+  transferFundOptions,
   onClose,
   onAddCustomer,
   onUpdateCustomer,
@@ -35,6 +37,9 @@ export function TrialBalanceAccountModal({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const moveOptions = transferFundOptions ?? fundOptions;
+  const fundChanged = customer && targetFundId !== customer.fundId;
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
@@ -43,8 +48,8 @@ export function TrialBalanceAccountModal({
       setError('هالاسم محجوز لحساب الصندوق');
       return;
     }
-    if (trimmed !== (customer?.name ?? defaultName) && nameTaken?.(trimmed)) {
-      setError('في حساب بنفس الاسم');
+    if (trimmed !== (customer?.name ?? defaultName) && nameTaken?.(trimmed, targetFundId)) {
+      setError('في حساب بنفس الاسم في القسم المحدد');
       return;
     }
     setError('');
@@ -53,6 +58,7 @@ export function TrialBalanceAccountModal({
       if (customer && onUpdateCustomer) {
         await onUpdateCustomer({
           ...customer,
+          fundId: targetFundId,
           name: trimmed,
           accountNumber: accountNumber.trim() || undefined,
           phone: phone.trim() || undefined,
@@ -103,16 +109,29 @@ export function TrialBalanceAccountModal({
           </p>
         )}
 
-        {isRegister && fundOptions.length > 1 && (
-          <select
-            value={targetFundId}
-            onChange={e => setTargetFundId(e.target.value as FundId)}
-            className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
-          >
-            {fundOptions.map(f => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
+        {moveOptions.length > 1 && (
+          <div>
+            <label className="mb-1 block text-[10px] text-slate-500">
+              {isRegister ? 'الصندوق / المركز' : 'نقل إلى (صندوق / مركز)'}
+            </label>
+            <select
+              value={targetFundId}
+              onChange={e => {
+                setTargetFundId(e.target.value as FundId);
+                setError('');
+              }}
+              className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
+            >
+              {moveOptions.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+            {fundChanged && (
+              <p className="mt-1 text-[10px] text-amber-400/90">
+                نقل من {getFund(customer!.fundId).name} إلى {getFund(targetFundId).name} — تُحدَّث كل حركات الحساب
+              </p>
+            )}
+          </div>
         )}
 
         <input

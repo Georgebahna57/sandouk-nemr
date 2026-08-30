@@ -3,6 +3,7 @@ import type { FundId } from '../types';
 
 export type AuditAction =
   | 'customer_update'
+  | 'customer_move'
   | 'customer_delete'
   | 'reconciliation'
   | 'transaction_delete'
@@ -94,6 +95,7 @@ export async function fetchAuditLog(limit = 100): Promise<AuditEntry[]> {
 
 export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   customer_update: 'تعديل حساب',
+  customer_move: 'نقل حساب',
   customer_delete: 'حذف حساب',
   reconciliation: 'مطابقة',
   transaction_delete: 'حذف حركة',

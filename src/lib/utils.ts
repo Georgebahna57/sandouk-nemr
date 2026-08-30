@@ -505,6 +505,39 @@ export function applyCustomerRename(
   return { transactions: updated, changed };
 }
 
+/** نقل الحساب بين الصناديق/المراكز — يحدّث fundId للحركات المرتبطة */
+export function applyCustomerFundMove(
+  transactions: Transaction[],
+  accountName: string,
+  oldFundId: FundId,
+  newFundId: FundId,
+): { transactions: Transaction[]; changed: Transaction[] } {
+  if (oldFundId === newFundId) return { transactions, changed: [] };
+  const trimmed = accountName.trim();
+  const changed: Transaction[] = [];
+  const updated = transactions.map(tx => {
+    if (tx.fundId !== oldFundId) return tx;
+    const ledger = tx.ledger ?? 'fund';
+    const affectsAccount = ledger === 'account' && tx.party === trimmed;
+    const affectsCounterparty = ledger === 'fund' && tx.counterparty === trimmed;
+    if (!affectsAccount && !affectsCounterparty) return tx;
+    const next = { ...tx, fundId: newFundId };
+    changed.push(next);
+    return next;
+  });
+  return { transactions: updated, changed };
+}
+
+/** تجهيز سجل الحساب بعد النقل — إزالة الصندوق الجديد من المشاركة */
+export function prepareCustomerFundMove(customer: Customer, newFundId: FundId): Customer {
+  const shared = customer.sharedFundIds?.filter(id => id !== newFundId);
+  return {
+    ...customer,
+    fundId: newFundId,
+    sharedFundIds: shared?.length ? shared : undefined,
+  };
+}
+
 export function isCustomerAccountName(name: string): boolean {
   const trimmed = name.trim();
   if (!trimmed) return false;

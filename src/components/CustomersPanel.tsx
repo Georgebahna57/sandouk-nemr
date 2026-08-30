@@ -24,6 +24,7 @@ interface Props {
   transactions: Transaction[];
   fundId: FundId;
   fundOptions?: Fund[];
+  transferFundOptions?: Fund[];
   onAddCustomer?: (customer: Customer) => void;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
   onDeleteCustomer?: (id: string) => void;
@@ -50,6 +51,7 @@ export function CustomersPanel({
   transactions,
   fundId,
   fundOptions,
+  transferFundOptions,
   onAddCustomer,
   onUpdateCustomer,
   onDeleteCustomer,
@@ -447,14 +449,20 @@ export function CustomersPanel({
       {editingCustomer && onUpdateCustomer && (
         <EditCustomerModal
           customer={editingCustomer}
-          fundOptions={funds}
+          fundOptions={fundOptions}
+          transferFundOptions={transferFundOptions}
           onClose={() => setEditingCustomer(null)}
           onSave={async (updated, previousName) => {
             await onUpdateCustomer(updated, previousName);
             const prevKey = `${editingCustomer.fundId}:${previousName}`;
             if (expanded === prevKey) setExpanded(`${updated.fundId}:${updated.name}`);
           }}
-          nameTaken={name => accountExistsInFund(customers, editingCustomer.fundId, name, editingCustomer.id)}
+          nameTaken={(name, targetFundId) => accountExistsInFund(
+            customers,
+            targetFundId,
+            name,
+            editingCustomer.id,
+          )}
         />
       )}
 

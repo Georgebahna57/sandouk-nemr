@@ -20,6 +20,7 @@ interface Props {
   transactions?: Transaction[];
   defaultFundId: FundId;
   fundOptions?: Fund[];
+  transferFundOptions?: Fund[];
   canEditFund?: (fundId: FundId) => boolean;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
   onShareAccount?: (summary: CustomerSummary) => void;
@@ -42,6 +43,7 @@ export function TrialBalancePanel({
   transactions = [],
   defaultFundId,
   fundOptions = [],
+  transferFundOptions,
   canEditFund,
   onUpdateCustomer,
   onShareAccount,
@@ -287,11 +289,12 @@ export function TrialBalancePanel({
           defaultName={editingRow.summary.name}
           fundId={editingRow.fundId}
           fundOptions={fundOptions}
+          transferFundOptions={transferFundOptions}
           onClose={() => setEditingRow(null)}
           onUpdateCustomer={onUpdateCustomer}
-          nameTaken={name => accountExistsInFund(
+          nameTaken={(name, targetFundId) => accountExistsInFund(
             customers,
-            editingRow.fundId,
+            targetFundId,
             name,
             editingRow.customer?.id,
           )}

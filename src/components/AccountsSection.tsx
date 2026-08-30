@@ -1,6 +1,6 @@
 import { Building2, CheckCircle2, List, Table2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { CENTERS_FUND_ID } from '../config';
+import { CENTERS_FUND_ID, getFund } from '../config';
 import { loadUiPrefs, saveNavPrefs } from '../lib/uiPrefs';
 import {
   accountNeedsReconciliation,
@@ -91,6 +91,15 @@ export function AccountsSection({
   }, [branch, tab]);
 
   const boxFundIds = useMemo(() => boxFunds.map(f => f.id), [boxFunds]);
+
+  const transferFundOptions = useMemo(() => {
+    const list = [...boxFunds];
+    if (canAccessCenters) {
+      const centers = getFund(CENTERS_FUND_ID);
+      if (!list.some(f => f.id === centers.id)) list.unshift(centers);
+    }
+    return list;
+  }, [boxFunds, canAccessCenters]);
 
   useEffect(() => {
     if (branch === 'centers' && !canAccessCenters && boxFunds.length > 0) {
@@ -221,6 +230,7 @@ export function AccountsSection({
           transactions={transactions}
           defaultFundId={panelFundId}
           fundOptions={boxFunds}
+          transferFundOptions={transferFundOptions}
           canEditFund={canEdit}
           onUpdateCustomer={onUpdateCustomer}
           onShareAccount={onShareAccount
@@ -241,6 +251,7 @@ export function AccountsSection({
           transactions={transactions}
           fundId={panelFundId}
           fundOptions={boxFunds}
+          transferFundOptions={transferFundOptions}
           multiFundCustomers={branch === 'customers'}
           canEditFund={canEdit}
           onAddCustomer={onAddCustomer}

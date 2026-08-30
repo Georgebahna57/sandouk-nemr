@@ -16,6 +16,7 @@ import type { AppBackup } from '../lib/backup';
 import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
 import {
   appendEditHistory,
+  applyCustomerFundMove,
   applyCustomerRename,
   backfillLinkedAccountFields,
   describeTransaction,
@@ -23,6 +24,7 @@ import {
   getOperationGroupIds,
   loadState,
   parseMentions,
+  prepareCustomerFundMove,
   repairHalabFundTransactions,
 } from '../lib/utils';
 import {
@@ -46,6 +48,7 @@ import {
   type TrialBalanceImportAccount,
 } from '../lib/trialBalanceImport';
 import { createCustomer, findCustomerForAccount } from '../lib/utils';
+import { getFund } from '../config';
 import type { FundId } from '../types';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
@@ -363,59 +366,89 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   const updateCustomer = useCallback(async (updated: Customer, previousName: string) => {
     const prevCustomer = stateRef.current.customers.find(c => c.id === updated.id);
     const nameChanged = updated.name.trim() !== previousName.trim();
-    let changedTxs: Transaction[] = [];
+    const fundChanged = prevCustomer && updated.fundId !== prevCustomer.fundId;
+    const changedTxMap = new Map<string, Transaction>();
+
+    const customerToSave = fundChanged
+      ? prepareCustomerFundMove(updated, updated.fundId)
+      : updated;
 
     setState(prev => {
       let transactions = prev.transactions;
-      if (nameChanged) {
-        const result = applyCustomerRename(
-          prev.transactions,
+
+      if (fundChanged && prevCustomer) {
+        const moveResult = applyCustomerFundMove(
+          transactions,
           previousName.trim(),
-          updated.name.trim(),
-          updated.fundId,
-          updated.sharedFundIds,
+          prevCustomer.fundId,
+          customerToSave.fundId,
         );
-        transactions = result.transactions;
-        changedTxs = result.changed;
+        transactions = moveResult.transactions;
+        for (const tx of moveResult.changed) changedTxMap.set(tx.id, tx);
       }
+
+      if (nameChanged) {
+        const renameResult = applyCustomerRename(
+          transactions,
+          previousName.trim(),
+          customerToSave.name.trim(),
+          customerToSave.fundId,
+          customerToSave.sharedFundIds,
+        );
+        transactions = renameResult.transactions;
+        for (const tx of renameResult.changed) changedTxMap.set(tx.id, tx);
+      }
+
       return {
         ...prev,
-        customers: prev.customers.map(c => (c.id === updated.id ? updated : c)),
+        customers: prev.customers.map(c => (c.id === updated.id ? customerToSave : c)),
         transactions,
       };
     });
 
+    const changedTxs = [...changedTxMap.values()];
+
     await runSync(async () => {
-      await upsertCustomer(updated);
+      await upsertCustomer(customerToSave);
       if (changedTxs.length) await upsertTransactions(changedTxs);
     });
 
     if (actor) {
       const prevRecon = prevCustomer?.reconciliation?.throughDate;
-      const newRecon = updated.reconciliation?.throughDate;
+      const newRecon = customerToSave.reconciliation?.throughDate;
       if (prevRecon !== newRecon) {
         logAudit({
           userId: actor.userId,
           userName: actor.displayName,
           action: 'reconciliation',
           entityType: 'customer',
-          entityId: updated.id,
-          fundId: updated.fundId,
+          entityId: customerToSave.id,
+          fundId: customerToSave.fundId,
           details: newRecon
             ? `مطابق حتى ${newRecon}`
             : 'إلغاء المطابقة',
         });
-      } else if (nameChanged || updated.phone !== prevCustomer?.phone) {
+      } else if (fundChanged && prevCustomer) {
+        logAudit({
+          userId: actor.userId,
+          userName: actor.displayName,
+          action: 'customer_move',
+          entityType: 'customer',
+          entityId: customerToSave.id,
+          fundId: customerToSave.fundId,
+          details: `نقل الحساب ${customerToSave.name}: ${getFund(prevCustomer.fundId).name} → ${getFund(customerToSave.fundId).name}`,
+        });
+      } else if (nameChanged || customerToSave.phone !== prevCustomer?.phone) {
         logAudit({
           userId: actor.userId,
           userName: actor.displayName,
           action: 'customer_update',
           entityType: 'customer',
-          entityId: updated.id,
-          fundId: updated.fundId,
+          entityId: customerToSave.id,
+          fundId: customerToSave.fundId,
           details: nameChanged
-            ? `تغيير الاسم: ${previousName} → ${updated.name}`
-            : `تعديل حساب ${updated.name}`,
+            ? `تغيير الاسم: ${previousName} → ${customerToSave.name}`
+            : `تعديل حساب ${customerToSave.name}`,
         });
       }
     }
