@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
+import { CheckCircle2, BookOpen, Clock, Eye, FileText, Info, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { AccountsSection } from './components/AccountsSection';
 import { CustomersPanel } from './components/CustomersPanel';
 import { DailyJournalModal } from './components/DailyJournalModal';
+import { FundDetailsModal } from './components/FundDetailsModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
 import { FundSelector } from './components/FundSelector';
 import { FundTransferForm } from './components/FundTransferForm';
@@ -126,6 +127,7 @@ export default function App({ user, onLogout }: Props) {
   const [valuationRates, setValuationRates] = useState<ValuationRates>(() => loadValuationRatesLocal());
   const [savingValuationRates, setSavingValuationRates] = useState(false);
   const [dailyJournalOpen, setDailyJournalOpen] = useState(false);
+  const [fundDetailsOpen, setFundDetailsOpen] = useState(false);
   const [pendingQuery, setPendingQuery] = useState('');
 
   const {
@@ -338,6 +340,7 @@ export default function App({ user, onLogout }: Props) {
     setBalanceShare(null);
     setWhatsappPrompt(null);
     setDailyJournalOpen(false);
+    setFundDetailsOpen(false);
     setPendingDeleteTxId(null);
     setShowAdmin(false);
   }, []);
@@ -640,6 +643,14 @@ export default function App({ user, onLogout }: Props) {
             >
               <ScrollText size={12} />
               يومية
+            </button>
+            <button
+              type="button"
+              onClick={() => setFundDetailsOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-medium text-amber-400 hover:bg-amber-500/20"
+            >
+              <Info size={12} />
+              تفاصيل
             </button>
             <button
               type="button"
@@ -988,6 +999,20 @@ export default function App({ user, onLogout }: Props) {
           transactions={state.transactions}
           defaultDate={today}
           onClose={() => setDailyJournalOpen(false)}
+        />
+      )}
+
+      {fundDetailsOpen && (
+        <FundDetailsModal
+          fundId={fundId}
+          balances={balances}
+          customers={state.customers}
+          transactions={state.transactions}
+          billsCount={fundBills.length}
+          todayPostedCount={todayFundTx.length}
+          whatsappDestinations={fundWhatsApp[fundId]}
+          date={today}
+          onClose={() => setFundDetailsOpen(false)}
         />
       )}
 
