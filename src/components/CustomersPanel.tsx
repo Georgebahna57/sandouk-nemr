@@ -1,11 +1,11 @@
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CENTERS_FUND_ID, CURRENCIES, getFund, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
+import { CENTERS_FUND_ID, CURRENCIES, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
 import { isMergedAccountSummary } from '../lib/accountMerge';
 import { accountExistsInFund, accountNeedsReconciliation, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
-import type { Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
+import type { AccountBranchId, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
 import { AccountWhatsAppQuickActions } from './AccountWhatsAppQuickActions';
 import { AccountTransactionForm } from './AccountTransactionForm';
@@ -13,7 +13,6 @@ import { AccountTransferForm } from './AccountTransferForm';
 import { EditCustomerModal } from './EditCustomerModal';
 import { MoveAccountModal } from './MoveAccountModal';
 import { ReconciliationBar } from './ReconciliationBar';
-import { formatSharedFundLabels, SharedFundIdsField } from './SharedFundIdsField';
 import { AccountValuationToolbar, AccountValuationView } from './AccountValuationView';
 import type { AccountValuationMode, ValuationRates } from '../lib/valuationRates';
 import { TransactionList } from './TransactionList';
@@ -25,13 +24,14 @@ interface Props {
   transactions: Transaction[];
   fundId: FundId;
   fundOptions?: Fund[];
-  transferFundOptions?: Fund[];
+  accountBranch: AccountBranchId;
+  customersLedgerFundId: FundId;
   onAddCustomer?: (customer: Customer) => void;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
   onMoveAccount?: (
     accountName: string,
-    toFundId: FundId,
-    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+    toBranch: AccountBranchId,
+    opts?: { customerId?: string; accountNumber?: string },
   ) => void | Promise<void>;
   onDeleteCustomer?: (id: string) => void;
   onAddTransaction?: (tx: Transaction | Transaction[]) => void;
@@ -57,7 +57,8 @@ export function CustomersPanel({
   transactions,
   fundId,
   fundOptions,
-  transferFundOptions,
+  accountBranch,
+  customersLedgerFundId,
   onAddCustomer,
   onUpdateCustomer,
   onMoveAccount,
@@ -82,10 +83,8 @@ export function CustomersPanel({
   const [movingSummary, setMovingSummary] = useState<CustomerSummary | null>(null);
   const [statementAccount, setStatementAccount] = useState<CustomerSummary | null>(null);
   const [name, setName] = useState('');
-  const [createFundId, setCreateFundId] = useState<FundId>(CENTERS_FUND_ID);
   const [accountNumber, setAccountNumber] = useState('');
   const [phone, setPhone] = useState('');
-  const [sharedFundIds, setSharedFundIds] = useState<FundId[]>([]);
   const [nameError, setNameError] = useState('');
   const [valuationMode, setValuationMode] = useState<AccountValuationMode>('breakdown');
   const [pendingDelete, setPendingDelete] = useState<{
@@ -135,8 +134,6 @@ export function CustomersPanel({
     return readOnly;
   }
 
-  const fund = getFund(fundId);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return summaries;
@@ -153,7 +150,7 @@ export function CustomersPanel({
   function submitCustomer(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !onAddCustomer) return;
-    const targetFundId = createFundId;
+    const targetFundId = accountBranch === 'centers' ? CENTERS_FUND_ID : customersLedgerFundId;
     if (!canRegisterCustomerName(name.trim(), targetFundId)) {
       setNameError('هالاسم محجوز لحساب الصندوق');
       return;
@@ -168,12 +165,11 @@ export function CustomersPanel({
       name: name.trim(),
       accountNumber: accountNumber.trim() || undefined,
       phone: phone.trim() || undefined,
-      sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
+      accountBranch,
     }));
     setName('');
     setAccountNumber('');
     setPhone('');
-    setSharedFundIds([]);
   }
 
   function resolveCustomer(summary: CustomerSummary): Customer | undefined {
@@ -192,7 +188,9 @@ export function CustomersPanel({
     <div className="space-y-4">
       {!embedded && (
         <p className="text-xs text-slate-500">
-          حسابات {fund.name} — يمكن مشاركة حساب مع صناديق محددة تختارها
+          {accountBranch === 'centers'
+            ? 'حسابات المراكز — النقل بين المراكز والزبائن فقط'
+            : 'حسابات الزبائن — النقل بين المراكز والزبائن فقط'}
         </p>
       )}
 
@@ -206,26 +204,6 @@ export function CustomersPanel({
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" dir="ltr" />
         <input type="text" placeholder="واتساب (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
-        {transferFundOptions && transferFundOptions.length > 1 && (
-          <div>
-            <label className="mb-1 block text-[10px] text-slate-500">القسم (اختياري — مراكز افتراضي)</label>
-            <select
-              value={createFundId}
-              onChange={e => setCreateFundId(e.target.value as FundId)}
-              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-            >
-              {transferFundOptions.map(f => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <SharedFundIdsField
-          homeFundId={createFundId}
-          value={sharedFundIds}
-          onChange={setSharedFundIds}
-          fundOptions={funds}
-        />
         <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900">
           <Plus size={16} /> إضافة حساب
         </button>
@@ -268,9 +246,6 @@ export function CustomersPanel({
             const isOpen = expanded === summaryKey(summary);
             const accountTx = accountTransactionsForSummary(summary);
             const summaryReadOnly = isSummaryReadOnly(summary);
-            const summaryFundLabel = isMergedAccountSummary(summary)
-              ? 'مجمّع'
-              : getFund(summaryFund).shortName;
             const activeCurrencies = CURRENCIES.filter(c => {
               const b = summary.balances[c.id];
               return b && (b.receipts !== 0 || b.payments !== 0 || b.balance !== 0);
@@ -306,20 +281,6 @@ export function CustomersPanel({
                       >
                         <AlertTriangle size={10} />
                         مطابقة
-                      </span>
-                    )}
-                    {multiFundCustomers && (
-                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] ${
-                        isMergedAccountSummary(summary)
-                          ? 'bg-violet-500/15 text-violet-300'
-                          : 'bg-slate-700 text-slate-400'
-                      }`}>
-                        {summaryFundLabel}
-                      </span>
-                    )}
-                    {summary.sharedFundIds && summary.sharedFundIds.length > 0 && (
-                      <span className="shrink-0 rounded-md bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-300" title={formatSharedFundLabels(summary.sharedFundIds, funds)}>
-                        مشترك
                       </span>
                     )}
                     {summary.reconciliation?.throughDate && (
@@ -390,7 +351,7 @@ export function CustomersPanel({
                         <Trash2 size={14} />
                       </button>
                     )}
-                    {!summaryReadOnly && onMoveAccount && transferFundOptions && transferFundOptions.length > 1 && (
+                    {!summaryReadOnly && onMoveAccount && (
                       <button
                         type="button"
                         onClick={e => {
@@ -502,20 +463,14 @@ export function CustomersPanel({
         />
       )}
 
-      {movingSummary && onMoveAccount && transferFundOptions && (
+      {movingSummary && onMoveAccount && (
         <MoveAccountModal
           summary={movingSummary}
           customer={resolveCustomer(movingSummary)}
           transactions={transactions}
-          transferFundOptions={transferFundOptions}
+          customers={customers}
           onClose={() => setMovingSummary(null)}
           onMove={onMoveAccount}
-          nameTaken={(name, targetFundId) => accountExistsInFund(
-            customers,
-            targetFundId,
-            name,
-            resolveCustomer(movingSummary)?.id,
-          )}
         />
       )}
 

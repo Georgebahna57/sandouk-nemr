@@ -1,6 +1,10 @@
 import { Building2, CheckCircle2, List, Table2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { CENTERS_FUND_ID, getFund } from '../config';
+import { CENTERS_FUND_ID } from '../config';
+import {
+  customerBoxFundIds,
+  getCustomersLedgerFundId,
+} from '../lib/accountBranch';
 import { loadUiPrefs, saveNavPrefs } from '../lib/uiPrefs';
 import {
   accountNeedsReconciliation,
@@ -31,8 +35,9 @@ interface Props {
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
   onMoveAccount?: (
     accountName: string,
-    toFundId: FundId,
-    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+    toBranch: AccountBranchId,
+    customersLedgerFundId: FundId,
+    opts?: { customerId?: string; accountNumber?: string },
   ) => void | Promise<void>;
   onDeleteCustomer?: (id: string) => void;
   onAddTransaction?: (tx: Transaction | Transaction[]) => void;
@@ -97,15 +102,8 @@ export function AccountsSection({
   }, [branch, tab]);
 
   const boxFundIds = useMemo(() => boxFunds.map(f => f.id), [boxFunds]);
-
-  const transferFundOptions = useMemo(() => {
-    const list = [...boxFunds];
-    if (canAccessCenters) {
-      const centers = getFund(CENTERS_FUND_ID);
-      if (!list.some(f => f.id === centers.id)) list.unshift(centers);
-    }
-    return list;
-  }, [boxFunds, canAccessCenters]);
+  const customerLedgerFundIds = useMemo(() => customerBoxFundIds(boxFundIds), [boxFundIds]);
+  const customersLedgerFundId = useMemo(() => getCustomersLedgerFundId(boxFunds), [boxFunds]);
 
   useEffect(() => {
     if (branch === 'centers' && !canAccessCenters && boxFunds.length > 0) {
@@ -120,8 +118,8 @@ export function AccountsSection({
     if (branch === 'centers') {
       return buildAccountSummaries(transactions, customers, CENTERS_FUND_ID);
     }
-    return buildCustomerAccountsAcrossFunds(transactions, customers, boxFundIds);
-  }, [branch, transactions, customers, boxFundIds]);
+    return buildCustomerAccountsAcrossFunds(transactions, customers, customerLedgerFundIds);
+  }, [branch, transactions, customers, customerLedgerFundIds]);
 
   const needsReconciliation = useMemo(
     () => summaries.filter(s => {
@@ -139,7 +137,14 @@ export function AccountsSection({
     b.id === 'centers' ? canAccessCenters : boxFunds.length > 0
   ));
 
-  const panelFundId = branch === 'centers' ? CENTERS_FUND_ID : boxFundIds[0] ?? 'nemr';
+  const panelFundId = branch === 'centers' ? CENTERS_FUND_ID : customersLedgerFundId;
+
+  const handleMoveAccount = onMoveAccount
+    ? (accountName: string, toBranch: AccountBranchId, opts?: {
+      customerId?: string;
+      accountNumber?: string;
+    }) => onMoveAccount(accountName, toBranch, customersLedgerFundId, opts)
+    : undefined;
 
   if (visibleBranches.length === 0) {
     return (
@@ -236,10 +241,11 @@ export function AccountsSection({
           transactions={transactions}
           defaultFundId={panelFundId}
           fundOptions={boxFunds}
-          transferFundOptions={transferFundOptions}
+          accountBranch={branch}
+          customersLedgerFundId={customersLedgerFundId}
           canEditFund={canEdit}
           onUpdateCustomer={onUpdateCustomer}
-          onMoveAccount={onMoveAccount}
+          onMoveAccount={handleMoveAccount}
           onShareAccount={onShareAccount
             ? s => onShareAccount(summaryFundId(s, panelFundId), s)
             : undefined}
@@ -258,16 +264,17 @@ export function AccountsSection({
           transactions={transactions}
           fundId={panelFundId}
           fundOptions={boxFunds}
-          transferFundOptions={transferFundOptions}
+          accountBranch={branch}
+          customersLedgerFundId={customersLedgerFundId}
           multiFundCustomers={branch === 'customers'}
           canEditFund={canEdit}
           onAddCustomer={onAddCustomer}
           onUpdateCustomer={onUpdateCustomer}
-          onMoveAccount={onMoveAccount}
+          onMoveAccount={handleMoveAccount}
           onDeleteCustomer={onDeleteCustomer}
           onAddTransaction={onAddTransaction}
-          onDeleteTransaction={isAdmin ? onDeleteTransaction : undefined}
-          onEditTransaction={isAdmin ? onEditTransaction : undefined}
+          onDeleteTransaction={onDeleteTransaction}
+          onEditTransaction={onEditTransaction}
           onShareAccount={onShareAccount
             ? s => onShareAccount(summaryFundId(s, panelFundId), s)
             : undefined}

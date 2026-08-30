@@ -70,7 +70,7 @@ export function applyDisplayMode(mode: DisplayMode) {
   document.documentElement.dataset.theme = mode;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute('content', mode === 'day' ? '#f1f5f9' : '#0f172a');
+    meta.setAttribute('content', mode === 'day' ? '#e8edf3' : '#0f172a');
   }
 }
 

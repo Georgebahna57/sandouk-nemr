@@ -19,7 +19,8 @@ import { ConfirmDeleteModal } from './components/ConfirmDeleteModal';
 import { DisplayModeToggle } from './components/DisplayModeToggle';
 import { PendingAmountTotals } from './components/PendingAmountTotals';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
-import { getFund, isBoxFund, isHalabFleilatFund } from './config';
+import { getFund, isBoxFund, isHalabFleilatFund, CENTERS_FUND_ID } from './config';
+import { getCustomersLedgerFundId } from './lib/accountBranch';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useCloudStore } from './hooks/useCloudStore';
 import { usePermissions } from './hooks/usePermissions';
@@ -153,7 +154,7 @@ export default function App({ user, onLogout }: Props) {
     deleteBill,
     addCustomer,
     updateCustomer,
-    moveAccountToFund,
+    moveAccountToBranch,
     deleteCustomer,
     addComment,
     claimTransaction,
@@ -185,6 +186,11 @@ export default function App({ user, onLogout }: Props) {
   const accountBoxFunds = useMemo(
     () => accountAccessibleFunds.filter(f => isBoxFund(f.id)),
     [accountAccessibleFunds],
+  );
+
+  const customersLedgerFundId = useMemo(
+    () => getCustomersLedgerFundId(accountBoxFunds),
+    [accountBoxFunds],
   );
 
   const visibleSections = useMemo(
@@ -807,6 +813,11 @@ export default function App({ user, onLogout }: Props) {
             transactions={state.transactions}
             fundId={fundId}
             fundOptions={visibleBoxFunds}
+            accountBranch={fundId === CENTERS_FUND_ID ? 'centers' : 'customers'}
+            customersLedgerFundId={customersLedgerFundId}
+            onMoveAccount={canManageAccounts
+              ? (name, toBranch, opts) => moveAccountToBranch(name, toBranch, customersLedgerFundId, opts)
+              : undefined}
             onAddCustomer={canManageAccounts ? addCustomer : undefined}
             onUpdateCustomer={canManageAccounts ? updateCustomer : undefined}
             onDeleteCustomer={isAdmin ? deleteCustomer : undefined}
@@ -858,7 +869,7 @@ export default function App({ user, onLogout }: Props) {
             canEdit={canEdit}
             onAddCustomer={addCustomer}
             onUpdateCustomer={updateCustomer}
-            onMoveAccount={moveAccountToFund}
+            onMoveAccount={moveAccountToBranch}
             onDeleteCustomer={isAdmin ? deleteCustomer : undefined}
             onAddTransaction={addTransaction}
             onDeleteTransaction={isAdmin ? requestDeleteTransaction : undefined}

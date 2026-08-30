@@ -2,7 +2,6 @@ import { Pencil, X } from 'lucide-react';
 import { useState } from 'react';
 import { BOX_FUNDS, canRegisterCustomerName } from '../config';
 import type { Customer, Fund, FundId } from '../types';
-import { SharedFundIdsField } from './SharedFundIdsField';
 
 interface Props {
   customer: Customer;
@@ -14,7 +13,7 @@ interface Props {
 
 export function EditCustomerModal({
   customer,
-  fundOptions = BOX_FUNDS,
+  fundOptions: _fundOptions = BOX_FUNDS,
   onClose,
   onSave,
   nameTaken,
@@ -22,7 +21,6 @@ export function EditCustomerModal({
   const [name, setName] = useState(customer.name);
   const [accountNumber, setAccountNumber] = useState(customer.accountNumber ?? '');
   const [phone, setPhone] = useState(customer.phone ?? '');
-  const [sharedFundIds, setSharedFundIds] = useState<FundId[]>(customer.sharedFundIds ?? []);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -46,7 +44,7 @@ export function EditCustomerModal({
         name: trimmed,
         accountNumber: accountNumber.trim() || undefined,
         phone: phone.trim() || undefined,
-        sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
+        sharedFundIds: undefined,
       }, customer.name));
       onClose();
     } catch {
@@ -99,18 +97,15 @@ export function EditCustomerModal({
           className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
         />
 
-        <SharedFundIdsField
-          homeFundId={customer.fundId}
-          value={sharedFundIds}
-          onChange={setSharedFundIds}
-          fundOptions={fundOptions}
-        />
-
         {name.trim() !== customer.name && (
           <p className="text-xs text-amber-400/90">
             تغيير الاسم يحدّث كل حركات الحساب المرتبطة به
           </p>
         )}
+
+        <p className="text-[10px] text-slate-500">
+          لنقل الحساب بين المراكز والزبائن استخدم زر «نقل» وليس التعديل
+        </p>
 
         <button
           type="submit"

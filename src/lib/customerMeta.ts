@@ -1,4 +1,4 @@
-import type { AccountReconciliation } from '../types';
+import type { AccountBranchId, AccountReconciliation } from '../types';
 
 const META_PREFIX = '[[SNDK-C]]';
 
@@ -7,6 +7,8 @@ interface CustomerMeta {
   ra?: string;
   rb?: string;
   ac?: string;
+  /** c=مراكز · u=زبائن */
+  br?: 'c' | 'u';
 }
 
 export function isTransactionReconciled(txDate: string, reconciledThroughDate?: string): boolean {
@@ -16,7 +18,7 @@ export function isTransactionReconciled(txDate: string, reconciledThroughDate?: 
 
 export function encodeCustomerNote(
   userNote: string | undefined,
-  meta: { reconciliation?: AccountReconciliation; accountNumber?: string },
+  meta: { reconciliation?: AccountReconciliation; accountNumber?: string; accountBranch?: AccountBranchId },
 ): string | undefined {
   const payload: CustomerMeta = {};
   if (meta.reconciliation?.throughDate) {
@@ -25,6 +27,8 @@ export function encodeCustomerNote(
     if (meta.reconciliation.markedByName) payload.rb = meta.reconciliation.markedByName;
   }
   if (meta.accountNumber?.trim()) payload.ac = meta.accountNumber.trim();
+  if (meta.accountBranch === 'centers') payload.br = 'c';
+  if (meta.accountBranch === 'customers') payload.br = 'u';
 
   const hasMeta = Object.keys(payload).length > 0;
   const trimmed = userNote?.trim();
@@ -37,6 +41,7 @@ export function decodeCustomerNote(note?: string): {
   userNote?: string;
   reconciliation?: AccountReconciliation;
   accountNumber?: string;
+  accountBranch?: AccountBranchId;
 } {
   if (!note?.startsWith(META_PREFIX)) {
     return { userNote: note?.trim() || undefined };
@@ -59,6 +64,7 @@ export function decodeCustomerNote(note?: string): {
       userNote,
       reconciliation,
       accountNumber: meta.ac?.trim() || undefined,
+      accountBranch: meta.br === 'c' ? 'centers' : meta.br === 'u' ? 'customers' : undefined,
     };
   } catch {
     return { userNote: note.trim() || undefined };

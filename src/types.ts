@@ -41,6 +41,8 @@ export interface Customer {
   sharedFundIds?: FundId[];
   /** مطابقة — كل الحركات حتى هذا التاريخ (شامل) تُعتبر مطابقة */
   reconciliation?: AccountReconciliation;
+  /** مراكز أو زبائن — ليس تبعيّة لصندوق نمر/حلب */
+  accountBranch?: AccountBranchId;
   createdAt: string;
 }
 

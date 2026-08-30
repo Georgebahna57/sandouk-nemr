@@ -1,14 +1,15 @@
 import { Pencil, X } from 'lucide-react';
 import { useState } from 'react';
-import { BOX_FUNDS, canRegisterCustomerName } from '../config';
-import type { Customer, Fund, FundId } from '../types';
+import { CENTERS_FUND_ID, canRegisterCustomerName } from '../config';
+import type { AccountBranchId, Customer, Fund, FundId } from '../types';
 import { createCustomer } from '../lib/utils';
-import { SharedFundIdsField } from './SharedFundIdsField';
 
 interface Props {
   customer?: Customer;
   defaultName: string;
   fundId: FundId;
+  accountBranch: AccountBranchId;
+  customersLedgerFundId: FundId;
   fundOptions?: Fund[];
   onClose: () => void;
   onAddCustomer?: (customer: Customer) => void | Promise<void>;
@@ -19,8 +20,8 @@ interface Props {
 export function TrialBalanceAccountModal({
   customer,
   defaultName,
-  fundId,
-  fundOptions = BOX_FUNDS,
+  accountBranch,
+  customersLedgerFundId,
   onClose,
   onAddCustomer,
   onUpdateCustomer,
@@ -30,8 +31,8 @@ export function TrialBalanceAccountModal({
   const [name, setName] = useState(customer?.name ?? defaultName);
   const [accountNumber, setAccountNumber] = useState(customer?.accountNumber ?? '');
   const [phone, setPhone] = useState(customer?.phone ?? '');
-  const [targetFundId, setTargetFundId] = useState<FundId>(customer?.fundId ?? fundId);
-  const [sharedFundIds, setSharedFundIds] = useState<FundId[]>(customer?.sharedFundIds ?? []);
+  const targetFundId =
+    customer?.fundId ?? (accountBranch === 'centers' ? CENTERS_FUND_ID : customersLedgerFundId);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -57,7 +58,7 @@ export function TrialBalanceAccountModal({
           name: trimmed,
           accountNumber: accountNumber.trim() || undefined,
           phone: phone.trim() || undefined,
-          sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
+          sharedFundIds: undefined,
         }, customer.name);
       } else if (onAddCustomer) {
         const newCustomer = createCustomer({
@@ -65,7 +66,7 @@ export function TrialBalanceAccountModal({
           name: trimmed,
           accountNumber: accountNumber.trim() || undefined,
           phone: phone.trim() || undefined,
-          sharedFundIds: sharedFundIds.length ? sharedFundIds : undefined,
+          accountBranch,
         });
         await onAddCustomer(newCustomer);
         if (trimmed !== defaultName.trim() && onUpdateCustomer) {
@@ -100,23 +101,8 @@ export function TrialBalanceAccountModal({
 
         {isRegister && (
           <p className="text-xs text-slate-500">
-            سجّل الحساب لتعديل الاسم أو إضافة واتساب
+            يُسجّل الحساب ضمن {accountBranch === 'centers' ? 'المراكز' : 'الزبائن'}
           </p>
-        )}
-
-        {isRegister && fundOptions.length > 1 && (
-          <div>
-            <label className="mb-1 block text-[10px] text-slate-500">القسم (اختياري — اترك مراكز إذا ما بدك صندوق)</label>
-            <select
-              value={targetFundId}
-              onChange={e => setTargetFundId(e.target.value as FundId)}
-              className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
-            >
-              {fundOptions.map(f => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
-          </div>
         )}
 
         <input
@@ -144,12 +130,9 @@ export function TrialBalanceAccountModal({
           dir="ltr"
         />
         {!isRegister && (
-          <SharedFundIdsField
-            homeFundId={customer!.fundId}
-            value={sharedFundIds}
-            onChange={setSharedFundIds}
-            fundOptions={fundOptions}
-          />
+          <p className="text-[10px] text-slate-500">
+            لنقل بين المراكز والزبائن استخدم زر «نقل»
+          </p>
         )}
         {error && <p className="text-xs text-rose-400">{error}</p>}
         <button

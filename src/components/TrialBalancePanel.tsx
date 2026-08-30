@@ -7,7 +7,7 @@ import {
   downloadTrialBalanceExcel,
   type TrialBalanceRow,
 } from '../lib/trialBalance';
-import type { Currency, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
+import type { AccountBranchId, Currency, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
 import { AccountWhatsAppQuickActions } from './AccountWhatsAppQuickActions';
 import { TrialBalanceAccountModal } from './TrialBalanceAccountModal';
@@ -21,13 +21,14 @@ interface Props {
   transactions?: Transaction[];
   defaultFundId: FundId;
   fundOptions?: Fund[];
-  transferFundOptions?: Fund[];
+  accountBranch: AccountBranchId;
+  customersLedgerFundId: FundId;
   canEditFund?: (fundId: FundId) => boolean;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
   onMoveAccount?: (
     accountName: string,
-    toFundId: FundId,
-    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+    toBranch: AccountBranchId,
+    opts?: { customerId?: string; accountNumber?: string },
   ) => void | Promise<void>;
   onShareAccount?: (summary: CustomerSummary) => void;
   readOnly?: boolean;
@@ -49,7 +50,8 @@ export function TrialBalancePanel({
   transactions = [],
   defaultFundId,
   fundOptions = [],
-  transferFundOptions,
+  accountBranch,
+  customersLedgerFundId,
   canEditFund,
   onUpdateCustomer,
   onMoveAccount,
@@ -242,7 +244,7 @@ export function TrialBalancePanel({
                           >
                             <FileText size={14} />
                           </button>
-                          {!rowReadOnly && onMoveAccount && transferFundOptions && transferFundOptions.length > 1 && (
+                          {!rowReadOnly && onMoveAccount && (
                             <button
                               type="button"
                               onClick={() => setMovingRow(row)}
@@ -306,6 +308,8 @@ export function TrialBalancePanel({
           customer={editingRow.customer}
           defaultName={editingRow.summary.name}
           fundId={editingRow.fundId}
+          accountBranch={accountBranch}
+          customersLedgerFundId={customersLedgerFundId}
           fundOptions={fundOptions}
           onClose={() => setEditingRow(null)}
           onUpdateCustomer={onUpdateCustomer}
@@ -318,20 +322,14 @@ export function TrialBalancePanel({
         />
       )}
 
-      {movingRow && onMoveAccount && transferFundOptions && (
+      {movingRow && onMoveAccount && (
         <MoveAccountModal
           summary={movingRow.summary}
           customer={movingRow.customer}
+          customers={customers}
           transactions={transactions}
-          transferFundOptions={transferFundOptions}
           onClose={() => setMovingRow(null)}
           onMove={onMoveAccount}
-          nameTaken={(name, targetFundId) => accountExistsInFund(
-            customers,
-            targetFundId,
-            name,
-            movingRow.customer?.id,
-          )}
         />
       )}
 

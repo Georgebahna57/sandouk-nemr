@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AppState, Bill, Customer, Transaction, TransactionComment } from '../types';
+import type { AccountBranchId, AppState, Bill, Customer, Transaction, TransactionComment } from '../types';
 import {
   fetchAppState,
   importAppState,
@@ -40,6 +40,13 @@ import {
   saveManualSnapshot,
   savePreDestructiveSnapshot,
 } from '../lib/localMirror';
+import {
+  ACCOUNT_BRANCH_LABELS,
+  applyAccountBranchMove,
+  accountExistsInBranch,
+  inferAccountBranch,
+  prepareCustomerForBranch,
+} from '../lib/accountBranch';
 import { logAudit } from '../lib/auditLog';
 import { runAllHalabRepairs } from '../lib/halabBalance';
 import {
@@ -460,40 +467,52 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     }
   }, [actor, runSync]);
 
-  const moveAccountToFund = useCallback(async (
+  const moveAccountToBranch = useCallback(async (
     accountName: string,
-    toFundId: FundId,
-    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+    toBranch: AccountBranchId,
+    customersLedgerFundId: FundId,
+    opts?: { customerId?: string; accountNumber?: string },
   ) => {
     const trimmed = accountName.trim();
+    const fromBranch = inferAccountBranch(
+      stateRef.current.transactions,
+      trimmed,
+      opts?.customerId
+        ? stateRef.current.customers.find(c => c.id === opts.customerId)
+        : stateRef.current.customers.find(c => c.name === trimmed),
+    );
+
+    if (fromBranch === toBranch) return;
+
+    if (accountExistsInBranch(stateRef.current.customers, toBranch, trimmed, opts?.customerId)) {
+      throw new Error('في حساب بنفس الاسم في هذا القسم');
+    }
+
     const prevCustomer = opts?.customerId
       ? stateRef.current.customers.find(c => c.id === opts.customerId)
       : stateRef.current.customers.find(c => c.name === trimmed);
 
-    const fromFundId = opts?.fromFundId
-      ?? inferAccountTransactionFund(
-        stateRef.current.transactions,
-        trimmed,
-        prevCustomer?.fundId,
-      );
-
-    if (fromFundId === toFundId) return;
-
     let customerToSave: Customer | undefined;
     if (prevCustomer) {
-      customerToSave = prepareCustomerFundMove({ ...prevCustomer, fundId: toFundId }, toFundId);
+      customerToSave = prepareCustomerForBranch(prevCustomer, toBranch, customersLedgerFundId);
     }
 
     const changedTxMap = new Map<string, Transaction>();
     setState(prev => {
-      const moveResult = applyCustomerFundMove(prev.transactions, trimmed, fromFundId, toFundId);
+      const moveResult = applyAccountBranchMove(
+        prev.transactions,
+        trimmed,
+        toBranch,
+        customersLedgerFundId,
+      );
       for (const tx of moveResult.changed) changedTxMap.set(tx.id, tx);
 
       if (!customerToSave && moveResult.changed.length > 0) {
         customerToSave = createCustomer({
-          fundId: toFundId,
+          fundId: toBranch === 'centers' ? 'marakiz' : customersLedgerFundId,
           name: trimmed,
           accountNumber: opts?.accountNumber,
+          accountBranch: toBranch,
         });
       }
 
@@ -518,8 +537,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         action: 'customer_move',
         entityType: 'customer',
         entityId: customerToSave?.id,
-        fundId: toFundId,
-        details: `نقل الحساب ${trimmed}: ${getFund(fromFundId).name} → ${getFund(toFundId).name}`,
+        fundId: customerToSave?.fundId,
+        details: `نقل الحساب ${trimmed}: ${ACCOUNT_BRANCH_LABELS[fromBranch]} → ${ACCOUNT_BRANCH_LABELS[toBranch]}`,
       });
     }
   }, [actor, runSync]);
@@ -750,7 +769,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     deleteBill,
     addCustomer,
     updateCustomer,
-    moveAccountToFund,
+    moveAccountToBranch,
     deleteCustomer,
     importTrialBalance,
     addComment,
