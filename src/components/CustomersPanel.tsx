@@ -2,7 +2,6 @@ import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, 
 import { useMemo, useState } from 'react';
 import { CENTERS_FUND_ID, CURRENCIES, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
-import { isMergedAccountSummary } from '../lib/accountMerge';
 import { accountExistsInFund, accountNeedsReconciliation, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
 import type { AccountBranchId, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
@@ -111,7 +110,7 @@ export function CustomersPanel({
   }
 
   function accountTransactionsForSummary(summary: CustomerSummary): Transaction[] {
-    if (multiFundCustomers && isMergedAccountSummary(summary)) {
+    if (multiFundCustomers && resolveFundIds(summary).length > 0) {
       return enrichAccountTransactionsForDisplay(
         filterMergedAccountTransactions(transactions, summary),
         transactions,

@@ -20,14 +20,17 @@ import { DisplayModeToggle } from './components/DisplayModeToggle';
 import { PendingAmountTotals } from './components/PendingAmountTotals';
 import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund, isBoxFund, isHalabFleilatFund, CENTERS_FUND_ID } from './config';
-import { getCustomersLedgerFundId } from './lib/accountBranch';
+import {
+  buildFundSectionAccountSummaries,
+  findCustomerForSummary,
+  getCustomersLedgerFundId,
+} from './lib/accountBranch';
 import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { useCloudStore } from './hooks/useCloudStore';
 import { usePermissions } from './hooks/usePermissions';
 import {
   applyTransactionFilters,
   accountNeedsReconciliation,
-  buildAccountSummaries,
   countAccountsNeedingReconciliation,
   computeBalances,
   computeProjectedFundBalances,
@@ -36,7 +39,6 @@ import {
   filterByFund,
   filterTransactions,
   formatDateAr,
-  getAvailableAccountNames,
   getOperationGroupIds,
   getPendingFundOperationLeads,
   todayIso,
@@ -289,12 +291,20 @@ export default function App({ user, onLogout }: Props) {
   const fundBills = useMemo(() => filterByFund(state.bills, fundId), [state.bills, fundId]);
 
   const fundAccountSummaries = useMemo(
-    () => buildAccountSummaries(state.transactions, state.customers, fundId),
-    [state.transactions, state.customers, fundId],
+    () => buildFundSectionAccountSummaries(
+      state.transactions,
+      state.customers,
+      visibleBoxFunds,
+      canAccessCenters,
+    ),
+    [state.transactions, state.customers, visibleBoxFunds, canAccessCenters],
   );
 
   const fundAccountsNeedingReconciliation = useMemo(
-    () => fundAccountSummaries.filter(s => accountNeedsReconciliation(state.transactions, fundId, s)).length,
+    () => fundAccountSummaries.filter(s => {
+      const fid = s.fundId ?? s.fundIds?.[0] ?? fundId;
+      return accountNeedsReconciliation(state.transactions, fid, s);
+    }).length,
     [fundAccountSummaries, state.transactions, fundId],
   );
 
@@ -309,8 +319,11 @@ export default function App({ user, onLogout }: Props) {
   );
 
   const accountNames = useMemo(
-    () => getAvailableAccountNames(state.customers, fundId).filter(n => !isFeeAccountName(n)),
-    [state.customers, fundId],
+    () => fundAccountSummaries
+      .map(s => s.name)
+      .filter(n => !isFeeAccountName(n))
+      .sort((a, b) => a.localeCompare(b, 'ar')),
+    [fundAccountSummaries],
   );
 
   const pendingOperationLeads = useMemo(
@@ -815,6 +828,7 @@ export default function App({ user, onLogout }: Props) {
             fundOptions={visibleBoxFunds}
             accountBranch={fundId === CENTERS_FUND_ID ? 'centers' : 'customers'}
             customersLedgerFundId={customersLedgerFundId}
+            multiFundCustomers={true}
             onMoveAccount={canManageAccounts
               ? (name, toBranch, opts) => moveAccountToBranch(name, toBranch, customersLedgerFundId, opts)
               : undefined}
@@ -825,13 +839,12 @@ export default function App({ user, onLogout }: Props) {
             onDeleteTransaction={isAdmin ? requestDeleteTransaction : undefined}
             onEditTransaction={isAdmin ? setEditingTxId : undefined}
             onShareAccount={summary => {
-              const customer = state.customers.find(
-                c => c.fundId === fundId && (c.id === summary.customerId || c.name === summary.name),
-              );
+              const shareFundId = summary.fundId ?? summary.fundIds?.[0] ?? fundId;
+              const customer = findCustomerForSummary(summary, state.customers);
               setBalanceShare({
                 payload: {
                   kind: 'account',
-                  fundId,
+                  fundId: shareFundId,
                   accountName: summary.name,
                   balances: summary.balances,
                   date: today,
@@ -839,13 +852,11 @@ export default function App({ user, onLogout }: Props) {
                   reconciledThroughDate: summary.reconciliation?.throughDate,
                   accountNumber: summary.accountNumber,
                 },
-                destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[fundId]),
+                destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[shareFundId]),
               });
             }}
             onMoneyOutReconciliation={summary => {
-              const customer = state.customers.find(
-                c => c.fundId === fundId && (c.id === summary.customerId || c.name === summary.name),
-              );
+              const customer = findCustomerForSummary(summary, state.customers);
               setWhatsappPrompt({
                 message: buildMoneyOutReconciliationMessage(summary.balances, today),
                 destinations: resolveShareDestinations(customer?.phone, fundWhatsApp[fundId]),

@@ -602,8 +602,8 @@ export function buildAccountSummaries(
   for (const tx of transactions) {
     if (
       (tx.ledger ?? 'fund') === 'account'
+      && tx.fundId === fundId
       && isCustomerAccountName(tx.party)
-      && (tx.fundId === fundId || !!findCustomerForAccount(customers, tx.party, fundId))
     ) {
       names.add(tx.party.trim());
     }

@@ -2,14 +2,12 @@ import { Building2, CheckCircle2, List, Table2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CENTERS_FUND_ID } from '../config';
 import {
-  customerBoxFundIds,
+  buildAccountsSectionSummaries,
   getCustomersLedgerFundId,
 } from '../lib/accountBranch';
 import { loadUiPrefs, saveNavPrefs } from '../lib/uiPrefs';
 import {
   accountNeedsReconciliation,
-  buildAccountSummaries,
-  buildCustomerAccountsAcrossFunds,
 } from '../lib/utils';
 import type {
   AccountBranchId,
@@ -101,8 +99,6 @@ export function AccountsSection({
     saveNavPrefs({ accountsBranch: branch, accountsTab: tab });
   }, [branch, tab]);
 
-  const boxFundIds = useMemo(() => boxFunds.map(f => f.id), [boxFunds]);
-  const customerLedgerFundIds = useMemo(() => customerBoxFundIds(boxFundIds), [boxFundIds]);
   const customersLedgerFundId = useMemo(() => getCustomersLedgerFundId(boxFunds), [boxFunds]);
 
   useEffect(() => {
@@ -114,12 +110,10 @@ export function AccountsSection({
     }
   }, [branch, canAccessCenters, boxFunds.length]);
 
-  const summaries = useMemo(() => {
-    if (branch === 'centers') {
-      return buildAccountSummaries(transactions, customers, CENTERS_FUND_ID);
-    }
-    return buildCustomerAccountsAcrossFunds(transactions, customers, customerLedgerFundIds);
-  }, [branch, transactions, customers, customerLedgerFundIds]);
+  const summaries = useMemo(
+    () => buildAccountsSectionSummaries(transactions, customers, branch, boxFunds),
+    [branch, transactions, customers, boxFunds],
+  );
 
   const needsReconciliation = useMemo(
     () => summaries.filter(s => {
@@ -186,8 +180,8 @@ export function AccountsSection({
             <h2 className="text-sm font-semibold text-slate-100">{branchTitle}</h2>
             <p className="text-[11px] text-slate-500">
               {branch === 'centers'
-                ? 'حسابات المراكز — ميزان مراجعة ومطابقات'
-                : 'حسابات الزبائن — ميزان مراجعة ومطابقات'}
+                ? 'حسابات المراكز من كل الصناديق — ميزان مراجعة ومطابقات'
+                : 'حسابات الزبائن من كل الصناديق — ميزان مراجعة ومطابقات'}
             </p>
           </div>
         </div>
@@ -266,7 +260,7 @@ export function AccountsSection({
           fundOptions={boxFunds}
           accountBranch={branch}
           customersLedgerFundId={customersLedgerFundId}
-          multiFundCustomers={branch === 'customers'}
+          multiFundCustomers={true}
           canEditFund={canEdit}
           onAddCustomer={onAddCustomer}
           onUpdateCustomer={onUpdateCustomer}
