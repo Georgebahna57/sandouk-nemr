@@ -252,3 +252,86 @@ html[data-theme="day"] .bg-black\/70 {
 input, select, textarea, button {
   font-family: inherit;
 }
+
+/* ——— عرض موبايل / تلقائي ——— */
+html[data-layout="mobile"] .app-shell {
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  max-width: 100%;
+}
+
+html[data-layout="mobile"] .app-header {
+  margin-bottom: 1rem;
+}
+
+html[data-layout="mobile"] .app-fund-toolbar {
+  gap: 0.75rem;
+}
+
+html[data-layout="mobile"] .app-fund-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
+
+html[data-layout="mobile"] .app-fund-actions > button {
+  min-height: 2.75rem;
+  justify-content: center;
+  font-size: 0.75rem;
+  padding: 0.5rem 0.625rem;
+}
+
+html[data-layout="mobile"] .app-fund-actions > span {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
+html[data-layout="mobile"] button,
+html[data-layout="mobile"] label {
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  html[data-layout="auto"] .app-shell {
+    padding-left: max(0.75rem, env(safe-area-inset-left));
+    padding-right: max(0.75rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    max-width: 100%;
+  }
+
+  html[data-layout="auto"] .app-header {
+    margin-bottom: 1rem;
+  }
+
+  html[data-layout="auto"] .app-fund-toolbar {
+    gap: 0.75rem;
+  }
+
+  html[data-layout="auto"] .app-fund-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  html[data-layout="auto"] .app-fund-actions > button {
+    min-height: 2.75rem;
+    justify-content: center;
+    font-size: 0.75rem;
+    padding: 0.5rem 0.625rem;
+  }
+
+  html[data-layout="auto"] .app-fund-actions > span {
+    grid-column: 1 / -1;
+    text-align: center;
+  }
+
+  html[data-layout="auto"] button,
+  html[data-layout="auto"] label {
+    touch-action: manipulation;
+  }
+}
+
+html[data-layout="comfortable"] .app-shell {
+  max-width: 48rem;
+}

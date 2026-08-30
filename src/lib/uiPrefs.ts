@@ -4,6 +4,9 @@ const PREFIX = 'sandouk-ui-';
 
 export type DisplayMode = 'day' | 'night';
 
+/** طريقة العرض: تلقائي حسب الشاشة | موبايل | واسع (سطح مكتب) */
+export type LayoutMode = 'auto' | 'mobile' | 'comfortable';
+
 export interface NavPrefs {
   appSection: AppSectionId;
   fundId: FundId;
@@ -14,15 +17,22 @@ export interface NavPrefs {
 
 export interface UiPrefs {
   displayMode: DisplayMode;
+  layoutMode: LayoutMode;
   pendingNotify: boolean;
   nav: Partial<NavPrefs>;
 }
 
 const DEFAULTS: UiPrefs = {
   displayMode: 'night',
+  layoutMode: 'auto',
   pendingNotify: true,
   nav: {},
 };
+
+function normalizeLayoutMode(raw: unknown): LayoutMode {
+  if (raw === 'mobile' || raw === 'comfortable') return raw;
+  return 'auto';
+}
 
 function normalizeDisplayMode(raw: unknown): DisplayMode {
   if (raw === 'day') return 'day';
@@ -37,6 +47,7 @@ function readRaw(): UiPrefs {
     const parsed = JSON.parse(raw) as Partial<UiPrefs>;
     return {
       displayMode: normalizeDisplayMode(parsed.displayMode),
+      layoutMode: normalizeLayoutMode(parsed.layoutMode),
       pendingNotify: parsed.pendingNotify !== false,
       nav: parsed.nav ?? {},
     };
@@ -66,6 +77,10 @@ export function saveNavPrefs(patch: Partial<NavPrefs>) {
   saveUiPrefs({ nav: patch });
 }
 
+export function applyLayoutMode(mode: LayoutMode) {
+  document.documentElement.dataset.layout = mode;
+}
+
 export function applyDisplayMode(mode: DisplayMode) {
   document.documentElement.dataset.theme = mode;
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -75,5 +90,7 @@ export function applyDisplayMode(mode: DisplayMode) {
 }
 
 export function initDisplayMode() {
-  applyDisplayMode(readRaw().displayMode);
+  const prefs = readRaw();
+  applyDisplayMode(prefs.displayMode);
+  applyLayoutMode(prefs.layoutMode);
 }

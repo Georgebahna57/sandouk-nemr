@@ -56,7 +56,7 @@ import { buildApprovalWhatsAppMessage, resolveShareDestinations } from './lib/wh
 import { buildMoneyOutReconciliationMessage } from './lib/halabMirror';
 import { isFeeAccountName } from './lib/fees';
 import type { BalanceSharePayload } from './lib/balanceShare';
-import { loadUiPrefs, saveNavPrefs, saveUiPrefs, applyDisplayMode, type DisplayMode } from './lib/uiPrefs';
+import { loadUiPrefs, saveNavPrefs, saveUiPrefs, applyDisplayMode, applyLayoutMode, type DisplayMode, type LayoutMode } from './lib/uiPrefs';
 import { fetchMessageTemplates } from './lib/messageTemplates';
 import { downloadDailyOperationsExcel } from './lib/excelExport';
 import { previewNemrBalanceRestore } from './lib/nemrBalanceRestore';
@@ -104,6 +104,7 @@ export default function App({ user, onLogout }: Props) {
   const [fundId, setFundId] = useState<FundId>(initialPrefs.nav.fundId ?? 'nemr');
   const [view, setView] = useState<ViewId>(initialPrefs.nav.view ?? 'ledger');
   const [displayMode, setDisplayMode] = useState<DisplayMode>(initialPrefs.displayMode);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(initialPrefs.layoutMode);
   const [pendingNotify, setPendingNotify] = useState(initialPrefs.pendingNotify);
   const [pendingFlash, setPendingFlash] = useState(false);
   const [pendingDeleteTxId, setPendingDeleteTxId] = useState<string | null>(null);
@@ -180,9 +181,10 @@ export default function App({ user, onLogout }: Props) {
   }, [showAdmin]);
 
   useEffect(() => {
-    saveUiPrefs({ displayMode, pendingNotify });
+    saveUiPrefs({ displayMode, layoutMode, pendingNotify });
     applyDisplayMode(displayMode);
-  }, [displayMode, pendingNotify]);
+    applyLayoutMode(layoutMode);
+  }, [displayMode, layoutMode, pendingNotify]);
 
   useEffect(() => {
     saveNavPrefs({ appSection, fundId, view });
@@ -525,10 +527,10 @@ export default function App({ user, onLogout }: Props) {
   }
 
   return (
-    <div className="mx-auto min-h-dvh max-w-3xl px-4 py-6">
-      <header className="mb-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+    <div className="app-shell mx-auto min-h-dvh max-w-3xl px-4 py-6">
+      <header className="app-header mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="rounded-2xl p-3" style={{ background: `${fund.accent}22` }}>
               <BookOpen size={24} style={{ color: fund.accent }} />
             </div>
@@ -537,11 +539,13 @@ export default function App({ user, onLogout }: Props) {
               <p className="text-xs text-slate-500">{profile?.displayName ?? user.email}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:shrink-0">
             <DisplayModeToggle
               mode={displayMode}
+              layoutMode={layoutMode}
               pendingNotify={pendingNotify}
               onModeChange={setDisplayMode}
+              onLayoutModeChange={setLayoutMode}
               onPendingNotifyChange={setPendingNotify}
             />
             {isAdmin && (
@@ -623,7 +627,7 @@ export default function App({ user, onLogout }: Props) {
       {appSection === 'funds' && (
       <>
       <section className="mb-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="app-fund-toolbar mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 min-w-0">
             <h2 className="text-sm font-semibold truncate" style={{ color: fund.accent }}>{fund.name}</h2>
             {readOnly && (
@@ -633,7 +637,7 @@ export default function App({ user, onLogout }: Props) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="app-fund-actions flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => downloadDailyOperationsExcel(state.transactions, fundId, today)}
