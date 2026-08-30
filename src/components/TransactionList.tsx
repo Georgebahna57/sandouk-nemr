@@ -92,7 +92,7 @@ function CompactSummary({
           {kindLabel(lead.kind)}{isBatch ? ` (${batchCount} بنود)` : ''}
         </span>
       </div>
-      <p className="mt-1 truncate text-sm text-slate-300">حساب: {party}</p>
+      <p className="mt-1 text-sm text-slate-300 break-words leading-snug">حساب: {party}</p>
       <p className="mt-1 text-xs text-slate-400">بيد: {via ?? '—'}</p>
       <p className="mt-1 text-xs text-amber-400/90">أجور/عمولة: {fee ?? '—'}</p>
       <p className="mt-1 text-xs text-slate-400 line-clamp-2">ملاحظة: {lead.note?.trim() || '—'}</p>
@@ -233,16 +233,16 @@ export const TransactionList = memo(function TransactionList({
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 truncate text-slate-300">
+                    <p className="mt-1 text-sm text-slate-300 break-words leading-snug">
                       {showFund
                         ? getFund(lead.fundId).name
                         : party}
                     </p>
                     {lead.linkId && showFund && (
-                      <p className="mt-1 text-xs text-emerald-400/80">مرتبط بحساب {lead.counterparty || '—'}</p>
+                      <p className="mt-1 text-xs text-emerald-400/80 break-words">مرتبط بحساب {lead.counterparty || '—'}</p>
                     )}
                     {showFund && (
-                      <p className="mt-0.5 truncate text-xs text-slate-500">حساب: {lead.party}</p>
+                      <p className="mt-0.5 text-xs text-slate-500 break-words">حساب: {lead.party}</p>
                     )}
                     {!isBatch && lead.kind === 'exchange' && lead.exchangeRate && lead.exchangeToCurrency && (
                       <p className="mt-1 text-xs text-violet-400">

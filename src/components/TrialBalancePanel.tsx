@@ -213,7 +213,7 @@ export function TrialBalancePanel({
                     <td className="px-3 py-2 text-xs text-slate-500 tabular-nums" dir="ltr">
                       {row.accountNumber ?? row.summary.accountNumber ?? '—'}
                     </td>
-                    <td className="px-3 py-2 font-medium text-slate-100 min-w-[280px] max-w-[420px] truncate" title={row.summary.name}>
+                    <td className="px-3 py-2 font-medium text-slate-100 min-w-[10rem] max-w-[24rem] whitespace-normal break-words leading-snug" title={row.summary.name}>
                       {row.summary.name}
                     </td>
                     {showAllCurrencies && (
