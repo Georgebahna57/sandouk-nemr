@@ -5,6 +5,7 @@ import { halabRemittanceFromTransaction, resolveHalabDeliverySource, stampHalabR
 import { buildPendingWhatsAppMessage } from '../lib/whatsapp';
 import { formatDateAr, formatFee, formatIntermediary, inferKind, getOperationGroupIds } from '../lib/utils';
 import { feeEditorFromParsed, buildFeeFromEditor, FeeEditor } from './FeeEditor';
+import { previewFundBalanceAfterEdit } from '../lib/fundBalancePreview';
 import {
   accountAmountAfterFee,
   accountGrossAmount,
@@ -17,6 +18,7 @@ import {
   sumAmountForCurrency,
 } from '../lib/fees';
 import type { HalabRemittanceFields, Transaction } from '../types';
+import { FundBalanceImpactPreview } from './FundBalanceImpactPreview';
 import { HalabRemittanceFieldsEditor } from './HalabRemittanceFields';
 import { AmountLinesEditor, createDefaultLines, parseAmountLines } from './AmountLinesEditor';
 import type { AmountLine } from './AmountLinesEditor';
@@ -154,6 +156,36 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
     linkedAccountTxs[0]?.party ?? (isAccountOnly ? clicked?.party : undefined) ?? counterparty.trim() ?? lead?.counterparty,
   );
 
+  const fundBalanceImpact = useMemo(() => {
+    if (!lead || isAccountOnly || isPending) return null;
+    const parsed = parseAmountLines(lines);
+    if (!parsed.length) return null;
+    const fundKind = inferKind(direction, false);
+    const draftFund = fundTxs.map((tx, i) => {
+      const item = parsed[i];
+      if (!item) return tx;
+      return { ...tx, kind: fundKind, currency: item.currency, amount: item.amount };
+    });
+    return previewFundBalanceAfterEdit(allTransactions, lead.fundId, draftFund);
+  }, [lead, isAccountOnly, isPending, lines, direction, fundTxs, allTransactions]);
+
+  const exchangeBalanceImpact = useMemo(() => {
+    if (!isExchange || !exchangeFundTx || isPending) return null;
+    const parsed = parseExchangeFieldValues(exchangeFields);
+    if (!parsed.valid) return null;
+    const draft = exchangeTxs.map(tx => {
+      if ((tx.ledger ?? 'fund') !== 'fund') return tx;
+      return {
+        ...tx,
+        currency: exchangeFields.paidCurrency,
+        amount: parsed.paidAmount,
+        exchangeToCurrency: exchangeFields.receivedCurrency,
+        exchangeToAmount: parsed.receivedAmount,
+      };
+    });
+    return previewFundBalanceAfterEdit(allTransactions, exchangeFundTx.fundId, draft);
+  }, [isExchange, exchangeFundTx, isPending, exchangeFields, exchangeTxs, allTransactions]);
+
   if (!clicked) return null;
 
   if (isExchange) {
@@ -258,6 +290,8 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
               ))}
             </div>
           )}
+
+          <FundBalanceImpactPreview impact={exchangeBalanceImpact} />
 
           <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
             حفظ التعديل
@@ -546,6 +580,8 @@ export function EditTransactionModal({ leadId, allTransactions, onSave, onClose 
             ))}
           </div>
         )}
+
+        <FundBalanceImpactPreview impact={fundBalanceImpact} />
 
         <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
           حفظ التعديل

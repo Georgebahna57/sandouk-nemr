@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, BookOpen, Clock, Eye, FileText, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
+import { CheckCircle2, BookOpen, Clock, Eye, FileText, Info, Loader2, LogOut, RotateCcw, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { AccountsSection } from './components/AccountsSection';
 import { CustomersPanel } from './components/CustomersPanel';
 import { DailyJournalModal } from './components/DailyJournalModal';
+import { FundDetailsModal } from './components/FundDetailsModal';
 import { EditTransactionModal } from './components/EditTransactionModal';
 import { FundSelector } from './components/FundSelector';
 import { FundTransferForm } from './components/FundTransferForm';
@@ -58,6 +59,7 @@ import type { BalanceSharePayload } from './lib/balanceShare';
 import { loadUiPrefs, saveNavPrefs, saveUiPrefs, applyDisplayMode, type DisplayMode } from './lib/uiPrefs';
 import { fetchMessageTemplates } from './lib/messageTemplates';
 import { downloadDailyOperationsExcel } from './lib/excelExport';
+import { previewNemrBalanceRestore } from './lib/nemrBalanceRestore';
 
 function playPendingBeep() {
   try {
@@ -126,6 +128,7 @@ export default function App({ user, onLogout }: Props) {
   const [valuationRates, setValuationRates] = useState<ValuationRates>(() => loadValuationRatesLocal());
   const [savingValuationRates, setSavingValuationRates] = useState(false);
   const [dailyJournalOpen, setDailyJournalOpen] = useState(false);
+  const [fundDetailsOpen, setFundDetailsOpen] = useState(false);
   const [pendingQuery, setPendingQuery] = useState('');
 
   const {
@@ -246,6 +249,11 @@ export default function App({ user, onLogout }: Props) {
 
   const balances = useMemo(() => computeBalances(state.transactions, fundId), [state.transactions, fundId]);
 
+  const nemrRestoreHint = useMemo(() => {
+    if (fundId !== 'nemr') return null;
+    return previewNemrBalanceRestore(state.transactions);
+  }, [fundId, state.transactions]);
+
   const debouncedPendingQuery = useDebouncedValue(pendingQuery, 200);
 
   const allPosted = useMemo(
@@ -338,6 +346,7 @@ export default function App({ user, onLogout }: Props) {
     setBalanceShare(null);
     setWhatsappPrompt(null);
     setDailyJournalOpen(false);
+    setFundDetailsOpen(false);
     setPendingDeleteTxId(null);
     setShowAdmin(false);
   }, []);
@@ -643,6 +652,14 @@ export default function App({ user, onLogout }: Props) {
             </button>
             <button
               type="button"
+              onClick={() => setFundDetailsOpen(true)}
+              className="flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-medium text-amber-400 hover:bg-amber-500/20"
+            >
+              <Info size={12} />
+              تفاصيل
+            </button>
+            <button
+              type="button"
               onClick={() => setBalanceShare({
                 payload: {
                   kind: 'fund',
@@ -667,6 +684,16 @@ export default function App({ user, onLogout }: Props) {
           fundId={fundId}
           projectedBalances={view === 'pending' && pending.length > 0 ? projectedBalances : undefined}
         />
+        {fundId === 'nemr' && nemrRestoreHint?.needsRestore && isAdmin && canEdit('nemr') && (
+          <button
+            type="button"
+            onClick={() => setFundDetailsOpen(true)}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-500/15 px-3 py-2.5 text-xs font-medium text-amber-200 hover:bg-amber-500/25"
+          >
+            <RotateCcw size={14} />
+            الرصيد لا يطابق المرجع — اضغط لاستعادة 1,888,413 $ و 688,710 €
+          </button>
+        )}
       </section>
 
       <nav className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">
@@ -988,6 +1015,22 @@ export default function App({ user, onLogout }: Props) {
           transactions={state.transactions}
           defaultDate={today}
           onClose={() => setDailyJournalOpen(false)}
+        />
+      )}
+
+      {fundDetailsOpen && (
+        <FundDetailsModal
+          fundId={fundId}
+          balances={balances}
+          customers={state.customers}
+          transactions={state.transactions}
+          billsCount={fundBills.length}
+          todayPostedCount={todayFundTx.length}
+          whatsappDestinations={fundWhatsApp[fundId]}
+          date={today}
+          canRestoreBalance={isAdmin && canEdit(fundId)}
+          onRestoreBalance={addTransaction}
+          onClose={() => setFundDetailsOpen(false)}
         />
       )}
 

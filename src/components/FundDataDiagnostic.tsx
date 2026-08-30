@@ -5,7 +5,12 @@ import {
   getHalabUsdBalanceBreakdown,
   halabBalanceSideLabel,
 } from '../lib/halabBalance';
-import { computeBalances, formatValueWithUnit, getFundTransactionStats } from '../lib/utils';
+import {
+  formatNemrRestoreDelta,
+  getRecentlyEditedNemrFundTransactions,
+  previewNemrBalanceRestore,
+} from '../lib/nemrBalanceRestore';
+import { computeBalances, formatDateAr, formatValueWithUnit, getFundTransactionStats } from '../lib/utils';
 import type { AppState } from '../types';
 
 interface Props {
@@ -32,6 +37,16 @@ export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
   const halabHidden = halab
     ? halab.stats.fundLedger - halab.stats.visibleFundLedger
     : 0;
+
+  const nemrPreview = useMemo(
+    () => previewNemrBalanceRestore(appState.transactions),
+    [appState.transactions],
+  );
+
+  const recentNemrEdits = useMemo(
+    () => getRecentlyEditedNemrFundTransactions(appState.transactions),
+    [appState.transactions],
+  );
 
   async function runRepair() {
     if (!onRepairHalab) return;
@@ -78,6 +93,33 @@ export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-slate-300 space-y-1">
+        <p className="font-medium text-amber-200">أرصدة نمر — مقارنة بالمرجع</p>
+        <p>
+          دولار: {formatValueWithUnit(nemrPreview.currentUsd, 'USD')}
+          {' · '}مرجع {formatValueWithUnit(nemrPreview.targetUsd, 'USD')}
+          {' · '}فرق {formatNemrRestoreDelta('USD', nemrPreview.deltaUsd)}
+        </p>
+        <p>
+          يورو: {formatValueWithUnit(nemrPreview.currentEur, 'EUR')}
+          {' · '}مرجع {formatValueWithUnit(nemrPreview.targetEur, 'EUR')}
+          {' · '}فرق {formatNemrRestoreDelta('EUR', nemrPreview.deltaEur)}
+        </p>
+        {recentNemrEdits.length > 0 && (
+          <div className="mt-2 border-t border-slate-700/60 pt-2 text-[10px] text-slate-500 space-y-1">
+            <p className="font-medium text-slate-400">آخر حركات صندوق معدّلة:</p>
+            {recentNemrEdits.map(tx => {
+              const last = tx.editHistory![tx.editHistory!.length - 1];
+              return (
+                <p key={tx.id}>
+                  {formatDateAr(tx.date)} — {last.summary}
+                </p>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {halab && halab.stats.total === 0 && (

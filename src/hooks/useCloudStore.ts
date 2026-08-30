@@ -11,6 +11,7 @@ import {
   upsertCustomer,
   upsertTransactions,
 } from '../lib/db';
+import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import { saveValuationRates } from '../lib/appSettings';
 import type { AppBackup } from '../lib/backup';
 import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
@@ -20,6 +21,7 @@ import {
   applyCustomerRename,
   backfillLinkedAccountFields,
   describeTransaction,
+  computeBalances,
   getDeletionGroupIds,
   getOperationGroupIds,
   inferAccountTransactionFund,
@@ -326,6 +328,12 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
   const editTransactions = useCallback(async (updated: Transaction[], summary: string) => {
     const stamped = updated.map(tx => appendEditHistory(normalizeSyrianTransaction(tx) as Transaction, summary, actor));
+    const affectsNemrFund = stamped.some(
+      tx => tx.fundId === 'nemr' && (tx.ledger ?? 'fund') === 'fund',
+    );
+    const nemrBefore = affectsNemrFund
+      ? computeBalances(stateRef.current.transactions, 'nemr')
+      : null;
     let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
     setState(prev => {
       const merged = prev.transactions.map(tx => {
@@ -343,6 +351,16 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       await upsertTransactions([...stamped, ...feeUpsert]);
     });
     if (actor) {
+      let details = summary;
+      if (nemrBefore) {
+        const nemrAfter = computeBalances(syncResult.transactions, 'nemr');
+        details = `${summary} | ${formatNemrAuditBalanceDetails(
+          nemrBefore.USD.balance,
+          nemrBefore.EUR.balance,
+          nemrAfter.USD.balance,
+          nemrAfter.EUR.balance,
+        )}`;
+      }
       logAudit({
         userId: actor.userId,
         userName: actor.displayName,
@@ -350,7 +368,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         entityType: 'transaction',
         entityId: stamped[0]?.id,
         fundId: stamped[0]?.fundId,
-        details: summary,
+        details,
       });
     }
   }, [actor, runSync]);

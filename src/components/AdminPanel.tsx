@@ -6,6 +6,7 @@ import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
 import { ValuationRatesEditor } from './ValuationRatesEditor';
 import { BackupSection } from './BackupSection';
 import { FundDataDiagnostic } from './FundDataDiagnostic';
+import { NemrBalanceRestoreSection } from './NemrBalanceRestoreSection';
 import { HalabBulkImportSection } from './HalabBulkImportSection';
 import { OpeningBalanceSection } from './OpeningBalanceSection';
 import type { ValuationRates } from '../lib/valuationRates';
@@ -257,6 +258,11 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
       )}
 
       <FundDataDiagnostic appState={appState} onRepairHalab={onRepairHalab} />
+
+      <NemrBalanceRestoreSection
+        transactions={appState.transactions}
+        onRestore={onAddOpeningBalance}
+      />
 
       <BackupSection
         appState={appState}
