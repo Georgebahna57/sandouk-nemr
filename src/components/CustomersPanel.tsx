@@ -268,28 +268,39 @@ export function CustomersPanel({
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : summaryKey(summary))}
-                  className="flex w-full items-center justify-between gap-2 p-3 text-right hover:bg-slate-700/30"
+                  className="account-card-header flex w-full flex-col gap-2 p-3 text-right hover:bg-slate-700/30 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <User size={16} className={`shrink-0 ${needsRecon ? 'text-amber-300' : 'text-amber-400'}`} />
-                    <span className="truncate font-medium">{summary.name}</span>
-                    {needsRecon && (
-                      <span
-                        className="shrink-0 inline-flex items-center gap-0.5 rounded-md bg-amber-500/25 px-1.5 py-0.5 text-[10px] text-amber-200"
-                        title="حركة بعد آخر مطابقة"
-                      >
-                        <AlertTriangle size={10} />
-                        مطابقة
+                  <div className="flex min-w-0 w-full items-start gap-2 sm:flex-1 sm:items-center">
+                    <User size={16} className={`mt-0.5 shrink-0 sm:mt-0 ${needsRecon ? 'text-amber-300' : 'text-amber-400'}`} />
+                    <div className="min-w-0 flex-1">
+                      <span className="account-card-name block text-sm font-semibold leading-snug text-slate-100 sm:truncate sm:font-medium">
+                        {summary.name}
                       </span>
-                    )}
-                    {summary.reconciliation?.throughDate && (
-                      <span className="shrink-0 inline-flex items-center gap-0.5 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300" title={`مطابق حتى ${formatDateAr(summary.reconciliation.throughDate)}`}>
-                        <CheckCircle2 size={10} />
-                        مطابق
-                      </span>
-                    )}
+                      {summary.accountNumber && (
+                        <span className="mt-0.5 block text-[11px] text-slate-500 tabular-nums" dir="ltr">
+                          {summary.accountNumber}
+                        </span>
+                      )}
+                      <div className="account-card-badges mt-1 flex flex-wrap items-center gap-1">
+                        {needsRecon && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-md bg-amber-500/25 px-1.5 py-0.5 text-[10px] text-amber-200"
+                            title="حركة بعد آخر مطابقة"
+                          >
+                            <AlertTriangle size={10} />
+                            مطابقة
+                          </span>
+                        )}
+                        {summary.reconciliation?.throughDate && (
+                          <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300" title={`مطابق حتى ${formatDateAr(summary.reconciliation.throughDate)}`}>
+                            <CheckCircle2 size={10} />
+                            مطابق
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="account-card-actions flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:shrink-0 sm:justify-end">
                     {activeCurrencies.length > 0 && (
                       <button
                         type="button"
