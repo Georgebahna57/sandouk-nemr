@@ -6,26 +6,32 @@ import {
   previewNemrBalanceRestore,
 } from '../lib/nemrBalanceRestore';
 import { formatValueWithUnit, todayIso } from '../lib/utils';
-import type { AppState, Transaction } from '../types';
+import type { Transaction } from '../types';
 
 interface Props {
-  appState: AppState;
+  transactions: Transaction[];
   onRestore: (tx: Transaction[]) => void | Promise<void>;
+  /** عرض مضغوط داخل نافذة التفاصيل */
+  compact?: boolean;
 }
 
-export function NemrBalanceRestoreSection({ appState, onRestore }: Props) {
+export function NemrBalanceRestoreSection({
+  transactions,
+  onRestore,
+  compact = false,
+}: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const preview = useMemo(
-    () => previewNemrBalanceRestore(appState.transactions),
-    [appState.transactions],
+    () => previewNemrBalanceRestore(transactions),
+    [transactions],
   );
 
   const restoreTxs = useMemo(
-    () => buildNemrBalanceRestoreTransactions(appState.transactions, todayIso()),
-    [appState.transactions],
+    () => buildNemrBalanceRestoreTransactions(transactions, todayIso()),
+    [transactions],
   );
 
   async function submit() {
@@ -47,19 +53,21 @@ export function NemrBalanceRestoreSection({ appState, onRestore }: Props) {
   }
 
   return (
-    <div className="mb-4 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <RotateCcw size={18} className="text-amber-400" />
+    <div className={`rounded-2xl border border-amber-500/40 bg-amber-500/5 ${compact ? 'p-3' : 'mb-4 p-4'}`}>
+      <div className={`flex items-center gap-2 ${compact ? 'mb-2' : 'mb-3'}`}>
+        <RotateCcw size={compact ? 16 : 18} className="text-amber-400 shrink-0" />
         <div>
-          <p className="font-medium text-slate-200">استعادة رصيد صندوق نمر</p>
+          <p className={`font-medium text-slate-200 ${compact ? 'text-sm' : ''}`}>
+            استعادة رصيد صندوق نمر
+          </p>
           <p className="text-xs text-slate-500">
-            الرصيد المرجعي قبل آخر تعديل — يُسجَّل فرق التصحيح فقط
+            المرجع: 1,888,413 $ و 688,710 € — يُسجَّل فرق التصحيح فقط
           </p>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-700 bg-slate-900/50">
-        <table className="w-full min-w-[320px] text-xs">
+        <table className="w-full min-w-[280px] text-xs">
           <thead>
             <tr className="text-slate-500">
               <th className="py-2 pr-3 text-right font-medium">عملة</th>
@@ -85,7 +93,7 @@ export function NemrBalanceRestoreSection({ appState, onRestore }: Props) {
         </table>
       </div>
 
-      {restoreTxs.length > 0 && (
+      {!compact && restoreTxs.length > 0 && (
         <div className="mt-3 rounded-xl border border-slate-700 bg-slate-900/40 p-3 text-xs text-slate-400 space-y-1">
           <p className="font-medium text-slate-300">سيُسجَّل:</p>
           {restoreTxs.map(tx => (
@@ -107,7 +115,7 @@ export function NemrBalanceRestoreSection({ appState, onRestore }: Props) {
         type="button"
         onClick={() => void submit()}
         disabled={busy || !preview.needsRestore}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 py-2.5 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+        className={`mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-600 font-medium text-white hover:bg-amber-500 disabled:opacity-50 ${compact ? 'py-2 text-xs' : 'py-2.5 text-sm'}`}
       >
         {busy ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
         {preview.needsRestore ? 'استعادة الرصيد الآن' : 'الرصيد مطابق — لا حاجة لإجراء'}

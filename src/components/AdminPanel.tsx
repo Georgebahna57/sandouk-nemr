@@ -259,7 +259,10 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
 
       <FundDataDiagnostic appState={appState} onRepairHalab={onRepairHalab} />
 
-      <NemrBalanceRestoreSection appState={appState} onRestore={onAddOpeningBalance} />
+      <NemrBalanceRestoreSection
+        transactions={appState.transactions}
+        onRestore={onAddOpeningBalance}
+      />
 
       <BackupSection
         appState={appState}

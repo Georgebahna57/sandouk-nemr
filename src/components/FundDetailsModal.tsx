@@ -7,6 +7,7 @@ import {
   previewNemrBalanceRestore,
 } from '../lib/nemrBalanceRestore';
 import { formatAmount, formatDateAr, getFundTransactionStats } from '../lib/utils';
+import { NemrBalanceRestoreSection } from './NemrBalanceRestoreSection';
 import type { Customer, FundBalances, FundId, Transaction } from '../types';
 
 interface Props {
@@ -18,6 +19,8 @@ interface Props {
   todayPostedCount: number;
   whatsappDestinations?: string[];
   date: string;
+  canRestoreBalance?: boolean;
+  onRestoreBalance?: (tx: Transaction[]) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -30,6 +33,8 @@ export function FundDetailsModal({
   todayPostedCount,
   whatsappDestinations,
   date,
+  canRestoreBalance = false,
+  onRestoreBalance,
   onClose,
 }: Props) {
   const fund = getFund(fundId);
@@ -111,7 +116,15 @@ export function FundDetailsModal({
             )}
           </div>
 
-          {nemrRef && (
+          {nemrRef && canRestoreBalance && onRestoreBalance && nemrRef.needsRestore && (
+            <NemrBalanceRestoreSection
+              transactions={transactions}
+              onRestore={onRestoreBalance}
+              compact
+            />
+          )}
+
+          {nemrRef && (!canRestoreBalance || !nemrRef.needsRestore) && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs">
               <p className="font-medium text-amber-300">مقارنة بالمرجع (قبل آخر تعديل)</p>
               <p className="mt-1 text-slate-400">
@@ -120,8 +133,8 @@ export function FundDetailsModal({
               <p className="text-slate-400">
                 يورو: فرق {formatNemrRestoreDelta('EUR', nemrRef.deltaEur)}
               </p>
-              {nemrRef.needsRestore && (
-                <p className="mt-1 text-amber-200/90">الرصيد لا يطابق المرجع — استعده من الإدارة</p>
+              {nemrRef.needsRestore && !canRestoreBalance && (
+                <p className="mt-1 text-amber-200/90">الرصيد لا يطابق المرجع — يتطلب صلاحية تعديل</p>
               )}
             </div>
           )}
