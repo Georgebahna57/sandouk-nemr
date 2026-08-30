@@ -1,4 +1,4 @@
-import { Download, FileText, Pencil, Search } from 'lucide-react';
+import { Download, FileText, Pencil, Search, ArrowRightLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CURRENCIES, getCurrencyLabel, isWeightCurrency } from '../config';
 import { accountExistsInFund } from '../lib/utils';
@@ -11,6 +11,7 @@ import type { Currency, Customer, CustomerSummary, Fund, FundId, Transaction } f
 import { AccountStatementModal } from './AccountStatementModal';
 import { AccountWhatsAppQuickActions } from './AccountWhatsAppQuickActions';
 import { TrialBalanceAccountModal } from './TrialBalanceAccountModal';
+import { MoveAccountModal } from './MoveAccountModal';
 
 type ViewCurrency = Currency | 'all';
 
@@ -23,6 +24,11 @@ interface Props {
   transferFundOptions?: Fund[];
   canEditFund?: (fundId: FundId) => boolean;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
+  onMoveAccount?: (
+    accountName: string,
+    toFundId: FundId,
+    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+  ) => void | Promise<void>;
   onShareAccount?: (summary: CustomerSummary) => void;
   readOnly?: boolean;
 }
@@ -46,6 +52,7 @@ export function TrialBalancePanel({
   transferFundOptions,
   canEditFund,
   onUpdateCustomer,
+  onMoveAccount,
   onShareAccount,
   readOnly = false,
 }: Props) {
@@ -53,6 +60,7 @@ export function TrialBalancePanel({
   const [search, setSearch] = useState('');
   const [hideZero, setHideZero] = useState(true);
   const [editingRow, setEditingRow] = useState<TrialBalanceRow | null>(null);
+  const [movingRow, setMovingRow] = useState<TrialBalanceRow | null>(null);
   const [statementRow, setStatementRow] = useState<TrialBalanceRow | null>(null);
 
   const showAllCurrencies = viewCurrency === 'all';
@@ -234,6 +242,16 @@ export function TrialBalancePanel({
                           >
                             <FileText size={14} />
                           </button>
+                          {!rowReadOnly && onMoveAccount && transferFundOptions && transferFundOptions.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setMovingRow(row)}
+                              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-700 hover:text-cyan-400"
+                              title="نقل الحساب"
+                            >
+                              <ArrowRightLeft size={14} />
+                            </button>
+                          )}
                           {!rowReadOnly && row.customer && onUpdateCustomer && (
                             <button
                               type="button"
@@ -289,7 +307,6 @@ export function TrialBalancePanel({
           defaultName={editingRow.summary.name}
           fundId={editingRow.fundId}
           fundOptions={fundOptions}
-          transferFundOptions={transferFundOptions}
           onClose={() => setEditingRow(null)}
           onUpdateCustomer={onUpdateCustomer}
           nameTaken={(name, targetFundId) => accountExistsInFund(
@@ -297,6 +314,23 @@ export function TrialBalancePanel({
             targetFundId,
             name,
             editingRow.customer?.id,
+          )}
+        />
+      )}
+
+      {movingRow && onMoveAccount && transferFundOptions && (
+        <MoveAccountModal
+          summary={movingRow.summary}
+          customer={movingRow.customer}
+          transactions={transactions}
+          transferFundOptions={transferFundOptions}
+          onClose={() => setMovingRow(null)}
+          onMove={onMoveAccount}
+          nameTaken={(name, targetFundId) => accountExistsInFund(
+            customers,
+            targetFundId,
+            name,
+            movingRow.customer?.id,
           )}
         />
       )}

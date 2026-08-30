@@ -29,6 +29,11 @@ interface Props {
   canEdit: (fundId: FundId) => boolean;
   onAddCustomer?: (customer: Customer) => void;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
+  onMoveAccount?: (
+    accountName: string,
+    toFundId: FundId,
+    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+  ) => void | Promise<void>;
   onDeleteCustomer?: (id: string) => void;
   onAddTransaction?: (tx: Transaction | Transaction[]) => void;
   onDeleteTransaction?: (id: string) => void;
@@ -63,6 +68,7 @@ export function AccountsSection({
   canEdit,
   onAddCustomer,
   onUpdateCustomer,
+  onMoveAccount,
   onDeleteCustomer,
   onAddTransaction,
   onDeleteTransaction,
@@ -233,6 +239,7 @@ export function AccountsSection({
           transferFundOptions={transferFundOptions}
           canEditFund={canEdit}
           onUpdateCustomer={onUpdateCustomer}
+          onMoveAccount={onMoveAccount}
           onShareAccount={onShareAccount
             ? s => onShareAccount(summaryFundId(s, panelFundId), s)
             : undefined}
@@ -256,6 +263,7 @@ export function AccountsSection({
           canEditFund={canEdit}
           onAddCustomer={onAddCustomer}
           onUpdateCustomer={onUpdateCustomer}
+          onMoveAccount={onMoveAccount}
           onDeleteCustomer={onDeleteCustomer}
           onAddTransaction={onAddTransaction}
           onDeleteTransaction={isAdmin ? onDeleteTransaction : undefined}

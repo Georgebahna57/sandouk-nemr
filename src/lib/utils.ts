@@ -1,4 +1,4 @@
-import { CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabFundPartyName, isHalabLinkedAccountName, isWeightCurrency } from '../config';
+import { CENTERS_FUND_ID, CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabFundPartyName, isHalabLinkedAccountName, isWeightCurrency } from '../config';
 import { computeHalabAwareBalance } from './halabBalance';
 import { normalizeSyrianTransaction, syrianBalanceAmount, syrianBalanceCurrency } from './syrianCurrency';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
@@ -506,6 +506,31 @@ export function applyCustomerRename(
 }
 
 /** نقل الحساب بين الصناديق/المراكز — يحدّث fundId للحركات المرتبطة */
+export function inferAccountTransactionFund(
+  transactions: Transaction[],
+  accountName: string,
+  hintFundId?: FundId,
+): FundId {
+  const trimmed = accountName.trim();
+  const counts = new Map<FundId, number>();
+  for (const tx of transactions) {
+    if ((tx.ledger ?? 'fund') === 'account' && tx.party === trimmed) {
+      counts.set(tx.fundId, (counts.get(tx.fundId) ?? 0) + 1);
+    }
+  }
+  if (!counts.size) return hintFundId ?? CENTERS_FUND_ID;
+  if (hintFundId && counts.has(hintFundId)) return hintFundId;
+  let best = hintFundId ?? CENTERS_FUND_ID;
+  let bestCount = 0;
+  for (const [fid, count] of counts) {
+    if (count > bestCount) {
+      best = fid;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 export function applyCustomerFundMove(
   transactions: Transaction[],
   accountName: string,
@@ -515,7 +540,9 @@ export function applyCustomerFundMove(
   if (oldFundId === newFundId) return { transactions, changed: [] };
   const trimmed = accountName.trim();
   const changed: Transaction[] = [];
-  const updated = transactions.map(tx => {
+  const movedParentIds = new Set<string>();
+
+  let updated = transactions.map(tx => {
     if (tx.fundId !== oldFundId) return tx;
     const ledger = tx.ledger ?? 'fund';
     const affectsAccount = ledger === 'account' && tx.party === trimmed;
@@ -523,8 +550,18 @@ export function applyCustomerFundMove(
     if (!affectsAccount && !affectsCounterparty) return tx;
     const next = { ...tx, fundId: newFundId };
     changed.push(next);
+    if (affectsAccount) movedParentIds.add(tx.id);
     return next;
   });
+
+  updated = updated.map(tx => {
+    if (tx.fundId !== oldFundId) return tx;
+    if (!tx.feeSourceId || !movedParentIds.has(tx.feeSourceId)) return tx;
+    const next = { ...tx, fundId: newFundId };
+    changed.push(next);
+    return next;
+  });
+
   return { transactions: updated, changed };
 }
 

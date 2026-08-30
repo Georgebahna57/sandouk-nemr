@@ -22,6 +22,7 @@ import {
   describeTransaction,
   getDeletionGroupIds,
   getOperationGroupIds,
+  inferAccountTransactionFund,
   loadState,
   parseMentions,
   prepareCustomerFundMove,
@@ -377,10 +378,15 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       let transactions = prev.transactions;
 
       if (fundChanged && prevCustomer) {
+        const sourceFund = inferAccountTransactionFund(
+          prev.transactions,
+          previousName.trim(),
+          prevCustomer.fundId,
+        );
         const moveResult = applyCustomerFundMove(
           transactions,
           previousName.trim(),
-          prevCustomer.fundId,
+          sourceFund,
           customerToSave.fundId,
         );
         transactions = moveResult.transactions;
@@ -451,6 +457,70 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
             : `تعديل حساب ${customerToSave.name}`,
         });
       }
+    }
+  }, [actor, runSync]);
+
+  const moveAccountToFund = useCallback(async (
+    accountName: string,
+    toFundId: FundId,
+    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+  ) => {
+    const trimmed = accountName.trim();
+    const prevCustomer = opts?.customerId
+      ? stateRef.current.customers.find(c => c.id === opts.customerId)
+      : stateRef.current.customers.find(c => c.name === trimmed);
+
+    const fromFundId = opts?.fromFundId
+      ?? inferAccountTransactionFund(
+        stateRef.current.transactions,
+        trimmed,
+        prevCustomer?.fundId,
+      );
+
+    if (fromFundId === toFundId) return;
+
+    let customerToSave: Customer | undefined;
+    if (prevCustomer) {
+      customerToSave = prepareCustomerFundMove({ ...prevCustomer, fundId: toFundId }, toFundId);
+    }
+
+    const changedTxMap = new Map<string, Transaction>();
+    setState(prev => {
+      const moveResult = applyCustomerFundMove(prev.transactions, trimmed, fromFundId, toFundId);
+      for (const tx of moveResult.changed) changedTxMap.set(tx.id, tx);
+
+      if (!customerToSave && moveResult.changed.length > 0) {
+        customerToSave = createCustomer({
+          fundId: toFundId,
+          name: trimmed,
+          accountNumber: opts?.accountNumber,
+        });
+      }
+
+      const customers = customerToSave
+        ? [customerToSave, ...prev.customers.filter(c => c.id !== customerToSave!.id)]
+        : prev.customers;
+
+      return { ...prev, transactions: moveResult.transactions, customers };
+    });
+
+    const changedTxs = [...changedTxMap.values()];
+
+    await runSync(async () => {
+      if (customerToSave) await upsertCustomer(customerToSave);
+      if (changedTxs.length) await upsertTransactions(changedTxs);
+    });
+
+    if (actor) {
+      logAudit({
+        userId: actor.userId,
+        userName: actor.displayName,
+        action: 'customer_move',
+        entityType: 'customer',
+        entityId: customerToSave?.id,
+        fundId: toFundId,
+        details: `نقل الحساب ${trimmed}: ${getFund(fromFundId).name} → ${getFund(toFundId).name}`,
+      });
     }
   }, [actor, runSync]);
 
@@ -680,6 +750,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     deleteBill,
     addCustomer,
     updateCustomer,
+    moveAccountToFund,
     deleteCustomer,
     importTrialBalance,
     addComment,

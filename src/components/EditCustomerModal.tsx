@@ -1,13 +1,12 @@
 import { Pencil, X } from 'lucide-react';
 import { useState } from 'react';
-import { BOX_FUNDS, canRegisterCustomerName, getFund } from '../config';
+import { BOX_FUNDS, canRegisterCustomerName } from '../config';
 import type { Customer, Fund, FundId } from '../types';
 import { SharedFundIdsField } from './SharedFundIdsField';
 
 interface Props {
   customer: Customer;
   fundOptions?: Fund[];
-  transferFundOptions?: Fund[];
   onClose: () => void;
   onSave: (updated: Customer, previousName: string) => void | Promise<void>;
   nameTaken?: (name: string, fundId: FundId) => boolean;
@@ -16,7 +15,6 @@ interface Props {
 export function EditCustomerModal({
   customer,
   fundOptions = BOX_FUNDS,
-  transferFundOptions,
   onClose,
   onSave,
   nameTaken,
@@ -24,24 +22,20 @@ export function EditCustomerModal({
   const [name, setName] = useState(customer.name);
   const [accountNumber, setAccountNumber] = useState(customer.accountNumber ?? '');
   const [phone, setPhone] = useState(customer.phone ?? '');
-  const [targetFundId, setTargetFundId] = useState<FundId>(customer.fundId);
   const [sharedFundIds, setSharedFundIds] = useState<FundId[]>(customer.sharedFundIds ?? []);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-
-  const moveOptions = transferFundOptions ?? fundOptions;
-  const fundChanged = targetFundId !== customer.fundId;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    if (!canRegisterCustomerName(trimmed, targetFundId)) {
+    if (!canRegisterCustomerName(trimmed, customer.fundId)) {
       setError('هالاسم محجوز لحساب الصندوق');
       return;
     }
-    if (trimmed !== customer.name && nameTaken?.(trimmed, targetFundId)) {
-      setError('في حساب بنفس الاسم في القسم المحدد');
+    if (trimmed !== customer.name && nameTaken?.(trimmed, customer.fundId)) {
+      setError('في حساب بنفس الاسم');
       return;
     }
     setError('');
@@ -49,7 +43,6 @@ export function EditCustomerModal({
     try {
       await Promise.resolve(onSave({
         ...customer,
-        fundId: targetFundId,
         name: trimmed,
         accountNumber: accountNumber.trim() || undefined,
         phone: phone.trim() || undefined,
@@ -79,29 +72,6 @@ export function EditCustomerModal({
           </button>
         </div>
 
-        {moveOptions.length > 1 && (
-          <div>
-            <label className="mb-1 block text-[10px] text-slate-500">نقل إلى (صندوق / مركز)</label>
-            <select
-              value={targetFundId}
-              onChange={e => {
-                setTargetFundId(e.target.value as FundId);
-                setError('');
-              }}
-              className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
-            >
-              {moveOptions.map(f => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
-            {fundChanged && (
-              <p className="mt-1 text-[10px] text-amber-400/90">
-                نقل من {getFund(customer.fundId).name} إلى {getFund(targetFundId).name} — تُحدَّث كل حركات الحساب
-              </p>
-            )}
-          </div>
-        )}
-
         <input
           type="text"
           placeholder="اسم الحساب"
@@ -130,7 +100,7 @@ export function EditCustomerModal({
         />
 
         <SharedFundIdsField
-          homeFundId={targetFundId}
+          homeFundId={customer.fundId}
           value={sharedFundIds}
           onChange={setSharedFundIds}
           fundOptions={fundOptions}

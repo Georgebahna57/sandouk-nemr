@@ -153,6 +153,7 @@ export default function App({ user, onLogout }: Props) {
     deleteBill,
     addCustomer,
     updateCustomer,
+    moveAccountToFund,
     deleteCustomer,
     addComment,
     claimTransaction,
@@ -857,6 +858,7 @@ export default function App({ user, onLogout }: Props) {
             canEdit={canEdit}
             onAddCustomer={addCustomer}
             onUpdateCustomer={updateCustomer}
+            onMoveAccount={moveAccountToFund}
             onDeleteCustomer={isAdmin ? deleteCustomer : undefined}
             onAddTransaction={addTransaction}
             onDeleteTransaction={isAdmin ? requestDeleteTransaction : undefined}

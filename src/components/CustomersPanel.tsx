@@ -1,6 +1,6 @@
-import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { CURRENCIES, getFund, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
+import { CENTERS_FUND_ID, CURRENCIES, getFund, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
 import { isMergedAccountSummary } from '../lib/accountMerge';
 import { accountExistsInFund, accountNeedsReconciliation, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
@@ -11,6 +11,7 @@ import { AccountWhatsAppQuickActions } from './AccountWhatsAppQuickActions';
 import { AccountTransactionForm } from './AccountTransactionForm';
 import { AccountTransferForm } from './AccountTransferForm';
 import { EditCustomerModal } from './EditCustomerModal';
+import { MoveAccountModal } from './MoveAccountModal';
 import { ReconciliationBar } from './ReconciliationBar';
 import { formatSharedFundLabels, SharedFundIdsField } from './SharedFundIdsField';
 import { AccountValuationToolbar, AccountValuationView } from './AccountValuationView';
@@ -27,6 +28,11 @@ interface Props {
   transferFundOptions?: Fund[];
   onAddCustomer?: (customer: Customer) => void;
   onUpdateCustomer?: (customer: Customer, previousName: string) => void | Promise<void>;
+  onMoveAccount?: (
+    accountName: string,
+    toFundId: FundId,
+    opts?: { fromFundId?: FundId; customerId?: string; accountNumber?: string },
+  ) => void | Promise<void>;
   onDeleteCustomer?: (id: string) => void;
   onAddTransaction?: (tx: Transaction | Transaction[]) => void;
   onDeleteTransaction?: (id: string) => void;
@@ -54,6 +60,7 @@ export function CustomersPanel({
   transferFundOptions,
   onAddCustomer,
   onUpdateCustomer,
+  onMoveAccount,
   onDeleteCustomer,
   onAddTransaction,
   onDeleteTransaction,
@@ -72,8 +79,10 @@ export function CustomersPanel({
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [movingSummary, setMovingSummary] = useState<CustomerSummary | null>(null);
   const [statementAccount, setStatementAccount] = useState<CustomerSummary | null>(null);
   const [name, setName] = useState('');
+  const [createFundId, setCreateFundId] = useState<FundId>(CENTERS_FUND_ID);
   const [accountNumber, setAccountNumber] = useState('');
   const [phone, setPhone] = useState('');
   const [sharedFundIds, setSharedFundIds] = useState<FundId[]>([]);
@@ -144,7 +153,7 @@ export function CustomersPanel({
   function submitCustomer(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !onAddCustomer) return;
-    const targetFundId = fundId;
+    const targetFundId = createFundId;
     if (!canRegisterCustomerName(name.trim(), targetFundId)) {
       setNameError('هالاسم محجوز لحساب الصندوق');
       return;
@@ -197,8 +206,22 @@ export function CustomersPanel({
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" dir="ltr" />
         <input type="text" placeholder="واتساب (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
+        {transferFundOptions && transferFundOptions.length > 1 && (
+          <div>
+            <label className="mb-1 block text-[10px] text-slate-500">القسم (اختياري — مراكز افتراضي)</label>
+            <select
+              value={createFundId}
+              onChange={e => setCreateFundId(e.target.value as FundId)}
+              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+            >
+              {transferFundOptions.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <SharedFundIdsField
-          homeFundId={fundId}
+          homeFundId={createFundId}
           value={sharedFundIds}
           onChange={setSharedFundIds}
           fundOptions={funds}
@@ -367,6 +390,20 @@ export function CustomersPanel({
                         <Trash2 size={14} />
                       </button>
                     )}
+                    {!summaryReadOnly && onMoveAccount && transferFundOptions && transferFundOptions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setMovingSummary(summary);
+                        }}
+                        className="flex items-center gap-1 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-[10px] font-medium text-cyan-400 hover:bg-cyan-500/20"
+                        title="نقل بين المراكز والزبائن"
+                      >
+                        <ArrowRightLeft size={12} />
+                        نقل
+                      </button>
+                    )}
                     {!summaryReadOnly && onUpdateCustomer && resolveCustomer(summary) && (
                       <button
                         type="button"
@@ -450,7 +487,6 @@ export function CustomersPanel({
         <EditCustomerModal
           customer={editingCustomer}
           fundOptions={fundOptions}
-          transferFundOptions={transferFundOptions}
           onClose={() => setEditingCustomer(null)}
           onSave={async (updated, previousName) => {
             await onUpdateCustomer(updated, previousName);
@@ -462,6 +498,23 @@ export function CustomersPanel({
             targetFundId,
             name,
             editingCustomer.id,
+          )}
+        />
+      )}
+
+      {movingSummary && onMoveAccount && transferFundOptions && (
+        <MoveAccountModal
+          summary={movingSummary}
+          customer={resolveCustomer(movingSummary)}
+          transactions={transactions}
+          transferFundOptions={transferFundOptions}
+          onClose={() => setMovingSummary(null)}
+          onMove={onMoveAccount}
+          nameTaken={(name, targetFundId) => accountExistsInFund(
+            customers,
+            targetFundId,
+            name,
+            resolveCustomer(movingSummary)?.id,
           )}
         />
       )}
