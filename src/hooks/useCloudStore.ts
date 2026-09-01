@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AccountBranchId, AppState, Bill, Customer, Transaction, TransactionComment } from '../types';
 import {
   fetchAppState,
+  fetchDataFingerprint,
   importAppState,
   patchTransactions,
   removeBill,
@@ -35,6 +36,12 @@ import {
   getFeeSyncLeadIds,
   syncAutoFeesForOperations,
 } from '../lib/feePosting';
+import {
+  describeRemoteChange,
+  findNewTransactionsFromOthers,
+  fingerprintKey,
+  mergeCloudState,
+} from '../lib/remoteSync';
 import {
   maybeAutoSnapshot,
   mirrorAppState,
@@ -106,8 +113,12 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
   const stateRef = useRef(state);
+  const syncingRef = useRef(false);
+  const fingerprintRef = useRef<string | null>(null);
   stateRef.current = state;
+  syncingRef.current = syncing;
 
   useEffect(() => {
     if (!enabled) return;
@@ -149,6 +160,12 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
           setState(nextState);
           mirrorAppState(nextState);
+          try {
+            const fp = await fetchDataFingerprint();
+            fingerprintRef.current = fingerprintKey(fp);
+          } catch {
+            fingerprintRef.current = null;
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -169,6 +186,51 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     init();
     return () => { cancelled = true; };
   }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled || loading) return;
+
+    let cancelled = false;
+
+    async function pollRemote() {
+      if (cancelled || syncingRef.current || document.visibilityState !== 'visible') return;
+      try {
+        const fp = await fetchDataFingerprint();
+        const key = fingerprintKey(fp);
+        if (fingerprintRef.current === null) {
+          fingerprintRef.current = key;
+          return;
+        }
+        if (key === fingerprintRef.current) return;
+
+        const cloud = await fetchAppState();
+        if (cancelled || syncingRef.current) return;
+
+        const previous = stateRef.current.transactions;
+        const fromOthers = findNewTransactionsFromOthers(previous, cloud.transactions, actor?.userId);
+        const nextState = mergeCloudState(stateRef.current, cloud);
+        setState(nextState);
+        mirrorAppState(nextState);
+        fingerprintRef.current = key;
+
+        if (fromOthers.length > 0) {
+          setRemoteNotice(describeRemoteChange(fromOthers));
+        }
+      } catch {
+        // تجاهل أخطاء الشبكة المؤقتة
+      }
+    }
+
+    const timer = window.setInterval(() => { void pollRemote(); }, 30_000);
+    const onVisible = () => { void pollRemote(); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [enabled, loading, actor?.userId]);
 
   useEffect(() => {
     if (!enabled || loading) return;
@@ -200,6 +262,12 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     setError(null);
     try {
       await fn();
+      try {
+        const fp = await fetchDataFingerprint();
+        fingerprintRef.current = fingerprintKey(fp);
+      } catch {
+        // تجاهل
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل الحفظ');
       throw err;
@@ -778,6 +846,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     loading,
     syncing,
     error,
+    remoteNotice,
+    clearRemoteNotice: () => setRemoteNotice(null),
     addTransaction,
     updateTransaction,
     approvePendingOperations,

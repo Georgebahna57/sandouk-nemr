@@ -5,9 +5,11 @@ interface Props {
   mode: DisplayMode;
   layoutMode: LayoutMode;
   pendingNotify: boolean;
+  remoteNotify: boolean;
   onModeChange: (mode: DisplayMode) => void;
   onLayoutModeChange: (mode: LayoutMode) => void;
   onPendingNotifyChange: (enabled: boolean) => void;
+  onRemoteNotifyChange: (enabled: boolean) => void;
 }
 
 const LAYOUT_OPTIONS: { id: LayoutMode; label: string; icon: typeof Smartphone; title: string }[] = [
@@ -20,9 +22,11 @@ export function DisplayModeToggle({
   mode,
   layoutMode,
   pendingNotify,
+  remoteNotify,
   onModeChange,
   onLayoutModeChange,
   onPendingNotifyChange,
+  onRemoteNotifyChange,
 }: Props) {
   return (
     <div className="flex flex-col items-end gap-2 sm:items-center">
@@ -64,6 +68,16 @@ export function DisplayModeToggle({
           />
           <Bell size={12} />
           تنبيه انتظار
+        </label>
+        <label className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-400">
+          <input
+            type="checkbox"
+            checked={remoteNotify}
+            onChange={e => onRemoteNotifyChange(e.target.checked)}
+            className="rounded"
+          />
+          <Bell size={12} />
+          حركة جديدة
         </label>
       </div>
       <div className="flex flex-wrap items-center justify-end gap-1.5">

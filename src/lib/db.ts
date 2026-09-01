@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { AppState, Bill, Customer, FundId, Transaction, TransactionComment, TransactionEditRecord, TransactionLedger } from '../types';
+import type { DataFingerprint } from './remoteSync';
 import { formatDbError } from './dbErrors';
 import { decodeNoteMeta, encodeNoteMeta } from './txMeta';
 import { feeToDbValue, extraFeeToDbValue } from './fees';
@@ -257,6 +258,31 @@ async function upsertTxRows(txs: Transaction[]) {
     ({ error } = await client.from('transactions').upsert(txs.map(minimalTxToRow)));
   }
   if (error) throw formatDbError(error);
+}
+
+export async function fetchDataFingerprint(): Promise<DataFingerprint> {
+  const client = requireClient();
+  const [txCountRes, customerCountRes, billCountRes, latestTxRes, latestEditRes] = await Promise.all([
+    client.from('transactions').select('*', { count: 'exact', head: true }),
+    client.from('customers').select('*', { count: 'exact', head: true }),
+    client.from('bills').select('*', { count: 'exact', head: true }),
+    client.from('transactions').select('created_at').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    client.from('transactions').select('last_edited_at').not('last_edited_at', 'is', null).order('last_edited_at', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+
+  if (txCountRes.error) throw formatDbError(txCountRes.error);
+  if (customerCountRes.error) throw formatDbError(customerCountRes.error);
+  if (billCountRes.error) throw formatDbError(billCountRes.error);
+  if (latestTxRes.error) throw formatDbError(latestTxRes.error);
+  if (latestEditRes.error) throw formatDbError(latestEditRes.error);
+
+  return {
+    transactions: txCountRes.count ?? 0,
+    customers: customerCountRes.count ?? 0,
+    bills: billCountRes.count ?? 0,
+    latestTxAt: (latestTxRes.data?.created_at as string) ?? null,
+    latestEditAt: (latestEditRes.data?.last_edited_at as string) ?? null,
+  };
 }
 
 export async function fetchAppState(): Promise<AppState> {

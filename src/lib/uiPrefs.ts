@@ -19,6 +19,7 @@ export interface UiPrefs {
   displayMode: DisplayMode;
   layoutMode: LayoutMode;
   pendingNotify: boolean;
+  remoteNotify: boolean;
   nav: Partial<NavPrefs>;
 }
 
@@ -26,6 +27,7 @@ const DEFAULTS: UiPrefs = {
   displayMode: 'night',
   layoutMode: 'auto',
   pendingNotify: true,
+  remoteNotify: true,
   nav: {},
 };
 
@@ -49,6 +51,7 @@ function readRaw(): UiPrefs {
       displayMode: normalizeDisplayMode(parsed.displayMode),
       layoutMode: normalizeLayoutMode(parsed.layoutMode),
       pendingNotify: parsed.pendingNotify !== false,
+      remoteNotify: parsed.remoteNotify !== false,
       nav: parsed.nav ?? {},
     };
   } catch {

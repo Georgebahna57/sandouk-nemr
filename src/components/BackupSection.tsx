@@ -1,5 +1,5 @@
 import { Clock, Download, HardDriveUpload, History, Loader2, ShieldCheck, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   backupSummary,
   buildAppBackup,
@@ -8,6 +8,13 @@ import {
   type AppBackup,
 } from '../lib/backup';
 import {
+  downloadCloudBackup,
+  listCloudDailyBackups,
+  loadCloudDailyBackup,
+  type CloudDailyBackupMeta,
+} from '../lib/cloudBackup';
+import {
+  getLastDailySnapshotDate,
   getMirrorInfo,
   listSnapshots,
   loadSnapshot,
@@ -22,6 +29,7 @@ import { loadState } from '../lib/utils';
 interface Props {
   appState: AppState;
   valuationRates: ValuationRates;
+  isAdmin?: boolean;
   onRestore: (backup: AppBackup, mode: 'merge' | 'replace') => Promise<void>;
 }
 
@@ -30,7 +38,7 @@ function formatSavedAt(iso: string | null): string {
   return new Date(iso).toLocaleString('ar-LB');
 }
 
-export function BackupSection({ appState, valuationRates, onRestore }: Props) {
+export function BackupSection({ appState, valuationRates, isAdmin = false, onRestore }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +46,16 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
   const [pendingBackup, setPendingBackup] = useState<AppBackup | null>(null);
   const [replaceConfirm, setReplaceConfirm] = useState('');
   const [snapshots, setSnapshots] = useState<SnapshotMeta[]>(() => listSnapshots());
+  const [cloudBackups, setCloudBackups] = useState<CloudDailyBackupMeta[]>([]);
   const mirror = getMirrorInfo();
+  const lastDailyLocal = getLastDailySnapshotDate();
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    listCloudDailyBackups()
+      .then(setCloudBackups)
+      .catch(() => setCloudBackups([]));
+  }, [isAdmin]);
 
   function refreshSnapshots() {
     setSnapshots(listSnapshots());
@@ -120,6 +137,20 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
     setSuccess(`تم حفظ لقطة يدوية — ${meta.transactions} حركة`);
   }
 
+  async function downloadCloudDaily(date: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const backup = await loadCloudDailyBackup(date);
+      downloadCloudBackup(backup, date);
+      setSuccess(`تم تنزيل النسخة اليومية لـ ${date}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل تنزيل النسخة اليومية');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="mb-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4">
       <div className="mb-3 flex items-center gap-2">
@@ -139,6 +170,11 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
             <p className="font-medium text-emerald-200">حماية تلقائية — مفعّلة</p>
             <p className="mt-1 text-slate-400">
               كل عملية تُنسَخ محلياً في هذا المتصفح بعد الحفظ.
+              {lastDailyLocal && (
+                <span className="block mt-1 text-emerald-300/90">
+                  نسخة يومية محلية: {lastDailyLocal}
+                </span>
+              )}
             </p>
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-500">
               <span className="inline-flex items-center gap-1">
@@ -199,6 +235,29 @@ export function BackupSection({ appState, valuationRates, onRestore }: Props) {
       <p className="mt-2 text-[10px] text-slate-500">
         السحابة: {appState.transactions.length} حركة · {appState.customers.length} حساب · {appState.bills.length} فاتورة
       </p>
+
+      {isAdmin && cloudBackups.length > 0 && (
+        <div className="mt-4 rounded-xl border border-sky-500/30 bg-sky-500/5 p-3">
+          <p className="mb-2 text-xs font-medium text-sky-200">نسخ يومية على السحابة ({cloudBackups.length})</p>
+          <p className="mb-2 text-[10px] text-slate-500">
+            تُحفظ تلقائياً مرة كل يوم — آخر 14 يوماً.
+          </p>
+          <div className="max-h-40 space-y-1 overflow-y-auto">
+            {cloudBackups.map(meta => (
+              <button
+                key={meta.backupDate}
+                type="button"
+                disabled={busy}
+                onClick={() => void downloadCloudDaily(meta.backupDate)}
+                className="flex w-full items-center justify-between gap-2 rounded-lg bg-slate-900/60 px-2 py-1.5 text-left text-xs hover:bg-slate-800 disabled:opacity-50"
+              >
+                <span className="text-slate-200">{meta.backupDate}</span>
+                <span className="text-slate-500">{meta.summary}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {snapshots.length > 0 && (
         <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900/40 p-3">

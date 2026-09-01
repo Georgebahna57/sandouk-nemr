@@ -282,6 +282,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
       <BackupSection
         appState={appState}
         valuationRates={valuationRates}
+        isAdmin
         onRestore={onRestoreBackup}
       />
 

@@ -1,9 +1,13 @@
 import type { AppState } from '../types';
 import { buildAppBackup, type AppBackup } from './backup';
 import { saveState } from './utils';
+import { todayIso } from './utils';
 
 const SNAPSHOT_INDEX_KEY = 'sandouk-nemr-snapshots-v1';
+const DAILY_PREFIX = 'sandouk-nemr-daily-';
+const LAST_DAILY_KEY = 'sandouk-last-daily-date';
 const MAX_SNAPSHOTS = 8;
+const MAX_DAILY_SNAPSHOTS = 7;
 
 export type SnapshotReason = 'auto' | 'pre-delete' | 'pre-replace' | 'pre-import' | 'manual';
 
@@ -111,6 +115,47 @@ export function maybeAutoSnapshot(state: AppState): void {
     pushSnapshot(state, 'auto');
     lastAutoSnapshotCount = count;
   }
+}
+
+/** لقطة يومية محلية — مرة واحدة كل يوم */
+export function maybeDailySnapshot(state: AppState): boolean {
+  const today = todayIso();
+  if (localStorage.getItem(LAST_DAILY_KEY) === today) return false;
+  if (state.transactions.length + state.customers.length + state.bills.length === 0) return false;
+
+  localStorage.setItem(`${DAILY_PREFIX}${today}`, JSON.stringify(buildAppBackup(state)));
+  localStorage.setItem(LAST_DAILY_KEY, today);
+
+  const dates = listDailySnapshotDates();
+  for (const old of dates.slice(MAX_DAILY_SNAPSHOTS)) {
+    localStorage.removeItem(`${DAILY_PREFIX}${old}`);
+  }
+  return true;
+}
+
+export function listDailySnapshotDates(): string[] {
+  const dates: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(DAILY_PREFIX)) {
+      dates.push(key.slice(DAILY_PREFIX.length));
+    }
+  }
+  return dates.sort((a, b) => b.localeCompare(a));
+}
+
+export function loadDailySnapshot(date: string): AppBackup | null {
+  try {
+    const raw = localStorage.getItem(`${DAILY_PREFIX}${date}`);
+    if (!raw) return null;
+    return JSON.parse(raw) as AppBackup;
+  } catch {
+    return null;
+  }
+}
+
+export function getLastDailySnapshotDate(): string | null {
+  return localStorage.getItem(LAST_DAILY_KEY);
 }
 
 export function listSnapshots(): SnapshotMeta[] {

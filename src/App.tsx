@@ -50,6 +50,8 @@ import { fetchFundWhatsAppPhones, type FundWhatsAppMap } from './lib/fundSetting
 import { fetchValuationRates, saveValuationRates } from './lib/appSettings';
 import type { ValuationRates } from './lib/valuationRates';
 import { loadValuationRatesLocal } from './lib/valuationRates';
+import { saveDailyCloudBackup } from './lib/cloudBackup';
+import { maybeDailySnapshot } from './lib/localMirror';
 import { fetchAllProfiles } from './lib/profile';
 import type { UserProfile } from './lib/permissions';
 import { buildApprovalWhatsAppMessage, resolveShareDestinations } from './lib/whatsapp';
@@ -105,10 +107,13 @@ export default function App({ user, onLogout }: Props) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(initialPrefs.displayMode);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(initialPrefs.layoutMode);
   const [pendingNotify, setPendingNotify] = useState(initialPrefs.pendingNotify);
+  const [remoteNotify, setRemoteNotify] = useState(initialPrefs.remoteNotify);
   const [pendingFlash, setPendingFlash] = useState(false);
+  const [remoteFlash, setRemoteFlash] = useState(false);
   const [pendingDeleteTxId, setPendingDeleteTxId] = useState<string | null>(null);
   const prevPendingCountRef = useRef<number | null>(null);
   const navRestoredRef = useRef(false);
+  const dailyBackupDoneRef = useRef(false);
   const [txFilters, setTxFilters] = useState<TransactionFilters>({});
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [fundWhatsApp, setFundWhatsApp] = useState<FundWhatsAppMap>({});
@@ -168,6 +173,8 @@ export default function App({ user, onLogout }: Props) {
     restoreBackup,
     repairHalabData,
     importTrialBalance,
+    remoteNotice,
+    clearRemoteNotice,
   } = useCloudStore(true, user.email ? {
     userId: user.id,
     email: user.email,
@@ -181,10 +188,30 @@ export default function App({ user, onLogout }: Props) {
   }, [showAdmin]);
 
   useEffect(() => {
-    saveUiPrefs({ displayMode, layoutMode, pendingNotify });
+    saveUiPrefs({ displayMode, layoutMode, pendingNotify, remoteNotify });
     applyDisplayMode(displayMode);
     applyLayoutMode(layoutMode);
-  }, [displayMode, layoutMode, pendingNotify]);
+  }, [displayMode, layoutMode, pendingNotify, remoteNotify]);
+
+  useEffect(() => {
+    if (dataLoading || permsLoading) return;
+    if (dailyBackupDoneRef.current) return;
+    if (state.transactions.length + state.customers.length + state.bills.length === 0) return;
+    dailyBackupDoneRef.current = true;
+    maybeDailySnapshot(state);
+    saveDailyCloudBackup(state, valuationRates, profile?.displayName).catch(() => {});
+  }, [dataLoading, permsLoading, state, valuationRates, profile?.displayName]);
+
+  useEffect(() => {
+    if (!remoteNotice || !remoteNotify) return;
+    playPendingBeep();
+    setRemoteFlash(true);
+    const timer = window.setTimeout(() => {
+      setRemoteFlash(false);
+      clearRemoteNotice();
+    }, 6000);
+    return () => window.clearTimeout(timer);
+  }, [remoteNotice, remoteNotify, clearRemoteNotice]);
 
   useEffect(() => {
     saveNavPrefs({ appSection, fundId, view });
@@ -545,9 +572,11 @@ export default function App({ user, onLogout }: Props) {
               mode={displayMode}
               layoutMode={layoutMode}
               pendingNotify={pendingNotify}
+              remoteNotify={remoteNotify}
               onModeChange={setDisplayMode}
               onLayoutModeChange={setLayoutMode}
               onPendingNotifyChange={setPendingNotify}
+              onRemoteNotifyChange={setRemoteNotify}
             />
             {isAdmin && (
               <button
@@ -579,6 +608,11 @@ export default function App({ user, onLogout }: Props) {
         {pendingFlash && (
           <div className="mt-3 rounded-xl border border-amber-500/50 bg-amber-500/20 px-3 py-2 text-xs font-medium text-amber-200 animate-pulse">
             ⏳ قيد انتظار جديد — {pending.length} عملية بالانتظار
+          </div>
+        )}
+        {remoteFlash && remoteNotice && (
+          <div className="mt-3 rounded-xl border border-sky-500/50 bg-sky-500/20 px-3 py-2 text-xs font-medium text-sky-200 animate-pulse">
+            🔄 {remoteNotice} — تم تحديث البيانات
           </div>
         )}
       </header>
