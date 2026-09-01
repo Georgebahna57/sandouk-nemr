@@ -41,6 +41,7 @@ interface Props {
   onAddTransaction?: (tx: Transaction | Transaction[]) => void;
   onDeleteTransaction?: (id: string) => void;
   onEditTransaction?: (id: string) => void;
+  canEditTransaction?: (tx: Transaction) => boolean;
   onShareAccount?: (fundId: FundId, summary: CustomerSummary) => void;
   onMoneyOutReconciliation?: (fundId: FundId, summary: CustomerSummary) => void;
   valuationRates: ValuationRates;
@@ -76,6 +77,7 @@ export function AccountsSection({
   onAddTransaction,
   onDeleteTransaction,
   onEditTransaction,
+  canEditTransaction,
   onShareAccount,
   onMoneyOutReconciliation,
   valuationRates,
@@ -269,6 +271,7 @@ export function AccountsSection({
           onAddTransaction={onAddTransaction}
           onDeleteTransaction={onDeleteTransaction}
           onEditTransaction={onEditTransaction}
+          canEditTransaction={canEditTransaction}
           onShareAccount={onShareAccount
             ? s => onShareAccount(summaryFundId(s, panelFundId), s)
             : undefined}

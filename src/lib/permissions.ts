@@ -1,4 +1,5 @@
-import type { FundId } from '../types';
+import type { FundId, Transaction } from '../types';
+import { todayIso } from './utils';
 
 export type FundAccess = 'edit' | 'view' | 'hidden';
 
@@ -8,6 +9,8 @@ export interface UserProfile {
   displayName: string;
   isAdmin: boolean;
   accountsOnly: boolean;
+  /** تعديل حركات أقدم من اليوم الحالي */
+  canEditPast: boolean;
 }
 
 export interface FundPermissionRow {
@@ -37,4 +40,26 @@ export function canEditFund(access: FundAccess): boolean {
 
 export function canViewFund(access: FundAccess): boolean {
   return access === 'edit' || access === 'view';
+}
+
+export function isTransactionEditableToday(tx: Transaction, today = todayIso()): boolean {
+  return tx.date === today;
+}
+
+/** هل يمكن للمستخدم تعديل هالحركة؟ */
+export function canEditTransaction(
+  tx: Transaction,
+  opts: {
+    isAdmin: boolean;
+    canEditPast: boolean;
+    hasFundEdit: boolean;
+    today?: string;
+  },
+): boolean {
+  if (opts.isAdmin) return true;
+  if (!opts.hasFundEdit) return false;
+  if (tx.status === 'pending') return true;
+  const today = opts.today ?? todayIso();
+  if (isTransactionEditableToday(tx, today)) return true;
+  return opts.canEditPast;
 }

@@ -140,6 +140,7 @@ export default function App({ user, onLogout }: Props) {
     canAccessAccountsSection,
     fundAccess,
     canEdit,
+    canEditTx,
     loading: permsLoading,
     error: permsError,
     isAdmin,
@@ -401,6 +402,12 @@ export default function App({ user, onLogout }: Props) {
   const requestDeleteTransaction = useCallback((id: string) => {
     setPendingDeleteTxId(id);
   }, []);
+
+  const requestEditTransaction = useCallback((id: string) => {
+    const tx = state.transactions.find(t => t.id === id);
+    if (!tx || !canEditTx(tx)) return;
+    setEditingTxId(id);
+  }, [state.transactions, canEditTx]);
 
   async function confirmDeleteTransaction() {
     if (!pendingDeleteTxId) return;
@@ -743,7 +750,8 @@ export default function App({ user, onLogout }: Props) {
                 transactions={filteredPosted}
                 compact
                 onDelete={isAdmin ? requestDeleteTransaction : undefined}
-                onEdit={isAdmin ? setEditingTxId : undefined}
+                onEdit={!readOnly ? requestEditTransaction : undefined}
+                canEditItem={canEditTx}
               />
             </div>
           </div>
@@ -756,6 +764,8 @@ export default function App({ user, onLogout }: Props) {
             allTransactions={state.transactions}
             onClose={() => setEditingTxId(null)}
             onSave={(updated, summary) => {
+              const lead = state.transactions.find(t => t.id === editingTxId);
+              if (lead && !canEditTx(lead)) return;
               editTransactions(updated, summary);
               setEditingTxId(null);
             }}
@@ -823,7 +833,8 @@ export default function App({ user, onLogout }: Props) {
               showCoordination
               onApprove={readOnly ? undefined : id => setApprovingTxId(id)}
               onDelete={isAdmin ? requestDeleteTransaction : undefined}
-              onEdit={!readOnly ? setEditingTxId : undefined}
+              onEdit={!readOnly ? requestEditTransaction : undefined}
+              canEditItem={canEditTx}
               currentUserId={user.id}
               teamMembers={teamMembers.map(m => ({ id: m.id, displayName: m.displayName }))}
               onAddComment={readOnly ? undefined : addComment}
@@ -852,7 +863,8 @@ export default function App({ user, onLogout }: Props) {
             onDeleteCustomer={isAdmin ? deleteCustomer : undefined}
             onAddTransaction={canManageAccounts ? addTransaction : undefined}
             onDeleteTransaction={isAdmin ? requestDeleteTransaction : undefined}
-            onEditTransaction={isAdmin ? setEditingTxId : undefined}
+            onEditTransaction={canManageAccounts ? requestEditTransaction : undefined}
+            canEditTransaction={canEditTx}
             onShareAccount={summary => {
               const shareFundId = summary.fundId ?? summary.fundIds?.[0] ?? fundId;
               const customer = findCustomerForSummary(summary, state.customers);
@@ -899,7 +911,8 @@ export default function App({ user, onLogout }: Props) {
             onDeleteCustomer={isAdmin ? deleteCustomer : undefined}
             onAddTransaction={addTransaction}
             onDeleteTransaction={isAdmin ? requestDeleteTransaction : undefined}
-            onEditTransaction={isAdmin ? setEditingTxId : undefined}
+            onEditTransaction={canManageAccounts ? requestEditTransaction : undefined}
+            canEditTransaction={canEditTx}
             onShareAccount={(shareFundId, summary) => {
               const customer = state.customers.find(
                 c => c.fundId === shareFundId && (c.id === summary.customerId || c.name === summary.name),

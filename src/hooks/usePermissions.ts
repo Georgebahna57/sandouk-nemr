@@ -7,12 +7,13 @@ import {
 } from '../lib/profile';
 import {
   canEditFund,
+  canEditTransaction,
   canViewFund,
   resolveFundAccess,
   type FundAccess,
   type UserProfile,
 } from '../lib/permissions';
-import type { FundId } from '../types';
+import type { FundId, Transaction } from '../types';
 
 export function usePermissions(user: User | null) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -84,6 +85,12 @@ export function usePermissions(user: User | null) {
   const getAccess = useCallback((fundId: FundId) => fundAccess[fundId], [fundAccess]);
   const canEdit = useCallback((fundId: FundId) => canEditFund(fundAccess[fundId]), [fundAccess]);
 
+  const canEditTx = useCallback((tx: Transaction, fundId?: FundId) => canEditTransaction(tx, {
+    isAdmin: profile?.isAdmin ?? false,
+    canEditPast: profile?.canEditPast ?? false,
+    hasFundEdit: canEditFund(fundAccess[fundId ?? tx.fundId]),
+  }), [profile, fundAccess]);
+
   return {
     profile,
     permissions,
@@ -97,8 +104,10 @@ export function usePermissions(user: User | null) {
     loading,
     error,
     isAdmin: profile?.isAdmin ?? false,
+    canEditPast: profile?.canEditPast ?? false,
     getAccess,
     canEdit,
+    canEditTx,
     reload,
   };
 }

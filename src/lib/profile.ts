@@ -31,7 +31,7 @@ export async function ensureProfile(user: User): Promise<UserProfile> {
 
   const { data, error } = await client
     .from('profiles')
-    .select('id, email, display_name, is_admin, accounts_only')
+    .select('id, email, display_name, is_admin, accounts_only, can_edit_past')
     .eq('id', user.id)
     .single();
 
@@ -48,6 +48,7 @@ export async function ensureProfile(user: User): Promise<UserProfile> {
       displayName: fallback.data.display_name || fallbackName,
       isAdmin: fallback.data.is_admin,
       accountsOnly: false,
+      canEditPast: false,
     };
   }
 
@@ -57,6 +58,7 @@ export async function ensureProfile(user: User): Promise<UserProfile> {
     displayName: data.display_name || fallbackName,
     isAdmin: data.is_admin,
     accountsOnly: data.accounts_only ?? false,
+    canEditPast: data.can_edit_past ?? false,
   };
 }
 
@@ -88,7 +90,7 @@ export async function fetchMyPermissions(userId: string): Promise<Partial<Record
 export async function fetchAllProfiles(): Promise<UserProfile[]> {
   const { data, error } = await requireClient()
     .from('profiles')
-    .select('id, email, display_name, is_admin, accounts_only')
+    .select('id, email, display_name, is_admin, accounts_only, can_edit_past')
     .order('email');
 
   if (error) {
@@ -103,6 +105,7 @@ export async function fetchAllProfiles(): Promise<UserProfile[]> {
       displayName: row.display_name || row.email,
       isAdmin: row.is_admin,
       accountsOnly: false,
+      canEditPast: false,
     }));
   }
 
@@ -112,6 +115,7 @@ export async function fetchAllProfiles(): Promise<UserProfile[]> {
     displayName: row.display_name || row.email,
     isAdmin: row.is_admin,
     accountsOnly: row.accounts_only ?? false,
+    canEditPast: row.can_edit_past ?? false,
   }));
 }
 
@@ -167,6 +171,14 @@ export async function setUserAccountsOnly(userId: string, accountsOnly: boolean)
   const { error } = await requireClient()
     .from('profiles')
     .update({ accounts_only: accountsOnly })
+    .eq('id', userId);
+  if (error) throw error;
+}
+
+export async function setUserCanEditPast(userId: string, canEditPast: boolean) {
+  const { error } = await requireClient()
+    .from('profiles')
+    .update({ can_edit_past: canEditPast })
     .eq('id', userId);
   if (error) throw error;
 }

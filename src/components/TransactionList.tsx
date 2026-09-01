@@ -18,6 +18,8 @@ interface Props {
   onDelete?: (id: string) => void;
   onApprove?: (id: string) => void;
   onEdit?: (id: string) => void;
+  /** إن وُجد: يحدّد أي حركة يظهر زر التعديل لها */
+  canEditItem?: (tx: Transaction) => boolean;
   showApprove?: boolean;
   showFund?: boolean;
   showCoordination?: boolean;
@@ -161,6 +163,7 @@ export const TransactionList = memo(function TransactionList({
   transactions,
   onDelete,
   onEdit,
+  canEditItem,
   onApprove,
   showApprove,
   showFund,
@@ -281,10 +284,10 @@ export const TransactionList = memo(function TransactionList({
                   اعتماد → الصندوق
                 </button>
               )}
-              {onEdit && (
+              {onEdit && (!canEditItem || canEditItem(lead)) && (
                 <button type="button" onClick={() => onEdit(lead.id)}
                   className="rounded-lg p-1 text-slate-500 hover:bg-amber-600/20 hover:text-amber-400"
-                  title={showApprove ? 'تعديل' : 'تعديل (مسؤول فقط)'}>
+                  title={showApprove ? 'تعديل' : 'تعديل'}>
                   <Pencil size={14} />
                 </button>
               )}

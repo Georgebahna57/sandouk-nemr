@@ -18,6 +18,7 @@ import {
   saveUserFundPermissions,
   setUserAccountsOnly,
   setUserAdmin,
+  setUserCanEditPast,
   updateDisplayName,
 } from '../lib/profile';
 import {
@@ -213,6 +214,20 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
     }
   }
 
+  async function toggleCanEditPast(userId: string, canEditPast: boolean) {
+    setSaving(true);
+    setError(null);
+    try {
+      await setUserCanEditPast(userId, canEditPast);
+      await load();
+      setSuccess(canEditPast ? 'تم تفعيل تعديل الحركات السابقة' : 'تم إلغاء تعديل الحركات السابقة');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل التحديث');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
@@ -399,6 +414,17 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
                       disabled={saving}
                     />
                     حسابات فقط
+                  </label>
+                )}
+                {!isAdmin && (
+                  <label className="flex items-center gap-2 text-xs text-slate-400" title="تعديل حركات أقدم من اليوم الحالي">
+                    <input
+                      type="checkbox"
+                      checked={profile.canEditPast}
+                      onChange={e => toggleCanEditPast(profile.id, e.target.checked)}
+                      disabled={saving}
+                    />
+                    تعديل حركات سابقة
                   </label>
                 )}
               </div>

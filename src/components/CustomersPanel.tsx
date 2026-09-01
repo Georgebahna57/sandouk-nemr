@@ -36,6 +36,7 @@ interface Props {
   onAddTransaction?: (tx: Transaction | Transaction[]) => void;
   onDeleteTransaction?: (id: string) => void;
   onEditTransaction?: (id: string) => void;
+  canEditTransaction?: (tx: Transaction) => boolean;
   onShareAccount?: (summary: CustomerSummary) => void;
   onMoneyOutReconciliation?: (summary: CustomerSummary) => void;
   valuationRates: ValuationRates;
@@ -65,6 +66,7 @@ export function CustomersPanel({
   onAddTransaction,
   onDeleteTransaction,
   onEditTransaction,
+  canEditTransaction,
   onShareAccount,
   onMoneyOutReconciliation,
   valuationRates,
@@ -443,6 +445,7 @@ export function CustomersPanel({
                         transactions={accountTx}
                         onDelete={onDeleteTransaction}
                         onEdit={onEditTransaction}
+                        canEditItem={canEditTransaction}
                         reconciledThroughDate={summary.reconciliation?.throughDate}
                       />
                     </div>
