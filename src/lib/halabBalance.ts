@@ -1,4 +1,4 @@
-import { isHalabLinkedAccountName, isMoneyOutFund } from '../config';
+import { isHalabFleilatFund, isHalabLinkedAccountName } from '../config';
 import type { Currency, FundId, Transaction } from '../types';
 import type { OpeningBalanceSide } from './openingBalance';
 
@@ -8,7 +8,7 @@ export function isHalabPaymentMinusReceiptCurrency(_currency: Currency): boolean
 }
 
 export function usesHalabReconciliationBalance(fundId: FundId): boolean {
-  return isMoneyOutFund(fundId);
+  return isHalabFleilatFund(fundId);
 }
 
 export function computeHalabAwareBalance(
@@ -101,7 +101,7 @@ export function repairHalabOpeningBalanceKinds(transactions: Transaction[]): {
 } {
   const changed: Transaction[] = [];
   const next = transactions.map(tx => {
-    if (!isMoneyOutFund(tx.fundId)) return tx;
+    if (tx.fundId !== 'halabFleilat') return tx;
     if ((tx.ledger ?? 'fund') !== 'fund') return tx;
     if (!tx.note?.includes(OPENING_BALANCE_NOTE)) return tx;
     if (tx.currency === 'SYP' || tx.currency === 'NSYP') {
@@ -128,7 +128,7 @@ export function getHalabCurrencyTotals(
   let payments = 0;
   let receipts = 0;
   for (const tx of transactions) {
-    if (!isMoneyOutFund(tx.fundId)) continue;
+    if (tx.fundId !== 'halabFleilat') continue;
     if ((tx.ledger ?? 'fund') !== 'fund') continue;
     if (tx.status !== 'posted') continue;
     if (tx.currency !== currency && !(tx.kind === 'exchange' && tx.exchangeToCurrency === currency)) continue;
@@ -140,7 +140,7 @@ export function getHalabCurrencyTotals(
     if (tx.kind === 'payment') payments += tx.amount;
     if (tx.kind === 'receipt') receipts += tx.amount;
   }
-  const balance = computeHalabAwareBalance(receipts, payments, 'moneyOut', currency);
+  const balance = computeHalabAwareBalance(receipts, payments, 'halabFleilat', currency);
   const operationDelta = payments - receipts;
   return { payments, receipts, balance, operationDelta };
 }
@@ -164,7 +164,7 @@ export function getHalabUsdBalanceBreakdown(transactions: Transaction[]): HalabU
   let openingTxCount = 0;
 
   for (const tx of transactions) {
-    if (!isMoneyOutFund(tx.fundId)) continue;
+    if (tx.fundId !== 'halabFleilat') continue;
     if ((tx.ledger ?? 'fund') !== 'fund') continue;
     if (tx.status !== 'posted') continue;
     if (tx.currency !== 'USD') continue;
@@ -185,7 +185,7 @@ export function getHalabUsdBalanceBreakdown(transactions: Transaction[]): HalabU
   const totalBalance = computeHalabAwareBalance(
     openingReceipts + opsReceipts,
     openingPayments + opsPayments,
-    'moneyOut',
+    'halabFleilat',
     'USD',
   );
 
