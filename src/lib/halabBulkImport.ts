@@ -181,10 +181,10 @@ export function parseHalabImportJson(raw: string): HalabImportDraft[] {
 }
 
 export function halabDraftsToTransactions(drafts: HalabImportDraft[]): Transaction[] {
-  const party = getFundAccountName('moneyOut');
+  const party = getFundAccountName('halabFleilat');
   return drafts.map(draft =>
     createTransaction({
-      fundId: 'moneyOut',
+      fundId: 'halabFleilat',
       ledger: 'fund',
       date: draft.date,
       currency: draft.currency,

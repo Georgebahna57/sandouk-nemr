@@ -3,6 +3,7 @@ import {
   formatFundBalanceImpactLine,
   type FundBalanceImpact,
 } from '../lib/fundBalancePreview';
+import { formatNemrRestoreDelta, NEMR_REFERENCE_BALANCES } from '../lib/nemrBalanceRestore';
 
 interface Props {
   impact: FundBalanceImpact | null;
@@ -16,6 +17,11 @@ export function FundBalanceImpactPreview({ impact }: Props) {
     c => Math.abs(impact.before[c].balance - impact.after[c].balance) > 1e-9,
   );
   const displayCurrencies = changed.length > 0 ? changed : impact.currencies;
+
+  const nemrAfterRef = impact.fundId === 'nemr' ? {
+    deltaUsd: NEMR_REFERENCE_BALANCES.USD - impact.after.USD.balance,
+    deltaEur: NEMR_REFERENCE_BALANCES.EUR - impact.after.EUR.balance,
+  } : null;
 
   return (
     <div
@@ -35,6 +41,13 @@ export function FundBalanceImpactPreview({ impact }: Props) {
         </p>
       )) : (
         <p className="text-slate-500">لا تغيير متوقّع على رصيد الصندوق</p>
+      )}
+      {nemrAfterRef && (
+        <div className="mt-1 border-t border-slate-700/60 pt-1.5 text-slate-500">
+          <p>مقارنة بالمرجع (قبل آخر تعديل):</p>
+          <p>دولار: {formatNemrRestoreDelta('USD', nemrAfterRef.deltaUsd)}</p>
+          <p>يورو: {formatNemrRestoreDelta('EUR', nemrAfterRef.deltaEur)}</p>
+        </div>
       )}
     </div>
   );
