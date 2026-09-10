@@ -3,9 +3,11 @@ import { useMemo, useState } from 'react';
 import {
   buildNemrBalanceRestoreTransactions,
   formatNemrRestoreDelta,
+  NEMR_REFERENCE_BALANCES,
+  NEMR_REFERENCE_LABEL,
   previewNemrBalanceRestore,
 } from '../lib/nemrBalanceRestore';
-import { formatValueWithUnit, todayIso } from '../lib/utils';
+import { formatValueWithUnit } from '../lib/utils';
 import type { Transaction } from '../types';
 
 interface Props {
@@ -30,7 +32,7 @@ export function NemrBalanceRestoreSection({
   );
 
   const restoreTxs = useMemo(
-    () => buildNemrBalanceRestoreTransactions(transactions, todayIso()),
+    () => buildNemrBalanceRestoreTransactions(transactions),
     [transactions],
   );
 
@@ -61,7 +63,9 @@ export function NemrBalanceRestoreSection({
             استعادة رصيد صندوق نمر
           </p>
           <p className="text-xs text-slate-500">
-            المرجع: 1,888,413 $ و 688,710 € — يُسجَّل فرق التصحيح فقط
+            المرجع ({NEMR_REFERENCE_LABEL}):{' '}
+            {NEMR_REFERENCE_BALANCES.USD.toLocaleString('en-US')} $ و{' '}
+            {NEMR_REFERENCE_BALANCES.EUR.toLocaleString('en-US')} € — يُسجَّل فرق التصحيح فقط
           </p>
         </div>
       </div>

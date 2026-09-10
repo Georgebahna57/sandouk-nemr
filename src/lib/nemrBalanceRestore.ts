@@ -6,13 +6,17 @@ import {
 } from './openingBalance';
 import { computeBalances } from './utils';
 
-/** الرصيد المرجعي لصندوق نمر قبل آخر تعديل */
+/** رصيد إغلاق صندوق نمر — 9 سبتمبر 2026 (مشاركة الرصيد) */
 export const NEMR_REFERENCE_BALANCES: Record<'USD' | 'EUR', number> = {
-  USD: 1_888_413,
-  EUR: 688_710,
+  USD: 640_790,
+  EUR: 1_773_520,
 };
 
-const NEMR_RESTORE_NOTE = 'استعادة رصيد — قبل آخر تعديل';
+export const NEMR_REFERENCE_LABEL = 'إغلاق 9 سبتمبر 2026';
+
+export const NEMR_REFERENCE_CLOSE_DATE = '2026-09-09';
+
+const NEMR_RESTORE_NOTE = 'استعادة رصيد — إغلاق 9 سبتمبر 2026';
 
 export interface NemrBalanceRestorePreview {
   currentUsd: number;
@@ -43,7 +47,7 @@ export function previewNemrBalanceRestore(transactions: Transaction[]): NemrBala
 
 export function buildNemrBalanceRestoreTransactions(
   transactions: Transaction[],
-  date: string,
+  date: string = NEMR_REFERENCE_CLOSE_DATE,
 ): Transaction[] {
   const current = computeOpeningBalanceCurrent(transactions, 'nemr');
   const lines: OpeningBalanceLine[] = [

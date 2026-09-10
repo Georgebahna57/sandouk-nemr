@@ -126,7 +126,7 @@ export function FundDetailsModal({
 
           {nemrRef && (!canRestoreBalance || !nemrRef.needsRestore) && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs">
-              <p className="font-medium text-amber-300">مقارنة بالمرجع (قبل آخر تعديل)</p>
+              <p className="font-medium text-amber-300">مقارنة بإغلاق 9 سبتمبر 2026</p>
               <p className="mt-1 text-slate-400">
                 دولار: فرق {formatNemrRestoreDelta('USD', nemrRef.deltaUsd)}
               </p>

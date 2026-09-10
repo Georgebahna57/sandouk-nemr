@@ -44,7 +44,7 @@ export function FundBalanceImpactPreview({ impact }: Props) {
       )}
       {nemrAfterRef && (
         <div className="mt-1 border-t border-slate-700/60 pt-1.5 text-slate-500">
-          <p>مقارنة بالمرجع (قبل آخر تعديل):</p>
+          <p>مقارنة بإغلاق 9 سبتمبر 2026:</p>
           <p>دولار: {formatNemrRestoreDelta('USD', nemrAfterRef.deltaUsd)}</p>
           <p>يورو: {formatNemrRestoreDelta('EUR', nemrAfterRef.deltaEur)}</p>
         </div>
