@@ -248,6 +248,29 @@ export function repairHalabFundTransactions(transactions: Transaction[]): {
   return { transactions: next, changed };
 }
 
+/** إصلاح حركات الصناديق النقدية المخزّنة بحساب الزبون بدل حساب الصندوق */
+export function repairBoxFundTransactions(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (isHalabFleilatFund(tx.fundId) || tx.fundId === CENTERS_FUND_ID) return tx;
+    const ledger = tx.ledger ?? 'fund';
+    if (ledger !== 'fund') return tx;
+    if (isFundPartyForLedger(tx.party, tx.fundId)) return tx;
+    const fixed: Transaction = {
+      ...tx,
+      ledger: 'fund',
+      counterparty: tx.counterparty ?? (isCustomerAccountName(tx.party) ? tx.party : undefined),
+      party: getFundAccountName(tx.fundId),
+    };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
+}
+
 export function filterTransactions(
   transactions: Transaction[],
   fundId: FundId,
@@ -255,10 +278,13 @@ export function filterTransactions(
 ): Transaction[] {
   return transactions.filter(tx => {
     if (tx.fundId !== fundId) return false;
-    const ledger = tx.ledger ?? 'fund';
+    const normalized = normalizeTransaction(tx);
+    const ledger = normalized.ledger ?? 'fund';
     if (opts?.ledger && ledger !== opts.ledger) return false;
     if (!opts?.ledger && ledger !== 'fund') return false;
-    if (ledger === 'fund' && !isHalabFleilatFund(fundId) && !isFundPartyForLedger(tx.party, fundId)) return false;
+    if (ledger === 'fund' && !isHalabFleilatFund(fundId) && !isFundPartyForLedger(normalized.party, fundId)) {
+      return false;
+    }
     if (opts?.date && tx.date !== opts.date) return false;
     if (opts?.status && tx.status !== opts.status) return false;
     return true;

@@ -29,6 +29,7 @@ import {
   loadState,
   parseMentions,
   prepareCustomerFundMove,
+  repairBoxFundTransactions,
   repairHalabFundTransactions,
 } from '../lib/utils';
 import {
@@ -143,18 +144,19 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
         if (!cancelled) {
           const { transactions: nsypFixed, changed: repairedNsyp } = repairNsypToSypTransactions(cloud.transactions);
-          const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(nsypFixed);
+          const { transactions: afterBox, changed: repairedBox } = repairBoxFundTransactions(nsypFixed);
+          const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(afterBox);
           const { transactions: afterOpening, changed: repairedOpening } = runAllHalabRepairs(repaired);
           const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
           const leadIds = getFeeSyncLeadIds(withBackfill);
           const feeSync = mergeFeeSync(withBackfill, leadIds);
           const nextState = { ...cloud, transactions: feeSync.transactions };
 
-          if (repairedNsyp.length || repairedHalab.length || repairedOpening.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
+          if (repairedNsyp.length || repairedBox.length || repairedHalab.length || repairedOpening.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
             if (feeSync.removeIds.length) {
               await removeTransactions(feeSync.removeIds);
             }
-            const toUpsert = [...repairedNsyp, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+            const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
             if (toUpsert.length) await upsertTransactions(toUpsert);
           }
 
@@ -764,13 +766,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     await runSync(async () => {
       const cloud = await fetchAppState();
       const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(cloud.transactions);
-      const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterNsyp);
+      const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterNsyp);
+      const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
       const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
       const leadIds = getFeeSyncLeadIds(withBackfill);
       const feeSync = mergeFeeSync(withBackfill, leadIds);
       if (feeSync.removeIds.length) await removeTransactions(feeSync.removeIds);
-      const toUpsert = [...repairedNsyp, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
