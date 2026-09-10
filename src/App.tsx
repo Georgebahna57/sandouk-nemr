@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, BookOpen, Clock, Eye, FileText, Info, Loader2, LogOut, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
+import { CheckCircle2, BookOpen, Clock, Eye, FileText, Info, Loader2, LogOut, RefreshCw, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
 import { AccountsSection } from './components/AccountsSection';
@@ -159,6 +159,7 @@ export default function App({ user, onLogout }: Props) {
     syncing,
     flushingQueue,
     pendingSyncCount,
+    syncNow,
     error: syncError,
     addTransaction,
     updateTransaction,
@@ -584,6 +585,16 @@ export default function App({ user, onLogout }: Props) {
               onPendingNotifyChange={setPendingNotify}
               onRemoteNotifyChange={setRemoteNotify}
             />
+            <button
+              type="button"
+              onClick={() => void syncNow().catch(() => {})}
+              disabled={syncing || dataLoading}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-400 hover:text-sky-400 disabled:opacity-50"
+              title="جلب آخر التحديثات من السحابة"
+            >
+              <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+              تحديث
+            </button>
             {isAdmin && (
               <button
                 type="button"
@@ -610,10 +621,22 @@ export default function App({ user, onLogout }: Props) {
           </div>
         )}
         {pendingSyncCount > 0 && (
-          <div className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-            {flushingQueue
-              ? `جاري رفع ${pendingSyncCount} عملية على السحابة...`
-              : `${pendingSyncCount} عملية بانتظار الرفع — سيتم الرفع تلقائياً عند عودة الاتصال`}
+          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <p>
+              {flushingQueue
+                ? `جاري رفع ${pendingSyncCount} عملية على السحابة...`
+                : `${pendingSyncCount} عملية لم تصل للسحابة بعد — الأجهزة الثانية لن تراها`}
+            </p>
+            {!flushingQueue && (
+              <button
+                type="button"
+                onClick={() => void syncNow().catch(() => {})}
+                disabled={syncing}
+                className="mt-2 rounded-lg bg-amber-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-amber-500 disabled:opacity-50"
+              >
+                مزامنة الآن
+              </button>
+            )}
           </div>
         )}
         {(syncing || syncError || permsError) && (

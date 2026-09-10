@@ -66,11 +66,15 @@ export function makeQueueItem(steps: QueueStep | QueueStep[]): QueuedMutation {
 
 export function isRetryableError(err: unknown): boolean {
   if (!navigator.onLine) return true;
-  if (err instanceof TypeError) return true;
   const msg = err instanceof Error ? err.message : String(err);
-  if (/fetch|network|timeout|aborted|failed|connection|offline|enotfound|econn/i.test(msg)) {
+  const lower = msg.toLowerCase();
+  if (/jwt|token|expired|permission|policy|42501|pgrst|violat|invalid|schema|column|صلاحية|غير مُعد/i.test(lower)) {
+    return false;
+  }
+  if (/fetch|network|timeout|aborted|connection|offline|enotfound|econn|load failed|failed to fetch/i.test(lower)) {
     return true;
   }
+  if (err instanceof TypeError && /fetch|network|load/i.test(lower)) return true;
   return false;
 }
 

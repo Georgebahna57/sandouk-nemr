@@ -141,18 +141,43 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   stateRef.current = state;
   syncingRef.current = syncing;
 
-  const flushQueue = useCallback(async () => {
-    if (flushingRef.current || getQueueLength() === 0) return;
+  const pullFromCloud = useCallback(async (opts?: { notifyOthers?: boolean }) => {
+    const cloud = await fetchAppState();
+    const previous = stateRef.current.transactions;
+    const fromOthers = findNewTransactionsFromOthers(previous, cloud.transactions, actor?.userId);
+    const nextState = mergeCloudState(stateRef.current, cloud);
+    setState(nextState);
+    mirrorAppState(nextState);
+    try {
+      const fp = await fetchDataFingerprint();
+      fingerprintRef.current = fingerprintKey(fp);
+    } catch {
+      // تجاهل
+    }
+    if (opts?.notifyOthers && fromOthers.length > 0) {
+      setRemoteNotice(describeRemoteChange(fromOthers));
+    }
+    return nextState;
+  }, [actor?.userId]);
+
+  const flushQueue = useCallback(async (): Promise<number> => {
+    if (flushingRef.current || getQueueLength() === 0) return 0;
     flushingRef.current = true;
     setFlushingQueue(true);
+    let flushed = 0;
     try {
       if (supabase) await ensureSupabaseSession(supabase);
-      await flushOfflineQueue(count => setPendingSyncCount(count));
-      try {
-        const fp = await fetchDataFingerprint();
-        fingerprintRef.current = fingerprintKey(fp);
-      } catch {
-        // تجاهل
+      const result = await flushOfflineQueue(count => setPendingSyncCount(count));
+      flushed = result.flushed;
+      if (flushed > 0) {
+        await pullFromCloud();
+      } else {
+        try {
+          const fp = await fetchDataFingerprint();
+          fingerprintRef.current = fingerprintKey(fp);
+        } catch {
+          // تجاهل
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل رفع العمليات المعلّقة');
@@ -161,7 +186,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       setFlushingQueue(false);
       setPendingSyncCount(getQueueLength());
     }
-  }, []);
+    return flushed;
+  }, [pullFromCloud]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -173,6 +199,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       setError(null);
       try {
         if (supabase) await ensureSupabaseSession(supabase);
+        if (getQueueLength() > 0) {
+          setPendingSyncCount(getQueueLength());
+          try {
+            await flushOfflineQueue(count => setPendingSyncCount(count));
+          } catch {
+            // متابعة التحميل — سيُعاد المحاولة لاحقاً
+          }
+        }
         let cloud = await fetchAppState();
         const local = loadState();
         const hasLocal = local.transactions.length + local.bills.length + local.customers.length > 0;
@@ -233,46 +267,44 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [enabled, flushQueue]);
 
   useEffect(() => {
+    if (!enabled || pendingSyncCount === 0) return;
+    const timer = window.setInterval(() => { void flushQueue(); }, 20_000);
+    return () => window.clearInterval(timer);
+  }, [enabled, pendingSyncCount, flushQueue]);
+
+  useEffect(() => {
     if (!enabled || loading) return;
 
     let cancelled = false;
 
-    async function pollRemote() {
+    async function pollRemote(force = false) {
       if (cancelled || syncingRef.current || document.visibilityState !== 'visible') return;
-      if (!navigator.onLine || getQueueLength() > 0) return;
+      if (!navigator.onLine) return;
+      if (!force && getQueueLength() > 0) return;
       const now = Date.now();
-      if (readyAtRef.current && now - readyAtRef.current < 90_000) return;
-      if (now - lastPollAtRef.current < 10_000) return;
+      if (!force && readyAtRef.current && now - readyAtRef.current < 15_000) return;
+      if (!force && now - lastPollAtRef.current < 5_000) return;
       lastPollAtRef.current = now;
       try {
         const fp = await fetchDataFingerprint();
         const key = fingerprintKey(fp);
-        if (fingerprintRef.current === null) {
+        if (!force && fingerprintRef.current === null) {
           fingerprintRef.current = key;
           return;
         }
-        if (key === fingerprintRef.current) return;
+        if (!force && key === fingerprintRef.current) return;
 
-        const cloud = await fetchAppState();
         if (cancelled || syncingRef.current) return;
-
-        const previous = stateRef.current.transactions;
-        const fromOthers = findNewTransactionsFromOthers(previous, cloud.transactions, actor?.userId);
-        const nextState = mergeCloudState(stateRef.current, cloud);
-        setState(nextState);
-        mirrorAppState(nextState);
-        fingerprintRef.current = key;
-
-        if (fromOthers.length > 0) {
-          setRemoteNotice(describeRemoteChange(fromOthers));
-        }
+        await pullFromCloud({ notifyOthers: true });
       } catch {
         // تجاهل أخطاء الشبكة المؤقتة
       }
     }
 
-    const timer = window.setInterval(() => { void pollRemote(); }, 120_000);
-    const onVisible = () => { void pollRemote(); };
+    const timer = window.setInterval(() => { void pollRemote(); }, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void pollRemote(true);
+    };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
@@ -280,7 +312,22 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [enabled, loading, actor?.userId]);
+  }, [enabled, loading, pullFromCloud]);
+
+  const syncNow = useCallback(async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      if (supabase) await ensureSupabaseSession(supabase);
+      await flushQueue();
+      await pullFromCloud({ notifyOthers: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل المزامنة');
+      throw err;
+    } finally {
+      setSyncing(false);
+    }
+  }, [flushQueue, pullFromCloud]);
 
   useEffect(() => {
     if (!enabled || loading) return;
@@ -928,6 +975,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     flushingQueue,
     pendingSyncCount,
     flushQueue,
+    syncNow,
     error,
     remoteNotice,
     clearRemoteNotice: () => setRemoteNotice(null),
