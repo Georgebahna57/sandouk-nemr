@@ -6,6 +6,7 @@ import { destinationsToText, parseWhatsAppDestinations } from '../lib/whatsapp';
 import { ValuationRatesEditor } from './ValuationRatesEditor';
 import { BackupSection } from './BackupSection';
 import { FundDataDiagnostic } from './FundDataDiagnostic';
+import { NemrBalanceRestoreSection } from './NemrBalanceRestoreSection';
 import { HalabBulkImportSection } from './HalabBulkImportSection';
 import { OpeningBalanceSection } from './OpeningBalanceSection';
 import type { ValuationRates } from '../lib/valuationRates';
@@ -40,6 +41,7 @@ interface Props {
   appState: AppState;
   onRestoreBackup: (backup: AppBackup, mode: 'merge' | 'replace') => Promise<void>;
   onAddOpeningBalance: (tx: Transaction[]) => void | Promise<void>;
+  onRestoreNemrBalance: (plan: import('../lib/nemrBalanceRestore').NemrBalanceRestorePlan) => void | Promise<void>;
   onRepairHalab?: () => Promise<void>;
   onImportTrialBalance?: (accounts: TrialBalanceImportAccount[], fundId: FundId) => Promise<void>;
   importingTrialBalance?: boolean;
@@ -82,7 +84,7 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRepairHalab, onImportTrialBalance, importingTrialBalance = false }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRestoreNemrBalance, onRepairHalab, onImportTrialBalance, importingTrialBalance = false }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
@@ -272,6 +274,11 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
       )}
 
       <FundDataDiagnostic appState={appState} onRepairHalab={onRepairHalab} />
+
+      <NemrBalanceRestoreSection
+        transactions={appState.transactions}
+        onRestore={onRestoreNemrBalance}
+      />
 
       <BackupSection
         appState={appState}

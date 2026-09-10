@@ -102,7 +102,7 @@ export default function App({ user, onLogout }: Props) {
   const [appSection, setAppSection] = useState<AppSectionId>(
     initialPrefs.nav.appSection ?? 'funds',
   );
-  const [fundId, setFundId] = useState<FundId>(initialPrefs.nav.fundId ?? 'steelMax');
+  const [fundId, setFundId] = useState<FundId>(initialPrefs.nav.fundId ?? 'nemr');
   const [view, setView] = useState<ViewId>(initialPrefs.nav.view ?? 'ledger');
   const [displayMode, setDisplayMode] = useState<DisplayMode>(initialPrefs.displayMode);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(initialPrefs.layoutMode);
@@ -176,6 +176,7 @@ export default function App({ user, onLogout }: Props) {
     claimTransaction,
     releaseClaim,
     restoreBackup,
+    restoreNemrBalance,
     repairHalabData,
     importTrialBalance,
     remoteNotice,
@@ -532,6 +533,7 @@ export default function App({ user, onLogout }: Props) {
           if (backup.valuationRates) setValuationRates(backup.valuationRates);
         }}
         onAddOpeningBalance={addTransaction}
+        onRestoreNemrBalance={restoreNemrBalance}
         onRepairHalab={repairHalabData}
         onImportTrialBalance={importTrialBalance}
         importingTrialBalance={syncing}
@@ -553,7 +555,7 @@ export default function App({ user, onLogout }: Props) {
   if (visibleBoxFunds.length === 0 && !canAccessAccountsSection) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center px-4 text-center">
-        <p className="text-lg font-semibold text-amber-400">حلب</p>
+        <p className="text-lg font-semibold text-amber-400">صناديق</p>
         <p className="mt-3 text-sm text-slate-400">ما عندك صلاحية على أي صندوق.</p>
         <p className="mt-1 text-xs text-slate-500">تواصل مع المسؤول لتفعيل حسابك.</p>
         <button type="button" onClick={onLogout} className="mt-6 text-sm text-rose-400">خروج</button>
@@ -570,7 +572,7 @@ export default function App({ user, onLogout }: Props) {
               <BookOpen size={24} style={{ color: fund.accent }} />
             </div>
             <div>
-              <h1 className="text-xl font-bold">حلب</h1>
+              <h1 className="text-xl font-bold">صناديق</h1>
               <p className="text-xs text-slate-500">{profile?.displayName ?? user.email}</p>
             </div>
           </div>
@@ -1104,6 +1106,8 @@ export default function App({ user, onLogout }: Props) {
           todayPostedCount={todayFundTx.length}
           whatsappDestinations={fundWhatsApp[fundId]}
           date={today}
+          canRestoreBalance={isAdmin && canEdit(fundId)}
+          onRestoreBalance={restoreNemrBalance}
           onClose={() => setFundDetailsOpen(false)}
         />
       )}

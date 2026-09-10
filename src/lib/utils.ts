@@ -1,4 +1,4 @@
-import { CENTERS_FUND_ID, CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabLinkedAccountName, isMoneyOutFund, isMoneyOutFundPartyName, isWeightCurrency } from '../config';
+import { CENTERS_FUND_ID, CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabFundPartyName, isHalabLinkedAccountName, isWeightCurrency } from '../config';
 import { computeHalabAwareBalance } from './halabBalance';
 import { normalizeSyrianTransaction, syrianBalanceAmount, syrianBalanceCurrency } from './syrianCurrency';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
@@ -21,7 +21,7 @@ import type {
   TransactionStatus,
 } from '../types';
 
-const STORAGE_KEY = 'sandouk-halab-v1';
+const STORAGE_KEY = 'sandouk-nemr-v1';
 
 /** أرقام إنجليزية (0–9) في كل الواجهة */
 export const NUMBER_LOCALE = 'en-US';
@@ -53,7 +53,7 @@ export function loadState(): AppState {
       bills: parsed.bills ?? [],
       customers: (parsed.customers ?? []).map(c => ({
         ...c,
-        fundId: c.fundId ?? 'steelMax',
+        fundId: c.fundId ?? 'nemr',
       })),
     };
   } catch {
@@ -232,10 +232,33 @@ export function repairHalabFundTransactions(transactions: Transaction[]): {
 } {
   const changed: Transaction[] = [];
   const next = transactions.map(tx => {
-    if (!isMoneyOutFund(tx.fundId)) return tx;
+    if (tx.fundId !== 'halabFleilat') return tx;
     const ledger = tx.ledger ?? 'fund';
     if (ledger !== 'fund') return tx;
-    if (isMoneyOutFundPartyName(tx.party)) return tx;
+    if (isHalabFundPartyName(tx.party)) return tx;
+    const fixed: Transaction = {
+      ...tx,
+      ledger: 'fund',
+      counterparty: tx.counterparty ?? (isCustomerAccountName(tx.party) ? tx.party : undefined),
+      party: getFundAccountName('halabFleilat'),
+    };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
+}
+
+/** إصلاح حركات الصناديق النقدية المخزّنة بحساب الزبون بدل حساب الصندوق */
+export function repairBoxFundTransactions(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (isHalabFleilatFund(tx.fundId) || tx.fundId === CENTERS_FUND_ID) return tx;
+    const ledger = tx.ledger ?? 'fund';
+    if (ledger !== 'fund') return tx;
+    if (isFundPartyForLedger(tx.party, tx.fundId)) return tx;
     const fixed: Transaction = {
       ...tx,
       ledger: 'fund',
@@ -255,10 +278,13 @@ export function filterTransactions(
 ): Transaction[] {
   return transactions.filter(tx => {
     if (tx.fundId !== fundId) return false;
-    const ledger = tx.ledger ?? 'fund';
+    const normalized = normalizeTransaction(tx);
+    const ledger = normalized.ledger ?? 'fund';
     if (opts?.ledger && ledger !== opts.ledger) return false;
     if (!opts?.ledger && ledger !== 'fund') return false;
-    if (ledger === 'fund' && !isHalabFleilatFund(fundId) && !isFundPartyForLedger(tx.party, fundId)) return false;
+    if (ledger === 'fund' && !isHalabFleilatFund(fundId) && !isFundPartyForLedger(normalized.party, fundId)) {
+      return false;
+    }
     if (opts?.date && tx.date !== opts.date) return false;
     if (opts?.status && tx.status !== opts.status) return false;
     return true;
@@ -363,7 +389,7 @@ export function computeProjectedFundBalances(transactions: Transaction[], fundId
 
 export function isFundPartyForLedger(party: string, fundId: FundId): boolean {
   const trimmed = party.trim();
-  if (isMoneyOutFund(fundId)) return isMoneyOutFundPartyName(trimmed);
+  if (fundId === 'halabFleilat') return isHalabFundPartyName(trimmed);
   return trimmed === getFundAccountName(fundId);
 }
 
@@ -376,7 +402,7 @@ export function transactionAffectsAccountView(
   if (tx.fundId !== fundId) return false;
   if (isHalabLinkedAccountName(accountName) && isHalabFleilatFund(fundId)) {
     const ledger = tx.ledger ?? 'fund';
-    return ledger === 'fund' && isMoneyOutFundPartyName(tx.party);
+    return ledger === 'fund' && isHalabFundPartyName(tx.party);
   }
   const ledger = tx.ledger ?? 'fund';
   if (ledger === 'account' && tx.party === accountName) return true;

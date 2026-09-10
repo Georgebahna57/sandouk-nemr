@@ -17,7 +17,7 @@ function mirrorKind(kind: TransactionKind): TransactionKind | null {
 }
 
 export function halabMirrorAccountName(): string {
-  return getFundAccountName('moneyOut');
+  return getFundAccountName('halabFleilat');
 }
 
 export function shouldOfferHalabMirror(fundId: FundId, accountName?: string): boolean {

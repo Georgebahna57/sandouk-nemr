@@ -12,6 +12,9 @@ import {
   upsertCustomer,
   upsertTransactions,
 } from '../lib/db';
+import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
+import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
+import { repairNemrRestoreState } from '../lib/nemrBalanceRestore';
 import { saveValuationRates } from '../lib/appSettings';
 import type { AppBackup } from '../lib/backup';
 import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
@@ -21,12 +24,14 @@ import {
   applyCustomerRename,
   backfillLinkedAccountFields,
   describeTransaction,
+  computeBalances,
   getDeletionGroupIds,
   getOperationGroupIds,
   inferAccountTransactionFund,
   loadState,
   parseMentions,
   prepareCustomerFundMove,
+  repairBoxFundTransactions,
   repairHalabFundTransactions,
 } from '../lib/utils';
 import {
@@ -399,6 +404,42 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     }, queueItem);
   }, [actor, runSync]);
 
+  const restoreNemrBalance = useCallback(async (plan: NemrBalanceRestorePlan) => {
+    const txs = plan.add.map(t => stampActor(normalizeSyrianTransaction(t) as Transaction, actor));
+    let previous: Transaction[] = [];
+    let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
+    setState(prev => {
+      previous = prev.transactions;
+      const withoutOld = prev.transactions.filter(tx => !plan.removeIds.includes(tx.id));
+      const merged = mergeUniqueTransactions(txs, withoutOld);
+      const leadIds = collectFeeSyncLeadIds(merged, txs.map(t => t.id));
+      syncResult = mergeFeeSync(merged, leadIds);
+      return { ...prev, transactions: syncResult.transactions };
+    });
+    try {
+      await runSync(async () => {
+        const removeIds = [...new Set([...plan.removeIds, ...syncResult.removeIds])];
+        if (removeIds.length) await removeTransactions(removeIds);
+        const upsertIds = new Set(txs.map(t => t.id));
+        const feeUpsert = syncResult.upsert.filter(t => !upsertIds.has(t.id));
+        if (txs.length || feeUpsert.length) await upsertTransactions([...txs, ...feeUpsert]);
+      });
+    } catch {
+      setState(prev => ({ ...prev, transactions: previous }));
+      throw new Error('فشل استعادة الرصيد');
+    }
+    if (actor) {
+      logAudit({
+        userId: actor.userId,
+        userName: actor.displayName,
+        action: 'transaction_edit',
+        entityType: 'transaction',
+        fundId: 'nemr',
+        details: `استعادة رصيد نمر — حذف ${plan.removeIds.length} · إضافة ${txs.length}`,
+      });
+    }
+  }, [actor, runSync]);
+
   const updateTransaction = useCallback(async (id: string, patch: Partial<Transaction>) => {
     let ids: string[] = [id];
     let upsertTxs: Transaction[] = [];
@@ -506,6 +547,12 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
   const editTransactions = useCallback(async (updated: Transaction[], summary: string) => {
     const stamped = updated.map(tx => appendEditHistory(normalizeSyrianTransaction(tx) as Transaction, summary, actor));
+    const affectsNemrFund = stamped.some(
+      tx => tx.fundId === 'nemr' && (tx.ledger ?? 'fund') === 'fund',
+    );
+    const nemrBefore = affectsNemrFund
+      ? computeBalances(stateRef.current.transactions, 'nemr')
+      : null;
     let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
     setState(prev => {
       const merged = prev.transactions.map(tx => {
@@ -525,6 +572,16 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       await upsertTransactions(toUpsert);
     }, queueItem);
     if (actor) {
+      let details = summary;
+      if (nemrBefore) {
+        const nemrAfter = computeBalances(syncResult.transactions, 'nemr');
+        details = `${summary} | ${formatNemrAuditBalanceDetails(
+          nemrBefore.USD.balance,
+          nemrBefore.EUR.balance,
+          nemrAfter.USD.balance,
+          nemrAfter.EUR.balance,
+        )}`;
+      }
       logAudit({
         userId: actor.userId,
         userName: actor.displayName,
@@ -532,7 +589,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         entityType: 'transaction',
         entityId: stamped[0]?.id,
         fundId: stamped[0]?.fundId,
-        details: summary,
+        details,
       });
     }
   }, [actor, runSync]);
@@ -886,13 +943,17 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     await runSync(async () => {
       const cloud = await fetchAppState();
       const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(cloud.transactions);
-      const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterNsyp);
+      const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterNsyp);
+      const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
-      const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
+      const { transactions: afterNemrRestore, removeIds: nemrRestoreRemoveIds, upsert: nemrRestoreUpsert } = repairNemrRestoreState(afterOpening);
+      const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterNemrRestore);
       const leadIds = getFeeSyncLeadIds(withBackfill);
       const feeSync = mergeFeeSync(withBackfill, leadIds);
-      if (feeSync.removeIds.length) await removeTransactions(feeSync.removeIds);
-      const toUpsert = [...repairedNsyp, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+      if (feeSync.removeIds.length || nemrRestoreRemoveIds.length) {
+        await removeTransactions([...feeSync.removeIds, ...nemrRestoreRemoveIds]);
+      }
+      const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
@@ -980,6 +1041,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     remoteNotice,
     clearRemoteNotice: () => setRemoteNotice(null),
     addTransaction,
+    restoreNemrBalance,
     updateTransaction,
     approvePendingOperations,
     deleteTransaction,

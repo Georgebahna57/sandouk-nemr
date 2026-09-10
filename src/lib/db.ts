@@ -45,8 +45,9 @@ function resolveTransactionLedger(
   rowLedger: unknown,
   decodedLedger?: TransactionLedger,
 ): TransactionLedger {
-  if (decodedLedger === 'account') return 'account';
+  // عمود ledger في قاعدة البيانات يتقدّم على الميتاداتا القديمة في الملاحظة
   if (rowLedger === 'account' || rowLedger === 'fund') return rowLedger;
+  if (decodedLedger === 'account') return 'account';
   return decodedLedger ?? 'fund';
 }
 
