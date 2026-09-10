@@ -34,16 +34,35 @@ export function transactionsWithoutNemrRestore(transactions: Transaction[]): Tra
   return transactions.filter(tx => !isNemrRestoreTransaction(tx));
 }
 
+/** حركات حتى تاريخ الإغلاق — بدون تصحيحات الاستعادة */
+export function nemrOpeningScopeTransactions(transactions: Transaction[]): Transaction[] {
+  return transactionsWithoutNemrRestore(transactions).filter(
+    tx => tx.fundId === 'nemr' && tx.date <= NEMR_REFERENCE_CLOSE_DATE,
+  );
+}
+
+/** حركات بعد تاريخ الإغلاق */
+export function nemrPostCloseTransactions(transactions: Transaction[]): Transaction[] {
+  return transactionsWithoutNemrRestore(transactions).filter(
+    tx => tx.fundId === 'nemr' && tx.date > NEMR_REFERENCE_CLOSE_DATE,
+  );
+}
+
 export interface NemrBalanceRestorePlan {
   removeIds: string[];
   add: Transaction[];
-  baseUsd: number;
-  baseEur: number;
+  /** رصيد الافتتاح (حتى 9 سبتمبر) قبل التصحيح */
+  openingUsd: number;
+  openingEur: number;
 }
 
 export interface NemrBalanceRestorePreview {
-  currentUsd: number;
-  currentEur: number;
+  /** رصيد الافتتاح حتى 9 سبتمبر */
+  openingUsd: number;
+  openingEur: number;
+  /** الرصيد الكلي الحالي (افتتاح + كل العمليات) */
+  totalUsd: number;
+  totalEur: number;
   targetUsd: number;
   targetEur: number;
   deltaUsd: number;
@@ -52,15 +71,18 @@ export interface NemrBalanceRestorePreview {
 }
 
 export function previewNemrBalanceRestore(transactions: Transaction[]): NemrBalanceRestorePreview {
-  const balances = computeBalances(transactions, 'nemr');
-  const currentUsd = balances.USD.balance;
-  const currentEur = balances.EUR.balance;
-  const deltaUsd = NEMR_REFERENCE_BALANCES.USD - currentUsd;
-  const deltaEur = NEMR_REFERENCE_BALANCES.EUR - currentEur;
+  const openingBalances = computeBalances(nemrOpeningScopeTransactions(transactions), 'nemr');
+  const totalBalances = computeBalances(transactions, 'nemr');
+  const openingUsd = openingBalances.USD.balance;
+  const openingEur = openingBalances.EUR.balance;
+  const deltaUsd = NEMR_REFERENCE_BALANCES.USD - openingUsd;
+  const deltaEur = NEMR_REFERENCE_BALANCES.EUR - openingEur;
   const plan = buildNemrBalanceRestorePlan(transactions);
   return {
-    currentUsd,
-    currentEur,
+    openingUsd,
+    openingEur,
+    totalUsd: totalBalances.USD.balance,
+    totalEur: totalBalances.EUR.balance,
     targetUsd: NEMR_REFERENCE_BALANCES.USD,
     targetEur: NEMR_REFERENCE_BALANCES.EUR,
     deltaUsd,
@@ -69,14 +91,13 @@ export function previewNemrBalanceRestore(transactions: Transaction[]): NemrBala
   };
 }
 
-/** خطة استعادة: حذف تصحيحات قديمة ثم إضافة فرق واحد من الرصيد الأساسي */
+/** خطة استعادة: تصحيح رصيد الإغلاق فقط — لا يمس عمليات ما بعد 9 سبتمبر */
 export function buildNemrBalanceRestorePlan(
   transactions: Transaction[],
   date: string = NEMR_REFERENCE_CLOSE_DATE,
 ): NemrBalanceRestorePlan {
   const removeIds = transactions.filter(isNemrRestoreTransaction).map(tx => tx.id);
-  const baseTxs = transactionsWithoutNemrRestore(transactions);
-  const baseBalances = computeBalances(baseTxs, 'nemr');
+  const openingBalances = computeBalances(nemrOpeningScopeTransactions(transactions), 'nemr');
   const lines: OpeningBalanceLine[] = [
     { currency: 'USD', amount: NEMR_REFERENCE_BALANCES.USD, side: 'ours' },
     { currency: 'EUR', amount: NEMR_REFERENCE_BALANCES.EUR, side: 'ours' },
@@ -85,14 +106,14 @@ export function buildNemrBalanceRestorePlan(
     'nemr',
     date,
     lines,
-    baseBalances,
+    openingBalances,
     NEMR_RESTORE_NOTE,
   );
   return {
     removeIds,
     add,
-    baseUsd: baseBalances.USD.balance,
-    baseEur: baseBalances.EUR.balance,
+    openingUsd: openingBalances.USD.balance,
+    openingEur: openingBalances.EUR.balance,
   };
 }
 

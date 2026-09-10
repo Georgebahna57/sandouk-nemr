@@ -126,15 +126,19 @@ export function FundDetailsModal({
 
           {nemrRef && (!canRestoreBalance || !nemrRef.needsRestore) && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs">
-              <p className="font-medium text-amber-300">مقارنة بإغلاق 9 سبتمبر 2026</p>
+              <p className="font-medium text-amber-300">رصيد الإغلاق (9 سبتمبر)</p>
               <p className="mt-1 text-slate-400">
-                دولار: فرق {formatNemrRestoreDelta('USD', nemrRef.deltaUsd)}
+                دولار: فرق افتتاح {formatNemrRestoreDelta('USD', nemrRef.deltaUsd)}
               </p>
               <p className="text-slate-400">
-                يورو: فرق {formatNemrRestoreDelta('EUR', nemrRef.deltaEur)}
+                يورو: فرق افتتاح {formatNemrRestoreDelta('EUR', nemrRef.deltaEur)}
+              </p>
+              <p className="mt-2 text-slate-500">
+                الرصيد الكلي: {formatAmount(Math.abs(nemrRef.totalUsd), 'USD')} $ ·{' '}
+                {formatAmount(Math.abs(nemrRef.totalEur), 'EUR')} €
               </p>
               {nemrRef.needsRestore && !canRestoreBalance && (
-                <p className="mt-1 text-amber-200/90">الرصيد لا يطابق المرجع — يتطلب صلاحية تعديل</p>
+                <p className="mt-1 text-amber-200/90">رصيد الافتتاح لا يطابق المرجع — يتطلب صلاحية تعديل</p>
               )}
             </div>
           )}

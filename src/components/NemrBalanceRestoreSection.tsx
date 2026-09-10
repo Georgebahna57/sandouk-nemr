@@ -68,9 +68,11 @@ export function NemrBalanceRestoreSection({
             استعادة رصيد صندوق نمر
           </p>
           <p className="text-xs text-slate-500">
-            المرجع ({NEMR_REFERENCE_LABEL}):{' '}
-            {NEMR_REFERENCE_BALANCES.USD.toLocaleString('en-US')} $ و{' '}
-            {NEMR_REFERENCE_BALANCES.EUR.toLocaleString('en-US')} € — يُسجَّل فرق التصحيح فقط
+            يصحّح رصيد {NEMR_REFERENCE_LABEL} فقط — عمليات ما بعده (مثل اليوم) لا تُمس
+          </p>
+          <p className="text-xs text-slate-500">
+            المرجع: {NEMR_REFERENCE_BALANCES.USD.toLocaleString('en-US')} $ و{' '}
+            {NEMR_REFERENCE_BALANCES.EUR.toLocaleString('en-US')} €
           </p>
         </div>
       </div>
@@ -80,26 +82,33 @@ export function NemrBalanceRestoreSection({
           <thead>
             <tr className="text-slate-500">
               <th className="py-2 pr-3 text-right font-medium">عملة</th>
-              <th className="py-2 px-2 text-right font-medium">الحالي</th>
-              <th className="py-2 px-2 text-right font-medium">المطلوب</th>
+              <th className="py-2 px-2 text-right font-medium">الافتتاح</th>
+              <th className="py-2 px-2 text-right font-medium">المرجع</th>
               <th className="py-2 pl-3 text-right font-medium">الفرق</th>
             </tr>
           </thead>
           <tbody className="text-slate-300">
             <tr className="border-t border-slate-800">
               <td className="py-2 pr-3">دولار</td>
-              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.currentUsd, 'USD')}</td>
+              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.openingUsd, 'USD')}</td>
               <td className="py-2 px-2 tabular-nums text-amber-300">{formatValueWithUnit(preview.targetUsd, 'USD')}</td>
               <td className="py-2 pl-3 tabular-nums">{formatNemrRestoreDelta('USD', preview.deltaUsd)}</td>
             </tr>
             <tr className="border-t border-slate-800">
               <td className="py-2 pr-3">يورو</td>
-              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.currentEur, 'EUR')}</td>
+              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.openingEur, 'EUR')}</td>
               <td className="py-2 px-2 tabular-nums text-amber-300">{formatValueWithUnit(preview.targetEur, 'EUR')}</td>
               <td className="py-2 pl-3 tabular-nums">{formatNemrRestoreDelta('EUR', preview.deltaEur)}</td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-2 rounded-xl border border-slate-700/80 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
+        <p className="font-medium text-slate-300">الرصيد الكلي الحالي (بعد عمليات اليوم)</p>
+        <p className="mt-1 tabular-nums">
+          {formatValueWithUnit(preview.totalUsd, 'USD')} · {formatValueWithUnit(preview.totalEur, 'EUR')}
+        </p>
       </div>
 
       {!compact && nemrRestorePlanNeeded(plan) && (

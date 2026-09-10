@@ -96,16 +96,20 @@ export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
       </div>
 
       <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-slate-300 space-y-1">
-        <p className="font-medium text-amber-200">أرصدة نمر — مقارنة بالمرجع</p>
+        <p className="font-medium text-amber-200">نمر — افتتاح 9 سبتمبر</p>
         <p>
-          دولار: {formatValueWithUnit(nemrPreview.currentUsd, 'USD')}
+          دولار: {formatValueWithUnit(nemrPreview.openingUsd, 'USD')}
           {' · '}مرجع {formatValueWithUnit(nemrPreview.targetUsd, 'USD')}
           {' · '}فرق {formatNemrRestoreDelta('USD', nemrPreview.deltaUsd)}
         </p>
         <p>
-          يورو: {formatValueWithUnit(nemrPreview.currentEur, 'EUR')}
+          يورو: {formatValueWithUnit(nemrPreview.openingEur, 'EUR')}
           {' · '}مرجع {formatValueWithUnit(nemrPreview.targetEur, 'EUR')}
           {' · '}فرق {formatNemrRestoreDelta('EUR', nemrPreview.deltaEur)}
+        </p>
+        <p className="mt-1 text-slate-500">
+          الرصيد الكلي: {formatValueWithUnit(nemrPreview.totalUsd, 'USD')}
+          {' · '}{formatValueWithUnit(nemrPreview.totalEur, 'EUR')}
         </p>
         {recentNemrEdits.length > 0 && (
           <div className="mt-2 border-t border-slate-700/60 pt-2 text-[10px] text-slate-500 space-y-1">
