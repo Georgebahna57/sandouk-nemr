@@ -13,6 +13,7 @@ import {
   upsertTransactions,
 } from '../lib/db';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
+import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
 import { saveValuationRates } from '../lib/appSettings';
 import type { AppBackup } from '../lib/backup';
 import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
@@ -299,6 +300,42 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     } catch {
       setState(prev => ({ ...prev, transactions: previous }));
       throw new Error('فشل الحفظ');
+    }
+  }, [actor, runSync]);
+
+  const restoreNemrBalance = useCallback(async (plan: NemrBalanceRestorePlan) => {
+    const txs = plan.add.map(t => stampActor(normalizeSyrianTransaction(t) as Transaction, actor));
+    let previous: Transaction[] = [];
+    let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
+    setState(prev => {
+      previous = prev.transactions;
+      const withoutOld = prev.transactions.filter(tx => !plan.removeIds.includes(tx.id));
+      const merged = mergeUniqueTransactions(txs, withoutOld);
+      const leadIds = collectFeeSyncLeadIds(merged, txs.map(t => t.id));
+      syncResult = mergeFeeSync(merged, leadIds);
+      return { ...prev, transactions: syncResult.transactions };
+    });
+    try {
+      await runSync(async () => {
+        const removeIds = [...new Set([...plan.removeIds, ...syncResult.removeIds])];
+        if (removeIds.length) await removeTransactions(removeIds);
+        const upsertIds = new Set(txs.map(t => t.id));
+        const feeUpsert = syncResult.upsert.filter(t => !upsertIds.has(t.id));
+        if (txs.length || feeUpsert.length) await upsertTransactions([...txs, ...feeUpsert]);
+      });
+    } catch {
+      setState(prev => ({ ...prev, transactions: previous }));
+      throw new Error('فشل استعادة الرصيد');
+    }
+    if (actor) {
+      logAudit({
+        userId: actor.userId,
+        userName: actor.displayName,
+        action: 'transaction_edit',
+        entityType: 'transaction',
+        fundId: 'nemr',
+        details: `استعادة رصيد نمر — حذف ${plan.removeIds.length} · إضافة ${txs.length}`,
+      });
     }
   }, [actor, runSync]);
 
@@ -852,6 +889,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     remoteNotice,
     clearRemoteNotice: () => setRemoteNotice(null),
     addTransaction,
+    restoreNemrBalance,
     updateTransaction,
     approvePendingOperations,
     deleteTransaction,

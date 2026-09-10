@@ -20,7 +20,7 @@ interface Props {
   whatsappDestinations?: string[];
   date: string;
   canRestoreBalance?: boolean;
-  onRestoreBalance?: (tx: Transaction[]) => void | Promise<void>;
+  onRestoreBalance?: (plan: import('../lib/nemrBalanceRestore').NemrBalanceRestorePlan) => void | Promise<void>;
   onClose: () => void;
 }
 

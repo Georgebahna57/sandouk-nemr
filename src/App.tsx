@@ -176,6 +176,7 @@ export default function App({ user, onLogout }: Props) {
     claimTransaction,
     releaseClaim,
     restoreBackup,
+    restoreNemrBalance,
     repairHalabData,
     importTrialBalance,
     remoteNotice,
@@ -537,6 +538,7 @@ export default function App({ user, onLogout }: Props) {
           if (backup.valuationRates) setValuationRates(backup.valuationRates);
         }}
         onAddOpeningBalance={addTransaction}
+        onRestoreNemrBalance={restoreNemrBalance}
         onRepairHalab={repairHalabData}
         onImportTrialBalance={importTrialBalance}
         importingTrialBalance={syncing}
@@ -1086,7 +1088,7 @@ export default function App({ user, onLogout }: Props) {
           whatsappDestinations={fundWhatsApp[fundId]}
           date={today}
           canRestoreBalance={isAdmin && canEdit(fundId)}
-          onRestoreBalance={addTransaction}
+          onRestoreBalance={restoreNemrBalance}
           onClose={() => setFundDetailsOpen(false)}
         />
       )}

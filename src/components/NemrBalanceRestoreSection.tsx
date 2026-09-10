@@ -1,18 +1,20 @@
 import { Loader2, RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
-  buildNemrBalanceRestoreTransactions,
+  buildNemrBalanceRestorePlan,
   formatNemrRestoreDelta,
   NEMR_REFERENCE_BALANCES,
   NEMR_REFERENCE_LABEL,
+  nemrRestorePlanNeeded,
   previewNemrBalanceRestore,
+  type NemrBalanceRestorePlan,
 } from '../lib/nemrBalanceRestore';
 import { formatValueWithUnit } from '../lib/utils';
 import type { Transaction } from '../types';
 
 interface Props {
   transactions: Transaction[];
-  onRestore: (tx: Transaction[]) => void | Promise<void>;
+  onRestore: (plan: NemrBalanceRestorePlan) => void | Promise<void>;
   /** عرض مضغوط داخل نافذة التفاصيل */
   compact?: boolean;
 }
@@ -31,22 +33,25 @@ export function NemrBalanceRestoreSection({
     [transactions],
   );
 
-  const restoreTxs = useMemo(
-    () => buildNemrBalanceRestoreTransactions(transactions),
+  const plan = useMemo(
+    () => buildNemrBalanceRestorePlan(transactions),
     [transactions],
   );
 
   async function submit() {
     setError(null);
     setSuccess(null);
-    if (!restoreTxs.length) {
+    if (!nemrRestorePlanNeeded(plan)) {
       setError('الرصيد الحالي يطابق المرجع — لا حاجة لحركة');
       return;
     }
     setBusy(true);
     try {
-      await onRestore(restoreTxs);
-      setSuccess(`تم تسجيل ${restoreTxs.length} حركة استعادة لصندوق نمر`);
+      await onRestore(plan);
+      const parts: string[] = [];
+      if (plan.removeIds.length) parts.push(`حذف ${plan.removeIds.length} تصحيح قديم`);
+      if (plan.add.length) parts.push(`إضافة ${plan.add.length} حركة`);
+      setSuccess(parts.length ? `تم: ${parts.join(' · ')}` : 'تم ضبط الرصيد');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل الاستعادة');
     } finally {
@@ -97,15 +102,21 @@ export function NemrBalanceRestoreSection({
         </table>
       </div>
 
-      {!compact && restoreTxs.length > 0 && (
+      {!compact && nemrRestorePlanNeeded(plan) && (
         <div className="mt-3 rounded-xl border border-slate-700 bg-slate-900/40 p-3 text-xs text-slate-400 space-y-1">
-          <p className="font-medium text-slate-300">سيُسجَّل:</p>
-          {restoreTxs.map(tx => (
+          <p className="font-medium text-slate-300">سيُنفَّذ:</p>
+          {plan.removeIds.length > 0 && (
+            <p>حذف {plan.removeIds.length} حركة استعادة قديمة (تصحيح مكرّر)</p>
+          )}
+          {plan.add.map(tx => (
             <p key={tx.id}>
               {tx.kind === 'receipt' ? 'وارد' : 'صادر'}{' '}
               {formatValueWithUnit(tx.amount, tx.currency)}
             </p>
           ))}
+          {plan.removeIds.length > 0 && plan.add.length === 0 && (
+            <p className="text-emerald-400/90">الرصيد الأساسي مطابق — يكفي حذف التصحيحات القديمة</p>
+          )}
         </div>
       )}
 
