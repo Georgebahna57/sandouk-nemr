@@ -90,13 +90,13 @@ export function NemrBalanceRestoreSection({
           <tbody className="text-slate-300">
             <tr className="border-t border-slate-800">
               <td className="py-2 pr-3">دولار</td>
-              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.openingUsd, 'USD')}</td>
+              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.closingUsd, 'USD')}</td>
               <td className="py-2 px-2 tabular-nums text-amber-300">{formatValueWithUnit(preview.targetUsd, 'USD')}</td>
               <td className="py-2 pl-3 tabular-nums">{formatNemrRestoreDelta('USD', preview.deltaUsd)}</td>
             </tr>
             <tr className="border-t border-slate-800">
               <td className="py-2 pr-3">يورو</td>
-              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.openingEur, 'EUR')}</td>
+              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.closingEur, 'EUR')}</td>
               <td className="py-2 px-2 tabular-nums text-amber-300">{formatValueWithUnit(preview.targetEur, 'EUR')}</td>
               <td className="py-2 pl-3 tabular-nums">{formatNemrRestoreDelta('EUR', preview.deltaEur)}</td>
             </tr>

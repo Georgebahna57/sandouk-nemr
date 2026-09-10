@@ -34,8 +34,15 @@ export function transactionsWithoutNemrRestore(transactions: Transaction[]): Tra
   return transactions.filter(tx => !isNemrRestoreTransaction(tx));
 }
 
-/** حركات حتى تاريخ الإغلاق — بدون تصحيحات الاستعادة */
-export function nemrOpeningScopeTransactions(transactions: Transaction[]): Transaction[] {
+/** كل حركات نمر حتى تاريخ الإغلاق — بما فيها تصحيح الاستعادة */
+export function nemrThroughCloseTransactions(transactions: Transaction[]): Transaction[] {
+  return transactions.filter(
+    tx => tx.fundId === 'nemr' && tx.date <= NEMR_REFERENCE_CLOSE_DATE,
+  );
+}
+
+/** حركات حتى الإغلاق بدون تصحيحات الاستعادة */
+export function nemrRawThroughCloseTransactions(transactions: Transaction[]): Transaction[] {
   return transactionsWithoutNemrRestore(transactions).filter(
     tx => tx.fundId === 'nemr' && tx.date <= NEMR_REFERENCE_CLOSE_DATE,
   );
@@ -51,16 +58,15 @@ export function nemrPostCloseTransactions(transactions: Transaction[]): Transact
 export interface NemrBalanceRestorePlan {
   removeIds: string[];
   add: Transaction[];
-  /** رصيد الافتتاح (حتى 9 سبتمبر) قبل التصحيح */
-  openingUsd: number;
-  openingEur: number;
+  closingUsd: number;
+  closingEur: number;
 }
 
 export interface NemrBalanceRestorePreview {
-  /** رصيد الافتتاح حتى 9 سبتمبر */
-  openingUsd: number;
-  openingEur: number;
-  /** الرصيد الكلي الحالي (افتتاح + كل العمليات) */
+  /** رصيد الإغلاق (حتى 9 سبتمبر، شامل تصحيح الاستعادة إن وُجد) */
+  closingUsd: number;
+  closingEur: number;
+  /** الرصيد الكلي (إغلاق + عمليات اليوم وما بعد) */
   totalUsd: number;
   totalEur: number;
   targetUsd: number;
@@ -71,33 +77,35 @@ export interface NemrBalanceRestorePreview {
 }
 
 export function previewNemrBalanceRestore(transactions: Transaction[]): NemrBalanceRestorePreview {
-  const openingBalances = computeBalances(nemrOpeningScopeTransactions(transactions), 'nemr');
+  const closingBalances = computeBalances(nemrThroughCloseTransactions(transactions), 'nemr');
   const totalBalances = computeBalances(transactions, 'nemr');
-  const openingUsd = openingBalances.USD.balance;
-  const openingEur = openingBalances.EUR.balance;
-  const deltaUsd = NEMR_REFERENCE_BALANCES.USD - openingUsd;
-  const deltaEur = NEMR_REFERENCE_BALANCES.EUR - openingEur;
-  const plan = buildNemrBalanceRestorePlan(transactions);
+  const closingUsd = closingBalances.USD.balance;
+  const closingEur = closingBalances.EUR.balance;
+  const deltaUsd = NEMR_REFERENCE_BALANCES.USD - closingUsd;
+  const deltaEur = NEMR_REFERENCE_BALANCES.EUR - closingEur;
+  const restoreCount = transactions.filter(isNemrRestoreTransaction).length;
+  const closingOk =
+    Math.abs(deltaUsd) < 1e-9 && Math.abs(deltaEur) < 1e-9;
   return {
-    openingUsd,
-    openingEur,
+    closingUsd,
+    closingEur,
     totalUsd: totalBalances.USD.balance,
     totalEur: totalBalances.EUR.balance,
     targetUsd: NEMR_REFERENCE_BALANCES.USD,
     targetEur: NEMR_REFERENCE_BALANCES.EUR,
     deltaUsd,
     deltaEur,
-    needsRestore: nemrRestorePlanNeeded(plan),
+    needsRestore: !closingOk || restoreCount > 1,
   };
 }
 
-/** خطة استعادة: تصحيح رصيد الإغلاق فقط — لا يمس عمليات ما بعد 9 سبتمبر */
+/** خطة استعادة: حذف تصحيحات قديمة ثم ضبط إغلاق 9 سبتمبر — لا يمس عمليات ما بعده */
 export function buildNemrBalanceRestorePlan(
   transactions: Transaction[],
   date: string = NEMR_REFERENCE_CLOSE_DATE,
 ): NemrBalanceRestorePlan {
   const removeIds = transactions.filter(isNemrRestoreTransaction).map(tx => tx.id);
-  const openingBalances = computeBalances(nemrOpeningScopeTransactions(transactions), 'nemr');
+  const rawClosingBalances = computeBalances(nemrRawThroughCloseTransactions(transactions), 'nemr');
   const lines: OpeningBalanceLine[] = [
     { currency: 'USD', amount: NEMR_REFERENCE_BALANCES.USD, side: 'ours' },
     { currency: 'EUR', amount: NEMR_REFERENCE_BALANCES.EUR, side: 'ours' },
@@ -106,14 +114,14 @@ export function buildNemrBalanceRestorePlan(
     'nemr',
     date,
     lines,
-    openingBalances,
+    rawClosingBalances,
     NEMR_RESTORE_NOTE,
   );
   return {
     removeIds,
     add,
-    openingUsd: openingBalances.USD.balance,
-    openingEur: openingBalances.EUR.balance,
+    closingUsd: rawClosingBalances.USD.balance,
+    closingEur: rawClosingBalances.EUR.balance,
   };
 }
 
@@ -126,6 +134,59 @@ export function buildNemrBalanceRestoreTransactions(
 
 export function nemrRestorePlanNeeded(plan: NemrBalanceRestorePlan): boolean {
   return plan.removeIds.length > 0 || plan.add.length > 0;
+}
+
+function nemrClosingMatchesReference(transactions: Transaction[]): boolean {
+  const closing = computeBalances(nemrThroughCloseTransactions(transactions), 'nemr');
+  return (
+    Math.abs(closing.USD.balance - NEMR_REFERENCE_BALANCES.USD) < 1e-9
+    && Math.abs(closing.EUR.balance - NEMR_REFERENCE_BALANCES.EUR) < 1e-9
+  );
+}
+
+/** إصلاح تلقائي: حذف تصحيحات مكررة فقط — لا يعيد إنشاء تصحيح صحيح عند كل تحميل */
+export function repairNemrRestoreState(transactions: Transaction[]): {
+  transactions: Transaction[];
+  removeIds: string[];
+  upsert: Transaction[];
+} {
+  const restoreTxs = transactions.filter(isNemrRestoreTransaction);
+  const strayRestoreIds = restoreTxs
+    .filter(tx => tx.date > NEMR_REFERENCE_CLOSE_DATE)
+    .map(tx => tx.id);
+  if (strayRestoreIds.length) {
+    return {
+      transactions: transactions.filter(tx => !strayRestoreIds.includes(tx.id)),
+      removeIds: strayRestoreIds,
+      upsert: [],
+    };
+  }
+
+  const closingOk = nemrClosingMatchesReference(transactions);
+
+  if (closingOk && restoreTxs.length <= 1) {
+    return { transactions, removeIds: [], upsert: [] };
+  }
+
+  if (closingOk && restoreTxs.length > 1) {
+    const removeIds = restoreTxs.slice(1).map(tx => tx.id);
+    return {
+      transactions: transactions.filter(tx => !removeIds.includes(tx.id)),
+      removeIds,
+      upsert: [],
+    };
+  }
+
+  const plan = buildNemrBalanceRestorePlan(transactions);
+  if (!nemrRestorePlanNeeded(plan)) {
+    return { transactions, removeIds: [], upsert: [] };
+  }
+  const without = transactions.filter(tx => !plan.removeIds.includes(tx.id));
+  return {
+    transactions: [...without, ...plan.add],
+    removeIds: plan.removeIds,
+    upsert: plan.add,
+  };
 }
 
 export function formatNemrRestoreDelta(_currency: Currency, delta: number): string {

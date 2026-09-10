@@ -14,6 +14,7 @@ import {
 } from '../lib/db';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
+import { repairNemrRestoreState } from '../lib/nemrBalanceRestore';
 import { saveValuationRates } from '../lib/appSettings';
 import type { AppBackup } from '../lib/backup';
 import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
@@ -148,16 +149,21 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
           const { transactions: afterBox, changed: repairedBox } = repairBoxFundTransactions(nsypFixed);
           const { transactions: repaired, changed: repairedHalab } = repairHalabFundTransactions(afterBox);
           const { transactions: afterOpening, changed: repairedOpening } = runAllHalabRepairs(repaired);
-          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
+          const {
+            transactions: afterNemrRestore,
+            removeIds: nemrRestoreRemoveIds,
+            upsert: nemrRestoreUpsert,
+          } = repairNemrRestoreState(afterOpening);
+          const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterNemrRestore);
           const leadIds = getFeeSyncLeadIds(withBackfill);
           const feeSync = mergeFeeSync(withBackfill, leadIds);
           const nextState = { ...cloud, transactions: feeSync.transactions };
 
-          if (repairedNsyp.length || repairedBox.length || repairedHalab.length || repairedOpening.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
-            if (feeSync.removeIds.length) {
-              await removeTransactions(feeSync.removeIds);
+          if (repairedNsyp.length || repairedBox.length || repairedHalab.length || repairedOpening.length || nemrRestoreRemoveIds.length || nemrRestoreUpsert.length || changed.length || feeSync.upsert.length || feeSync.removeIds.length) {
+            if (feeSync.removeIds.length || nemrRestoreRemoveIds.length) {
+              await removeTransactions([...feeSync.removeIds, ...nemrRestoreRemoveIds]);
             }
-            const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+            const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
             if (toUpsert.length) await upsertTransactions(toUpsert);
           }
 
@@ -806,11 +812,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterNsyp);
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
-      const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterOpening);
+      const { transactions: afterNemrRestore, removeIds: nemrRestoreRemoveIds, upsert: nemrRestoreUpsert } = repairNemrRestoreState(afterOpening);
+      const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterNemrRestore);
       const leadIds = getFeeSyncLeadIds(withBackfill);
       const feeSync = mergeFeeSync(withBackfill, leadIds);
-      if (feeSync.removeIds.length) await removeTransactions(feeSync.removeIds);
-      const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...changed, ...feeSync.upsert];
+      if (feeSync.removeIds.length || nemrRestoreRemoveIds.length) {
+        await removeTransactions([...feeSync.removeIds, ...nemrRestoreRemoveIds]);
+      }
+      const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);

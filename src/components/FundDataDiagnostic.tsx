@@ -98,12 +98,12 @@ export function FundDataDiagnostic({ appState, onRepairHalab }: Props) {
       <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-slate-300 space-y-1">
         <p className="font-medium text-amber-200">نمر — افتتاح 9 سبتمبر</p>
         <p>
-          دولار: {formatValueWithUnit(nemrPreview.openingUsd, 'USD')}
+          دولار: {formatValueWithUnit(nemrPreview.closingUsd, 'USD')}
           {' · '}مرجع {formatValueWithUnit(nemrPreview.targetUsd, 'USD')}
           {' · '}فرق {formatNemrRestoreDelta('USD', nemrPreview.deltaUsd)}
         </p>
         <p>
-          يورو: {formatValueWithUnit(nemrPreview.openingEur, 'EUR')}
+          يورو: {formatValueWithUnit(nemrPreview.closingEur, 'EUR')}
           {' · '}مرجع {formatValueWithUnit(nemrPreview.targetEur, 'EUR')}
           {' · '}فرق {formatNemrRestoreDelta('EUR', nemrPreview.deltaEur)}
         </p>
