@@ -248,6 +248,52 @@ export function repairHalabFundTransactions(transactions: Transaction[]): {
   return { transactions: next, changed };
 }
 
+function fundBatchKey(tx: Transaction): string {
+  return tx.batchId ?? tx.id;
+}
+
+function fundStoredLegsForLink(transactions: Transaction[], linkId: string): Transaction[] {
+  return transactions.filter(
+    t => t.linkId === linkId && t.ledger !== 'account',
+  );
+}
+
+/** دفعة الصندوق الأساسية لكل linkId — عند وجود دفعتين صندوق لنفس الربط */
+export function pickCanonicalFundBatchKey(
+  transactions: Transaction[],
+  linkId: string,
+): string | undefined {
+  const legs = fundStoredLegsForLink(transactions, linkId);
+  const batchKeys = [...new Set(legs.map(fundBatchKey))];
+  if (batchKeys.length <= 1) return batchKeys[0];
+
+  const scored = batchKeys.map(key => {
+    const batch = legs.filter(t => fundBatchKey(t) === key);
+    const hasFee = batch.some(t => !!(t.fee?.trim() || t.feeAmount || t.feeCurrency));
+    const createdAt = batch.map(t => t.createdAt).sort()[0] ?? '';
+    return { key, hasFee, createdAt };
+  });
+  scored.sort((a, b) => {
+    if (a.hasFee !== b.hasFee) return a.hasFee ? -1 : 1;
+    return a.createdAt.localeCompare(b.createdAt);
+  });
+  return scored[0]?.key;
+}
+
+function accountPartyForLinkedLeg(tx: Transaction): string {
+  if (tx.counterparty && isCustomerAccountName(tx.counterparty)) return tx.counterparty;
+  if (isCustomerAccountName(tx.party)) return tx.party;
+  return tx.counterparty ?? tx.party;
+}
+
+/** دفعة صندوق مكررة لنفس العملية المربوطة (عادةً حركة الحساب مخزّنة كصندوق) */
+export function isNonCanonicalLinkedFundLeg(tx: Transaction, transactions: Transaction[]): boolean {
+  if (!tx.linkId || tx.ledger === 'account') return false;
+  const canonical = pickCanonicalFundBatchKey(transactions, tx.linkId);
+  if (!canonical) return false;
+  return fundBatchKey(tx) !== canonical;
+}
+
 /** إصلاح حركات الحساب المربوطة المخزّنة كصندوق */
 export function repairMislabeledAccountLegs(transactions: Transaction[]): {
   transactions: Transaction[];
@@ -266,6 +312,32 @@ export function repairMislabeledAccountLegs(transactions: Transaction[]): {
     );
     if (!hasFundPeer) return tx;
     const fixed: Transaction = { ...tx, ledger: 'account' };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
+}
+
+/** إصلاح دفعات الحساب المكررة المخزّنة كصندوق لنفس linkId */
+export function repairDuplicateLinkedFundLegs(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const linkIds = [...new Set(transactions.map(t => t.linkId).filter(Boolean))] as string[];
+  const duplicateLinks = linkIds.filter(
+    linkId => new Set(fundStoredLegsForLink(transactions, linkId).map(fundBatchKey)).size > 1,
+  );
+  if (!duplicateLinks.length) return { transactions, changed: [] };
+
+  const next = transactions.map(tx => {
+    if (!tx.linkId || tx.ledger === 'account' || !duplicateLinks.includes(tx.linkId)) return tx;
+    if (!isNonCanonicalLinkedFundLeg(tx, transactions)) return tx;
+    const fixed: Transaction = {
+      ...tx,
+      ledger: 'account',
+      party: accountPartyForLinkedLeg(tx),
+    };
     changed.push(fixed);
     return fixed;
   });
@@ -322,6 +394,7 @@ export function filterTransactions(
   return transactions.filter(tx => {
     if (tx.fundId !== fundId) return false;
     if (tx.ledger === 'account') return false;
+    if (isNonCanonicalLinkedFundLeg(tx, transactions)) return false;
     if (isMislabeledLinkedAccountFundLeg(tx, transactions, fundId)) return false;
     const normalized = normalizeTransaction(tx);
     const ledger = normalized.ledger ?? 'fund';

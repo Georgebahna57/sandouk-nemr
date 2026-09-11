@@ -32,6 +32,7 @@ import {
   parseMentions,
   prepareCustomerFundMove,
   repairBoxFundTransactions,
+  repairDuplicateLinkedFundLegs,
   repairHalabFundTransactions,
   repairMislabeledAccountLegs,
 } from '../lib/utils';
@@ -86,6 +87,19 @@ import { supabase } from '../lib/supabase';
 import type { FundId } from '../types';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
+
+async function repairCloudDataOnLoad(cloud: AppState): Promise<AppState> {
+  const { transactions: afterMislabel, changed: mislabelChanged } = repairMislabeledAccountLegs(cloud.transactions);
+  const { transactions: afterDup, changed: dupChanged } = repairDuplicateLinkedFundLegs(afterMislabel);
+  const changedById = new Map<string, Transaction>();
+  for (const tx of [...mislabelChanged, ...dupChanged]) changedById.set(tx.id, tx);
+  const changed = [...changedById.values()];
+  if (!changed.length) {
+    return afterDup === cloud.transactions ? cloud : { ...cloud, transactions: afterDup };
+  }
+  await upsertTransactions(changed);
+  return fetchAppState();
+}
 
 type FeeSyncResult = {
   transactions: Transaction[];
@@ -223,6 +237,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
           localStorage.setItem(MIGRATED_KEY, '1');
           cloud = await fetchAppState();
         }
+
+        cloud = await repairCloudDataOnLoad(cloud);
 
         const pruned = pruneRedundantQueueItems(cloud);
         setPendingSyncCount(getQueueLength());
@@ -987,7 +1003,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       const cloud = await fetchAppState();
       const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(cloud.transactions);
       const { changed: repairedAccountLegs, transactions: afterAccountLegs } = repairMislabeledAccountLegs(afterNsyp);
-      const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterAccountLegs);
+      const { changed: repairedDupLinked, transactions: afterDupLinked } = repairDuplicateLinkedFundLegs(afterAccountLegs);
+      const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterDupLinked);
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
       const { transactions: afterNemrRestore, removeIds: nemrRestoreRemoveIds, upsert: nemrRestoreUpsert } = repairNemrRestoreState(afterOpening);
@@ -997,7 +1014,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       if (feeSync.removeIds.length || nemrRestoreRemoveIds.length) {
         await removeTransactions([...feeSync.removeIds, ...nemrRestoreRemoveIds]);
       }
-      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
