@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Plus, X } from 'lucide-react';
+import { ArrowRightLeft, Loader2, Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CURRENCIES, getFund, getValueInputLabel, isHalabFleilatFund, isWeightCurrency } from '../config';
 import { createLinkedFundTransfer, todayIso } from '../lib/utils';
@@ -20,6 +20,7 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
+  const [submitting, setSubmitting] = useState(false);
   const showHalabFields = isHalabFleilatFund(fromFundId);
   const halabDeliverySource = useMemo(() => {
     const parsed = Number(amount.replace(/,/g, '')) || 0;
@@ -38,10 +39,13 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const parsed = Number(amount.replace(/,/g, '')) || 0;
     if (!parsed || !targetFundId || targetFundId === fromFundId) return;
 
-    await onAdd(stampHalabRemittance(
+    setSubmitting(true);
+    try {
+      await onAdd(stampHalabRemittance(
       createLinkedFundTransfer(
         {
           fundId: fromFundId,
@@ -56,8 +60,11 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
       ),
       showHalabFields ? halabRemittance : undefined,
     ));
-    reset();
-    setOpen(false);
+      reset();
+      setOpen(false);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const step = isWeightCurrency(currency) ? '0.01' : '1';
@@ -147,9 +154,10 @@ export function FundTransferForm({ fromFundId, fundOptions, onAdd }: Props) {
 
       <button
         type="submit"
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-sky-600 py-2 text-sm font-semibold text-white hover:bg-sky-500"
+        disabled={submitting}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-sky-600 py-2 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-60"
       >
-        <Plus size={14} />
+        {submitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
         حفظ التحويل
       </button>
     </form>

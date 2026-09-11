@@ -1,4 +1,4 @@
-import { Plus, X } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { getFundAccountName, defaultCounterpartyForFund, isHalabFleilatFund } from '../config';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
@@ -83,6 +83,7 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
   const [sendWhatsApp, setSendWhatsApp] = useState(defaultPending);
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
   const [mirrorToHalab, setMirrorToHalab] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const showHalabFields = isHalabFleilatFund(fundId);
 
   const fundAccount = getFundAccountName(fundId);
@@ -163,6 +164,7 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
     const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
     const feeFields = feeFieldsFromParsed(parsedFee);
@@ -252,6 +254,7 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
     );
     const toSave = mirrored.length === 1 ? mirrored[0] : mirrored;
 
+    setSubmitting(true);
     try {
       await Promise.resolve(onAdd(toSave));
       if (shouldWhatsApp && whatsappMessage) {
@@ -261,6 +264,8 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
       setOpen(false);
     } catch {
       // فشل الحفظ — لا نفتح واتساب
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -433,7 +438,12 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
         <p className="text-xs text-amber-400">ما في كروبات واتساب لهالصندوق — ضبطها من الإدارة</p>
       )}
 
-      <button type="submit" className="w-full rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400">
+      <button
+        type="submit"
+        disabled={submitting}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-60"
+      >
+        {submitting && <Loader2 size={16} className="animate-spin" />}
         حفظ على حساب الصندوق
       </button>
     </form>

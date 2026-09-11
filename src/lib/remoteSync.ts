@@ -42,9 +42,27 @@ export function describeRemoteChange(txs: Transaction[]): string {
     : `${txs.length} حركات جديدة من أجهزة أخرى`;
 }
 
-export function mergeCloudState(_local: AppState, cloud: AppState): AppState {
+/** دمج السحابة مع الحركات المحلية التي لم تُرفع بعد (في الطابور) */
+export function mergeCloudState(
+  local: AppState,
+  cloud: AppState,
+  preserveTxIds?: Set<string>,
+): AppState {
+  let transactions = cloud.transactions;
+  if (preserveTxIds?.size) {
+    const cloudIds = new Set(cloud.transactions.map(t => t.id));
+    const pendingLocal = local.transactions.filter(
+      t => preserveTxIds.has(t.id) && !cloudIds.has(t.id),
+    );
+    if (pendingLocal.length) {
+      const byId = new Map<string, Transaction>();
+      for (const tx of cloud.transactions) byId.set(tx.id, tx);
+      for (const tx of pendingLocal) byId.set(tx.id, tx);
+      transactions = [...byId.values()];
+    }
+  }
   return {
-    transactions: cloud.transactions,
+    transactions,
     customers: cloud.customers,
     bills: cloud.bills,
   };

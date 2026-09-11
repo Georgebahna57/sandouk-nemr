@@ -53,6 +53,30 @@ export function peekQueue(): QueuedMutation[] {
   return readQueue();
 }
 
+/** معرّفات الحركات المعلّقة في الطابور — لعدم مسحها عند سحب السحابة */
+export function collectQueuedTransactionIds(): Set<string> {
+  const ids = new Set<string>();
+  function walk(step: QueueStep) {
+    switch (step.type) {
+      case 'upsertTransactions':
+        for (const tx of step.txs) ids.add(tx.id);
+        return;
+      case 'removeTransactions':
+        return;
+      case 'compound':
+        for (const child of step.steps) walk(child);
+        return;
+      default:
+        return;
+    }
+  }
+  for (const item of readQueue()) {
+    const { id: _id, ...step } = item;
+    walk(step as QueueStep);
+  }
+  return ids;
+}
+
 export function clearQueue(): void {
   localStorage.removeItem(OUTBOX_KEY);
 }
