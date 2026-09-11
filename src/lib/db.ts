@@ -286,22 +286,42 @@ export async function fetchDataFingerprint(): Promise<DataFingerprint> {
   };
 }
 
-export async function fetchAppState(): Promise<AppState> {
+const FETCH_PAGE_SIZE = 1000;
+
+/** جلب كل الصفوف — Supabase يحدّد 1000 صفاً افتراضياً */
+async function fetchAllRows(
+  table: 'transactions' | 'bills' | 'customers',
+  orderCol: string,
+): Promise<Record<string, unknown>[]> {
   const client = requireClient();
-  const [txRes, billsRes, customersRes] = await Promise.all([
-    client.from('transactions').select('*').order('created_at', { ascending: false }),
-    client.from('bills').select('*').order('created_at', { ascending: false }),
-    client.from('customers').select('*').order('created_at', { ascending: false }),
+  const rows: Record<string, unknown>[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await client
+      .from(table)
+      .select('*')
+      .order(orderCol, { ascending: false })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+    if (error) throw formatDbError(error);
+    if (!data?.length) break;
+    rows.push(...(data as Record<string, unknown>[]));
+    if (data.length < FETCH_PAGE_SIZE) break;
+    from += FETCH_PAGE_SIZE;
+  }
+  return rows;
+}
+
+export async function fetchAppState(): Promise<AppState> {
+  const [txRows, billRows, customerRows] = await Promise.all([
+    fetchAllRows('transactions', 'created_at'),
+    fetchAllRows('bills', 'created_at'),
+    fetchAllRows('customers', 'created_at'),
   ]);
 
-  if (txRes.error) throw formatDbError(txRes.error);
-  if (billsRes.error) throw formatDbError(billsRes.error);
-  if (customersRes.error) throw formatDbError(customersRes.error);
-
   return {
-    transactions: (txRes.data ?? []).map(mapTransaction),
-    bills: (billsRes.data ?? []).map(mapBill),
-    customers: (customersRes.data ?? []).map(mapCustomer).filter((c): c is Customer => c !== null),
+    transactions: txRows.map(mapTransaction),
+    bills: billRows.map(mapBill),
+    customers: customerRows.map(mapCustomer).filter((c): c is Customer => c !== null),
   };
 }
 
