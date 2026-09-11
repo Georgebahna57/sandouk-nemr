@@ -70,6 +70,7 @@ import {
 import { createCustomer, findCustomerForAccount } from '../lib/utils';
 import { getFund } from '../config';
 import {
+  collectQueuedTransactionIds,
   enqueue,
   flushOfflineQueue,
   getQueueLength,
@@ -150,7 +151,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     const cloud = await fetchAppState();
     const previous = stateRef.current.transactions;
     const fromOthers = findNewTransactionsFromOthers(previous, cloud.transactions, actor?.userId);
-    const nextState = mergeCloudState(stateRef.current, cloud);
+    const preserveTxIds = collectQueuedTransactionIds();
+    const nextState = mergeCloudState(stateRef.current, cloud, preserveTxIds);
     setState(nextState);
     mirrorAppState(nextState);
     try {
@@ -207,9 +209,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         if (getQueueLength() > 0) {
           setPendingSyncCount(getQueueLength());
           try {
+            flushingRef.current = true;
+            setFlushingQueue(true);
             await flushOfflineQueue(count => setPendingSyncCount(count));
           } catch {
             // متابعة التحميل — سيُعاد المحاولة لاحقاً
+          } finally {
+            flushingRef.current = false;
+            setFlushingQueue(false);
           }
         }
         let cloud = await fetchAppState();
@@ -360,6 +367,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [enabled, loading]);
 
   const runSync = useCallback(async (fn: () => Promise<void>, queueItem?: QueuedMutation) => {
+    syncingRef.current = true;
     setSyncing(true);
     setError(null);
     try {
@@ -381,6 +389,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       setError(err instanceof Error ? err.message : 'فشل الحفظ');
       throw err;
     } finally {
+      syncingRef.current = false;
       setSyncing(false);
     }
   }, [flushQueue]);

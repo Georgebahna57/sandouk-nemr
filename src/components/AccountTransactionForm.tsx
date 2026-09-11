@@ -1,4 +1,4 @@
-import { Plus, X } from 'lucide-react';
+import { Loader2, Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { getFund, isHalabFleilatFund } from '../config';
 import {
@@ -64,6 +64,7 @@ export function AccountTransactionForm({
   const [extraFeeEditor, setExtraFeeEditor] = useState<FeeEditorValue>(defaultFeeEditorValue);
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
   const [mirrorToHalab, setMirrorToHalab] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const showHalabFields = isHalabFleilatFund(fundId);
   const showHalabMirror = showHalabFields && shouldOfferHalabMirror(fundId, accountName);
 
@@ -115,8 +116,9 @@ export function AccountTransactionForm({
     setTargetDirection(next === 'in' ? 'out' : 'in');
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
     const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
     const feeFields = feeFieldsFromParsed(parsedFee);
@@ -203,9 +205,14 @@ export function AccountTransactionForm({
       Array.isArray(withRemittance) ? withRemittance : [withRemittance],
       mirrorToHalab && showHalabMirror && transferMode !== 'account',
     );
-    onAdd(mirrored.length === 1 ? mirrored[0] : mirrored);
-    reset();
-    setOpen(false);
+    setSubmitting(true);
+    try {
+      await Promise.resolve(onAdd(mirrored.length === 1 ? mirrored[0] : mirrored));
+      reset();
+      setOpen(false);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const targetFund = getFund(targetFundId);
@@ -443,7 +450,12 @@ export function AccountTransactionForm({
         </div>
       )}
 
-      <button type="submit" className="w-full rounded-lg bg-amber-500 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-400">
+      <button
+        type="submit"
+        disabled={submitting}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-60"
+      >
+        {submitting && <Loader2 size={14} className="animate-spin" />}
         {submitLabel}
       </button>
     </form>
