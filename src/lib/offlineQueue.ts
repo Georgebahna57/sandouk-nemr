@@ -81,6 +81,73 @@ export function clearQueue(): void {
   localStorage.removeItem(OUTBOX_KEY);
 }
 
+function isStepRedundant(
+  step: QueueStep,
+  cloudTxIds: Set<string>,
+  cloudBillIds: Set<string>,
+  cloudCustomerIds: Set<string>,
+): boolean {
+  switch (step.type) {
+    case 'upsertTransactions':
+      return step.txs.length > 0 && step.txs.every(tx => cloudTxIds.has(tx.id));
+    case 'removeTransactions':
+      return step.ids.length > 0 && step.ids.every(id => !cloudTxIds.has(id));
+    case 'upsertBill':
+      return cloudBillIds.has(step.bill.id);
+    case 'removeBill':
+      return !cloudBillIds.has(step.id);
+    case 'upsertCustomer':
+      return cloudCustomerIds.has(step.customer.id);
+    case 'removeCustomer':
+      return !cloudCustomerIds.has(step.id);
+    case 'patchTransactions':
+      return false;
+    case 'compound': {
+      const kept = step.steps.filter(
+        child => !isStepRedundant(child, cloudTxIds, cloudBillIds, cloudCustomerIds),
+      );
+      return kept.length === 0;
+    }
+    default:
+      return false;
+  }
+}
+
+function pruneStep(
+  step: QueueStep,
+  cloudTxIds: Set<string>,
+  cloudBillIds: Set<string>,
+  cloudCustomerIds: Set<string>,
+): QueueStep | null {
+  if (isStepRedundant(step, cloudTxIds, cloudBillIds, cloudCustomerIds)) return null;
+  if (step.type !== 'compound') return step;
+  const steps = step.steps
+    .map(child => pruneStep(child, cloudTxIds, cloudBillIds, cloudCustomerIds))
+    .filter((child): child is QueueStep => child !== null);
+  return steps.length ? { type: 'compound', steps } : null;
+}
+
+/** إزالة عناصر الطابور المُطبَّقة مسبقاً في السحابة — يمنع إعادة رفعها عند كل تحديث */
+export function pruneRedundantQueueItems(cloud: {
+  transactions: Transaction[];
+  bills: Bill[];
+  customers: Customer[];
+}): number {
+  const cloudTxIds = new Set(cloud.transactions.map(t => t.id));
+  const cloudBillIds = new Set(cloud.bills.map(b => b.id));
+  const cloudCustomerIds = new Set(cloud.customers.map(c => c.id));
+  const queue = readQueue();
+  const before = queue.length;
+  const next: QueuedMutation[] = [];
+  for (const item of queue) {
+    const { id, ...step } = item;
+    const pruned = pruneStep(step as QueueStep, cloudTxIds, cloudBillIds, cloudCustomerIds);
+    if (pruned) next.push({ id, ...pruned } as QueuedMutation);
+  }
+  if (next.length !== before) writeQueue(next);
+  return before - next.length;
+}
+
 export function makeQueueItem(steps: QueueStep | QueueStep[]): QueuedMutation {
   const id = crypto.randomUUID();
   const list = Array.isArray(steps) ? steps : [steps];

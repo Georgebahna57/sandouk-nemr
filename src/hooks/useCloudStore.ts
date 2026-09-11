@@ -76,6 +76,7 @@ import {
   getQueueLength,
   isRetryableError,
   makeQueueItem,
+  pruneRedundantQueueItems,
   type QueueStep,
   type QueuedMutation,
 } from '../lib/offlineQueue';
@@ -144,11 +145,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   const fingerprintRef = useRef<string | null>(null);
   const lastPollAtRef = useRef(0);
   const readyAtRef = useRef(0);
+  const initCompleteRef = useRef(false);
   stateRef.current = state;
   syncingRef.current = syncing;
 
   const pullFromCloud = useCallback(async (opts?: { notifyOthers?: boolean }) => {
     const cloud = await fetchAppState();
+    pruneRedundantQueueItems(cloud);
+    setPendingSyncCount(getQueueLength());
     const previous = stateRef.current.transactions;
     const fromOthers = findNewTransactionsFromOthers(previous, cloud.transactions, actor?.userId);
     const preserveTxIds = collectQueuedTransactionIds();
@@ -202,23 +206,11 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     let cancelled = false;
 
     async function init() {
+      initCompleteRef.current = false;
       setLoading(true);
       setError(null);
       try {
         if (supabase) await ensureSupabaseSession(supabase);
-        if (getQueueLength() > 0) {
-          setPendingSyncCount(getQueueLength());
-          try {
-            flushingRef.current = true;
-            setFlushingQueue(true);
-            await flushOfflineQueue(count => setPendingSyncCount(count));
-          } catch {
-            // متابعة التحميل — سيُعاد المحاولة لاحقاً
-          } finally {
-            flushingRef.current = false;
-            setFlushingQueue(false);
-          }
-        }
         let cloud = await fetchAppState();
         const local = loadState();
         const hasLocal = local.transactions.length + local.bills.length + local.customers.length > 0;
@@ -229,6 +221,27 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
           await importAppState(local);
           localStorage.setItem(MIGRATED_KEY, '1');
           cloud = await fetchAppState();
+        }
+
+        const pruned = pruneRedundantQueueItems(cloud);
+        setPendingSyncCount(getQueueLength());
+
+        if (getQueueLength() > 0) {
+          try {
+            flushingRef.current = true;
+            setFlushingQueue(true);
+            await flushOfflineQueue(count => setPendingSyncCount(count));
+            cloud = await fetchAppState();
+            pruneRedundantQueueItems(cloud);
+            setPendingSyncCount(getQueueLength());
+          } catch {
+            // متابعة التحميل — سيُعاد المحاولة لاحقاً
+          } finally {
+            flushingRef.current = false;
+            setFlushingQueue(false);
+          }
+        } else if (pruned > 0) {
+          setPendingSyncCount(0);
         }
 
         if (!cancelled) {
@@ -245,6 +258,20 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         }
       } catch (err) {
         if (!cancelled) {
+          if (navigator.onLine) {
+            try {
+              const cloud = await fetchAppState();
+              pruneRedundantQueueItems(cloud);
+              setState(cloud);
+              mirrorAppState(cloud);
+              setPendingSyncCount(getQueueLength());
+              setError(null);
+              readyAtRef.current = Date.now();
+              return;
+            } catch {
+              // متابعة للنسخة المحلية
+            }
+          }
           const recovered = recoverFromLocalMirror();
           if (recovered) {
             setState(recovered.state);
@@ -255,7 +282,10 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
           }
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          initCompleteRef.current = true;
+          setLoading(false);
+        }
       }
     }
 
@@ -264,7 +294,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled || loading) return;
+    if (!enabled || loading || !initCompleteRef.current) return;
     if (getQueueLength() > 0) {
       setPendingSyncCount(getQueueLength());
       void flushQueue();
@@ -327,16 +357,19 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [enabled, loading, pullFromCloud]);
 
   const syncNow = useCallback(async () => {
+    syncingRef.current = true;
     setSyncing(true);
     setError(null);
     try {
       if (supabase) await ensureSupabaseSession(supabase);
+      pruneRedundantQueueItems(stateRef.current);
       await flushQueue();
       await pullFromCloud({ notifyOthers: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل المزامنة');
       throw err;
     } finally {
+      syncingRef.current = false;
       setSyncing(false);
     }
   }, [flushQueue, pullFromCloud]);
