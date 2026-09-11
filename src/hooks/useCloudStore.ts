@@ -33,6 +33,7 @@ import {
   prepareCustomerFundMove,
   repairBoxFundTransactions,
   repairHalabFundTransactions,
+  repairMislabeledAccountLegs,
 } from '../lib/utils';
 import {
   collectFeeSyncLeadIds,
@@ -985,7 +986,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     await runSync(async () => {
       const cloud = await fetchAppState();
       const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(cloud.transactions);
-      const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterNsyp);
+      const { changed: repairedAccountLegs, transactions: afterAccountLegs } = repairMislabeledAccountLegs(afterNsyp);
+      const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterAccountLegs);
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
       const { transactions: afterNemrRestore, removeIds: nemrRestoreRemoveIds, upsert: nemrRestoreUpsert } = repairNemrRestoreState(afterOpening);
@@ -995,7 +997,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       if (feeSync.removeIds.length || nemrRestoreRemoveIds.length) {
         await removeTransactions([...feeSync.removeIds, ...nemrRestoreRemoveIds]);
       }
-      const toUpsert = [...repairedNsyp, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
