@@ -12,6 +12,7 @@ import {
   formatDateAr,
   formatValueWithUnit,
   getOrderedDateNote,
+  filterTransactions,
   groupTransactionsForDisplay,
   todayIso,
 } from './utils';
@@ -135,12 +136,11 @@ export type DailyOperationRow = {
   lines: { text: string; tone: 'positive' | 'negative' }[];
 };
 
-function fundLedgerTransactions(transactions: Transaction[]): Transaction[] {
-  return transactions.filter(tx => (tx.ledger ?? 'fund') === 'fund');
-}
-
-export function getDailyOperationRows(transactions: Transaction[]): DailyOperationRow[] {
-  return groupTransactionsForDisplay(fundLedgerTransactions(transactions)).map(item => {
+export function getDailyOperationRows(
+  transactions: Transaction[],
+  fundId: FundId,
+): DailyOperationRow[] {
+  return groupTransactionsForDisplay(filterTransactions(transactions, fundId)).map(item => {
     const txs = item.kind === 'batch' ? item.transactions : [item.transaction];
     const lead = txs[0];
     const description = item.kind === 'batch'
@@ -180,8 +180,8 @@ export function getBalanceShareMeta(payload: BalanceSharePayload) {
   const fund = getFund(payload.fundId);
   const date = formatDateAr(payload.date ?? todayIso());
   if (payload.kind === 'fund') {
-    const operations = getDailyOperationRows(payload.dailyTransactions ?? []);
-    const pendingOperations = getDailyOperationRows(payload.pendingTransactions ?? []);
+    const operations = getDailyOperationRows(payload.dailyTransactions ?? [], payload.fundId);
+    const pendingOperations = getDailyOperationRows(payload.pendingTransactions ?? [], payload.fundId);
     return {
       title: `رصيد ${fund.name}`,
       subtitle: date,

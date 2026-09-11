@@ -248,6 +248,30 @@ export function repairHalabFundTransactions(transactions: Transaction[]): {
   return { transactions: next, changed };
 }
 
+/** إصلاح حركات الحساب المربوطة المخزّنة كصندوق */
+export function repairMislabeledAccountLegs(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (tx.ledger === 'account' || !tx.linkId) return tx;
+    if (isFundPartyForLedger(tx.party, tx.fundId)) return tx;
+    if (!isCustomerAccountName(tx.party)) return tx;
+    const hasFundPeer = transactions.some(
+      t => t.linkId === tx.linkId
+        && t.id !== tx.id
+        && (t.ledger ?? 'fund') !== 'account'
+        && isFundPartyForLedger(t.party, t.fundId),
+    );
+    if (!hasFundPeer) return tx;
+    const fixed: Transaction = { ...tx, ledger: 'account' };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
+}
+
 /** إصلاح حركات الصناديق النقدية المخزّنة بحساب الزبون بدل حساب الصندوق */
 export function repairBoxFundTransactions(transactions: Transaction[]): {
   transactions: Transaction[];
@@ -271,6 +295,25 @@ export function repairBoxFundTransactions(transactions: Transaction[]): {
   return { transactions: next, changed };
 }
 
+/** حركة حساب مربوطة ظهرت خطأً ضمن عرض الصندوق (party = زبون) */
+export function isMislabeledLinkedAccountFundLeg(
+  tx: Transaction,
+  transactions: Transaction[],
+  fundId: FundId,
+): boolean {
+  if (tx.ledger === 'account') return false;
+  if (!tx.linkId) return false;
+  if (isFundPartyForLedger(tx.party, fundId)) return false;
+  if (!isCustomerAccountName(tx.party)) return false;
+  return transactions.some(t => t.linkId === tx.linkId && t.id !== tx.id);
+}
+
+export function dedupeTransactionsById(transactions: Transaction[]): Transaction[] {
+  const byId = new Map<string, Transaction>();
+  for (const tx of transactions) byId.set(tx.id, tx);
+  return [...byId.values()];
+}
+
 export function filterTransactions(
   transactions: Transaction[],
   fundId: FundId,
@@ -278,6 +321,8 @@ export function filterTransactions(
 ): Transaction[] {
   return transactions.filter(tx => {
     if (tx.fundId !== fundId) return false;
+    if (tx.ledger === 'account') return false;
+    if (isMislabeledLinkedAccountFundLeg(tx, transactions, fundId)) return false;
     const normalized = normalizeTransaction(tx);
     const ledger = normalized.ledger ?? 'fund';
     if (opts?.ledger && ledger !== opts.ledger) return false;
@@ -1047,17 +1092,23 @@ export function getOperationGroupIds(transactions: Transaction[], id: string): s
   const target = transactions.find(tx => tx.id === id);
   if (!target) return [id];
 
-  if (target.linkId) {
-    const linked = transactions.filter(tx => tx.linkId === target.linkId).map(tx => tx.id);
-    if (linked.length) return linked;
-  }
+  const ids = new Set<string>();
 
   if (target.batchId) {
-    const batched = transactions.filter(tx => tx.batchId === target.batchId).map(tx => tx.id);
-    if (batched.length) return batched;
+    for (const tx of transactions) {
+      if (tx.batchId === target.batchId) ids.add(tx.id);
+    }
+  } else {
+    ids.add(target.id);
   }
 
-  return [id];
+  if (target.linkId) {
+    for (const tx of transactions) {
+      if (tx.linkId === target.linkId && tx.ledger === 'account') ids.add(tx.id);
+    }
+  }
+
+  return [...ids];
 }
 
 function collectOrphanFeesForAccountDelete(

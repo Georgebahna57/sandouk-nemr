@@ -4,7 +4,7 @@ import type { DataFingerprint } from './remoteSync';
 import { formatDbError } from './dbErrors';
 import { decodeNoteMeta, encodeNoteMeta } from './txMeta';
 import { feeToDbValue, extraFeeToDbValue } from './fees';
-import { formatIntermediary, normalizeTransaction } from './utils';
+import { dedupeTransactionsById, formatIntermediary, normalizeTransaction } from './utils';
 import { decodeCustomerNote, encodeCustomerNote } from './customerMeta';
 
 function requireClient() {
@@ -319,7 +319,7 @@ export async function fetchAppState(): Promise<AppState> {
   ]);
 
   return {
-    transactions: txRows.map(mapTransaction),
+    transactions: dedupeTransactionsById(txRows.map(mapTransaction)),
     bills: billRows.map(mapBill),
     customers: customerRows.map(mapCustomer).filter((c): c is Customer => c !== null),
   };
