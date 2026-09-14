@@ -12,6 +12,7 @@ import {
   upsertCustomer,
   upsertTransactions,
 } from '../lib/db';
+import { collectAccountResetIds } from '../lib/accountReset';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
 import { repairNemrRestoreState } from '../lib/nemrBalanceRestore';
@@ -994,6 +995,20 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     }
   }, []);
 
+  const resetAllAccounts = useCallback(async () => {
+    await runSync(async () => {
+      const cloud = await fetchAppState();
+      const removeIds = collectAccountResetIds(cloud.transactions);
+      if (!removeIds.length) return;
+      savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
+      const drop = new Set(removeIds);
+      const next = { ...cloud, transactions: cloud.transactions.filter(tx => !drop.has(tx.id)) };
+      await removeTransactions(removeIds);
+      setState(next);
+      mirrorAppState(next);
+    });
+  }, [runSync]);
+
   const repairHalabData = useCallback(async () => {
     await runSync(async () => {
       const cloud = await fetchAppState();
@@ -1115,5 +1130,6 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     releaseClaim,
     restoreBackup,
     repairHalabData,
+    resetAllAccounts,
   };
 }

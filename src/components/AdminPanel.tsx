@@ -30,6 +30,7 @@ import type { FundId } from '../types';
 import { AuditLogSection } from './AuditLogSection';
 import { MessageTemplatesSection } from './MessageTemplatesSection';
 import { TrialBalanceImportSection } from './TrialBalanceImportSection';
+import { AccountResetSection } from './AccountResetSection';
 import type { TrialBalanceImportAccount } from '../lib/trialBalanceImport';
 
 interface Props {
@@ -43,6 +44,7 @@ interface Props {
   onAddOpeningBalance: (tx: Transaction[]) => void | Promise<void>;
   onRestoreNemrBalance: (plan: import('../lib/nemrBalanceRestore').NemrBalanceRestorePlan) => void | Promise<void>;
   onRepairHalab?: () => Promise<void>;
+  onResetAllAccounts?: () => Promise<void>;
   onImportTrialBalance?: (accounts: TrialBalanceImportAccount[], fundId: FundId) => Promise<void>;
   importingTrialBalance?: boolean;
 }
@@ -84,7 +86,7 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRestoreNemrBalance, onRepairHalab, onImportTrialBalance, importingTrialBalance = false }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRestoreNemrBalance, onRepairHalab, onResetAllAccounts, onImportTrialBalance, importingTrialBalance = false }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
@@ -279,6 +281,13 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
         transactions={appState.transactions}
         onRestore={onRestoreNemrBalance}
       />
+
+      {onResetAllAccounts && (
+        <AccountResetSection
+          transactions={appState.transactions}
+          onReset={onResetAllAccounts}
+        />
+      )}
 
       <BackupSection
         appState={appState}
