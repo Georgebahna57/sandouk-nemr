@@ -5,21 +5,22 @@ import {
 } from './openingBalance';
 import { computeBalances } from './utils';
 
-/** رصيد إغلاق صندوق نمر — 9 سبتمبر 2026 (مشاركة الرصيد) */
+/** رصيد إغلاق صندوق نمر — 11 سبتمبر 2026 (مشاركة الرصيد) */
 export const NEMR_REFERENCE_BALANCES: Record<'USD' | 'EUR', number> = {
-  USD: 640_790,
-  EUR: 1_773_520,
+  USD: 2_617_045,
+  EUR: 473_305,
 };
 
-export const NEMR_REFERENCE_LABEL = 'إغلاق 9 سبتمبر 2026';
+export const NEMR_REFERENCE_LABEL = 'إغلاق 11 سبتمبر 2026';
 
-export const NEMR_REFERENCE_CLOSE_DATE = '2026-09-09';
+export const NEMR_REFERENCE_CLOSE_DATE = '2026-09-11';
 
-export const NEMR_RESTORE_NOTE = 'استعادة رصيد — إغلاق 9 سبتمبر 2026';
+export const NEMR_RESTORE_NOTE = 'استعادة رصيد — إغلاق 11 سبتمبر 2026';
 
 /** ملاحظات حركات استعادة سابقة — تُحذف قبل إنشاء تصحيح جديد */
 export const NEMR_RESTORE_NOTE_MARKERS = [
   NEMR_RESTORE_NOTE,
+  'استعادة رصيد — إغلاق 9 سبتمبر 2026',
   'استعادة رصيد — قبل آخر تعديل',
 ];
 
@@ -63,7 +64,7 @@ export interface NemrBalanceRestorePlan {
 }
 
 export interface NemrBalanceRestorePreview {
-  /** رصيد الإغلاق (حتى 9 سبتمبر، شامل تصحيح الاستعادة إن وُجد) */
+  /** رصيد الإغلاق (حتى تاريخ المرجع، شامل تصحيح الاستعادة إن وُجد) */
   closingUsd: number;
   closingEur: number;
   /** الرصيد الكلي (إغلاق + عمليات اليوم وما بعد) */
@@ -99,7 +100,7 @@ export function previewNemrBalanceRestore(transactions: Transaction[]): NemrBala
   };
 }
 
-/** خطة استعادة: حذف تصحيحات قديمة ثم ضبط إغلاق 9 سبتمبر — لا يمس عمليات ما بعده */
+/** خطة استعادة: حذف تصحيحات قديمة ثم ضبط إغلاق المرجع — لا يمس عمليات ما بعده */
 export function buildNemrBalanceRestorePlan(
   transactions: Transaction[],
   date: string = NEMR_REFERENCE_CLOSE_DATE,
