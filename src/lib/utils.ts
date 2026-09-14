@@ -5,6 +5,7 @@ import { attachFeeFields, attachExtraFeeFields, parseStoredFee, isFeeAccountName
 import { accountNumbersMatch, mergeAccountSummaries } from './accountMerge';
 import { INVERSE_RATE_CURRENCIES } from './valuationRates';
 import { safeSetItem } from './safeLocalStorage';
+import { isTrialBalanceImportTransaction } from './trialBalanceImportMarkers';
 import type {
   AppState,
   Currency,
@@ -25,6 +26,15 @@ const STORAGE_KEY = 'sandouk-nemr-v1';
 
 /** أرقام إنجليزية (0–9) في كل الواجهة */
 export const NUMBER_LOCALE = 'en-US';
+
+/** اسم الحساب من حركة استيراد — حتى لو خُزّنت خطأً كصندوق */
+export function trialBalanceImportAccountName(tx: Transaction): string | undefined {
+  if (!isTrialBalanceImportTransaction(tx)) return undefined;
+  if (tx.ledger === 'account' && isCustomerAccountName(tx.party)) return tx.party.trim();
+  if (tx.counterparty && isCustomerAccountName(tx.counterparty)) return tx.counterparty.trim();
+  if (isCustomerAccountName(tx.party)) return tx.party.trim();
+  return undefined;
+}
 
 export function formatIntermediary(value?: string): string | undefined {
   const trimmed = value?.trim();
@@ -125,6 +135,18 @@ export function normalizeTransaction(tx: Transaction): Transaction {
   const base = intermediary !== tx.intermediary || withFee.fee !== tx.fee || withFee.extraFee !== tx.extraFee
     ? withFee
     : tx;
+  if (isTrialBalanceImportTransaction(base)) {
+    const accountName = trialBalanceImportAccountName(base);
+    if (accountName) {
+      return {
+        ...base,
+        ledger: 'account',
+        party: accountName,
+        counterparty: undefined,
+        linkId: undefined,
+      };
+    }
+  }
   if (base.ledger === 'account') return base;
 
   const ledger = base.ledger ?? 'fund';
@@ -361,6 +383,7 @@ export function repairBoxFundTransactions(transactions: Transaction[]): {
 } {
   const changed: Transaction[] = [];
   const next = transactions.map(tx => {
+    if (isTrialBalanceImportTransaction(tx)) return tx;
     if (isHalabFleilatFund(tx.fundId) || tx.fundId === CENTERS_FUND_ID) return tx;
     const ledger = tx.ledger ?? 'fund';
     if (ledger !== 'fund') return tx;
@@ -411,6 +434,7 @@ export function filterTransactions(
 ): Transaction[] {
   return transactions.filter(tx => {
     if (tx.fundId !== fundId) return false;
+    if (isTrialBalanceImportTransaction(tx)) return false;
     if (tx.ledger === 'account') return false;
     if (isNonCanonicalLinkedFundLeg(tx, transactions)) return false;
     if (isMislabeledLinkedAccountFundLeg(tx, transactions, fundId)) return false;
@@ -536,6 +560,9 @@ export function transactionAffectsAccountView(
   _allTransactions?: Transaction[],
 ): boolean {
   if (tx.fundId !== fundId) return false;
+  if (isTrialBalanceImportTransaction(tx)) {
+    return trialBalanceImportAccountName(tx) === accountName;
+  }
   if (isHalabLinkedAccountName(accountName) && isHalabFleilatFund(fundId)) {
     const ledger = tx.ledger ?? 'fund';
     return ledger === 'fund' && isHalabFundPartyName(tx.party);

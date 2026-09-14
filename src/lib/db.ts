@@ -6,6 +6,7 @@ import { decodeNoteMeta, encodeNoteMeta } from './txMeta';
 import { feeToDbValue, extraFeeToDbValue } from './fees';
 import { dedupeTransactionsById, formatIntermediary, normalizeTransaction } from './utils';
 import { decodeCustomerNote, encodeCustomerNote } from './customerMeta';
+import { isTrialBalanceImportNote } from './trialBalanceImportMarkers';
 
 function requireClient() {
   if (!supabase) throw new Error('Supabase غير مُعدّ');
@@ -44,10 +45,12 @@ function parseComments(raw: unknown): TransactionComment[] | undefined {
 function resolveTransactionLedger(
   rowLedger: unknown,
   decodedLedger?: TransactionLedger,
+  userNote?: string,
 ): TransactionLedger {
   // عمود ledger في قاعدة البيانات يتقدّم على الميتاداتا القديمة في الملاحظة
   if (rowLedger === 'account' || rowLedger === 'fund') return rowLedger;
   if (decodedLedger === 'account') return 'account';
+  if (isTrialBalanceImportNote(userNote)) return 'account';
   return decodedLedger ?? 'fund';
 }
 
@@ -58,7 +61,7 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
   return normalizeTransaction({
     id: row.id as string,
     fundId: row.fund_id as Transaction['fundId'],
-    ledger: resolveTransactionLedger(row.ledger, decoded.ledger),
+    ledger: resolveTransactionLedger(row.ledger, decoded.ledger, decoded.userNote),
     date: row.date as string,
     currency: row.currency as Transaction['currency'],
     kind: row.kind as Transaction['kind'],

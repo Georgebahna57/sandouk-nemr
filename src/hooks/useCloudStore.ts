@@ -72,6 +72,7 @@ import {
   buildAllImportBalanceSyncTransactions,
   filterImportableTrialBalanceAccounts,
   isTrialBalanceImportTransaction,
+  repairMislabeledTrialBalanceImportTransactions,
   resolveTrialBalanceImportFundId,
   type TrialBalanceImportAccount,
   type TrialBalanceImportResult,
@@ -83,6 +84,7 @@ import {
   findCustomerByAccountNumber,
   findCustomerForAccount,
   isAccountInFund,
+  trialBalanceImportAccountName,
 } from '../lib/utils';
 import { BOX_FUNDS, getFund } from '../config';
 import {
@@ -104,7 +106,8 @@ const MIGRATED_KEY = 'sandouk-cloud-migrated';
 
 /** إصلاح ledger في الذاكرة فقط — لا يكتب على السحابة ولا يغيّر الرصيد بين التحديثات */
 function applyLinkedFundLegStabilization(cloud: AppState): AppState {
-  const { transactions: afterMislabel } = repairMislabeledAccountLegs(cloud.transactions);
+  const { transactions: afterImport } = repairMislabeledTrialBalanceImportTransactions(cloud.transactions);
+  const { transactions: afterMislabel } = repairMislabeledAccountLegs(afterImport);
   const { transactions: afterDup } = repairDuplicateLinkedFundLegs(afterMislabel);
   const { transactions: afterLink } = backfillMissingLinkIds(afterDup);
   if (afterLink === cloud.transactions) return cloud;
@@ -1065,7 +1068,9 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   const repairHalabData = useCallback(async () => {
     await runSync(async () => {
       const cloud = await fetchAppState();
-      const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(cloud.transactions);
+      const { changed: repairedImport, transactions: afterImport } =
+        repairMislabeledTrialBalanceImportTransactions(cloud.transactions);
+      const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(afterImport);
       const { changed: repairedAccountLegs, transactions: afterAccountLegs } = repairMislabeledAccountLegs(afterNsyp);
       const { changed: repairedDupLinked, transactions: afterDupLinked } = repairDuplicateLinkedFundLegs(afterAccountLegs);
       const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterDupLinked);
@@ -1078,7 +1083,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       if (feeSync.removeIds.length) {
         await removeTransactions(feeSync.removeIds);
       }
-      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedImport, ...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
@@ -1135,12 +1140,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
     savePreDestructiveSnapshot(stateRef.current, 'pre-import');
 
-    const deleteIds = stateRef.current.transactions
+    const { changed: repairedImport, transactions: repairedTransactions } =
+      repairMislabeledTrialBalanceImportTransactions(stateRef.current.transactions);
+
+    const deleteIds = repairedTransactions
       .filter(t =>
         t.fundId === fundId
-        && t.ledger === 'account'
         && isTrialBalanceImportTransaction(t)
-        && accountNames.includes((t.party ?? '').trim()),
+        && accountNames.includes((trialBalanceImportAccountName(t) ?? '').trim()),
       )
       .map(t => t.id);
 
@@ -1177,7 +1184,10 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       }
     }
 
-    const withoutOldImport = stateRef.current.transactions.filter(t => !deleteIds.includes(t.id));
+    const baseTransactions = repairedImport.length
+      ? mergeUniqueTransactions(repairedImport, stateRef.current.transactions)
+      : stateRef.current.transactions;
+    const withoutOldImport = baseTransactions.filter(t => !deleteIds.includes(t.id));
     const importDate = '2026-09-14';
     const importTxs = buildAllImportBalanceSyncTransactions(
       resolvedAccounts,
@@ -1188,7 +1198,10 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     assertAccountOnlyImportTransactions(importTxs);
 
     setState(prev => {
-      const filteredTx = prev.transactions.filter(t => !deleteIds.includes(t.id));
+      const withRepair = repairedImport.length
+        ? mergeUniqueTransactions(repairedImport, prev.transactions)
+        : prev.transactions;
+      const filteredTx = withRepair.filter(t => !deleteIds.includes(t.id));
       const mergedCustomers = [...prev.customers];
       for (const c of newCustomers) mergedCustomers.unshift(c);
       for (const u of customerUpdates) {
@@ -1203,11 +1216,13 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     });
 
     const importSteps: QueueStep[] = [];
+    if (repairedImport.length) importSteps.push({ type: 'upsertTransactions', txs: repairedImport });
     if (deleteIds.length) importSteps.push({ type: 'removeTransactions', ids: deleteIds });
     for (const c of newCustomers) importSteps.push({ type: 'upsertCustomer', customer: c });
     for (const u of customerUpdates) importSteps.push({ type: 'upsertCustomer', customer: u });
     if (importTxs.length) importSteps.push({ type: 'upsertTransactions', txs: importTxs });
     await runSync(async () => {
+      if (repairedImport.length) await upsertTransactions(repairedImport);
       if (deleteIds.length) await removeTransactions(deleteIds);
       for (const c of newCustomers) await upsertCustomer(c);
       for (const u of customerUpdates) await upsertCustomer(u);

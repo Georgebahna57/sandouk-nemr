@@ -6,10 +6,19 @@ import {
   getCustomersLedgerFundId,
 } from './accountBranch';
 import { isFeeAccountName } from './fees';
-import { computeAccountBalances, createAccountTransaction, todayIso } from './utils';
+import {
+  computeAccountBalances,
+  createAccountTransaction,
+  todayIso,
+  trialBalanceImportAccountName,
+} from './utils';
+import {
+  TRIAL_BALANCE_IMPORT_NOTE,
+  TRIAL_BALANCE_OPENING_NOTE,
+  isTrialBalanceImportTransaction,
+} from './trialBalanceImportMarkers';
 
-export const TRIAL_BALANCE_IMPORT_NOTE = 'استيراد ميزان مراجعة';
-export const TRIAL_BALANCE_OPENING_NOTE = 'رصيد مرحّل - استيراد';
+export { TRIAL_BALANCE_IMPORT_NOTE, TRIAL_BALANCE_OPENING_NOTE, isTrialBalanceImportTransaction };
 
 export interface TrialBalanceCurrencyRow {
   debit: number;
@@ -276,9 +285,28 @@ export function buildAllImportBalanceSyncTransactions(
   return all;
 }
 
-export function isTrialBalanceImportTransaction(tx: Transaction): boolean {
-  const note = tx.note ?? '';
-  return note.includes(TRIAL_BALANCE_IMPORT_NOTE) || note.includes(TRIAL_BALANCE_OPENING_NOTE);
+/** يصلّح حركات الاستيراد المخزّنة كصندوق — ledger=account و party=الزبون */
+export function repairMislabeledTrialBalanceImportTransactions(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (!isTrialBalanceImportTransaction(tx)) return tx;
+    const accountName = trialBalanceImportAccountName(tx);
+    if (!accountName) return tx;
+    if (tx.ledger === 'account' && tx.party === accountName && !tx.linkId) return tx;
+    const fixed: Transaction = {
+      ...tx,
+      ledger: 'account',
+      party: accountName,
+      counterparty: undefined,
+      linkId: undefined,
+    };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
 }
 
 /** يقرأ ملف Excel ويُرجع الحسابات المدمجة */
