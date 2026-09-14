@@ -317,20 +317,15 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
       {isExchange ? (
         <>
           <ExchangeFields values={exchangeFields} onChange={setExchangeFields} />
-          <input type="text" placeholder="ملاحظة طرف (اختياري)" value={counterparty} onChange={e => setCounterparty(e.target.value)}
-            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" list="counterparty-names" />
-          {counterpartyNames.length > 0 && (
-            <select
-              value={matchedAccount ?? ''}
-              onChange={e => setCounterparty(e.target.value)}
-              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-            >
-              <option value="">اختر حساب موجود...</option>
-              {counterpartyNames.map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          )}
+          <input
+            type="text"
+            placeholder={mustLinkAccount ? 'اكتب أو اختر اسم الحساب' : 'ملاحظة طرف (اختياري)'}
+            value={counterparty}
+            onChange={e => setCounterparty(e.target.value)}
+            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+            list={counterpartyNames.length > 0 ? 'counterparty-names' : undefined}
+            required={mustLinkAccount}
+          />
           {mustLinkAccount && (
             <p className="text-xs text-emerald-300/80">
               العملية بين {fundAccount} والحساب الذي تختاره
@@ -358,28 +353,20 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
           <AmountLinesEditor lines={lines} onChange={setLines} />
           {mustLinkAccount && (
             <p className="text-xs text-emerald-300/80">
-              العملية بين {fundAccount} والحساب الذي تختاره من القائمة
+              العملية بين {fundAccount} والحساب الذي تختاره
             </p>
           )}
-          {counterpartyNames.length > 0 && (
-            <select
-              value={matchedAccount ?? ''}
-              onChange={e => setCounterparty(e.target.value)}
-              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-              required={mustLinkAccount}
-            >
-              <option value="">{mustLinkAccount ? '— اختر الحساب —' : 'اختر حساب موجود...'}</option>
-              {counterpartyNames.map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          )}
-          {!mustLinkAccount && (
-            <input type="text" placeholder="الطرف / الحساب (أو اكتب اسم جديد)" value={counterparty} onChange={e => setCounterparty(e.target.value)}
-              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" list="counterparty-names" />
-          )}
-          {mustLinkAccount && !matchedAccount && (
-            <p className="text-xs text-amber-400">يجب اختيار حساب من القائمة</p>
+          <input
+            type="text"
+            placeholder={mustLinkAccount ? 'اكتب أو اختر اسم الحساب' : 'الطرف / الحساب (أو اكتب اسم جديد)'}
+            value={counterparty}
+            onChange={e => setCounterparty(e.target.value)}
+            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+            list={counterpartyNames.length > 0 ? 'counterparty-names' : undefined}
+            required={mustLinkAccount}
+          />
+          {mustLinkAccount && counterpartyTrimmed && !matchedAccount && (
+            <p className="text-xs text-amber-400">لم يُعثر على حساب بهذا الاسم — اختر من الاقتراحات</p>
           )}
           {canLink && (
             <div className="space-y-2">
