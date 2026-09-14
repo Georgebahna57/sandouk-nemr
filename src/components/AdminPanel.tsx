@@ -7,6 +7,7 @@ import { ValuationRatesEditor } from './ValuationRatesEditor';
 import { BackupSection } from './BackupSection';
 import { FundDataDiagnostic } from './FundDataDiagnostic';
 import { NemrBalanceRestoreSection } from './NemrBalanceRestoreSection';
+import { previewNemrBalanceRestore } from '../lib/nemrBalanceRestore';
 import { OpeningBalanceSection } from './OpeningBalanceSection';
 import type { ValuationRates } from '../lib/valuationRates';
 import type { AppBackup } from '../lib/backup';
@@ -276,10 +277,12 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
 
       <FundDataDiagnostic appState={appState} onRepairHalab={onRepairHalab} />
 
-      <NemrBalanceRestoreSection
-        transactions={appState.transactions}
-        onRestore={onRestoreNemrBalance}
-      />
+      {previewNemrBalanceRestore(appState.transactions).needsRestore && (
+        <NemrBalanceRestoreSection
+          transactions={appState.transactions}
+          onRestore={onRestoreNemrBalance}
+        />
+      )}
 
       {onResetAllAccounts && (
         <AccountResetSection

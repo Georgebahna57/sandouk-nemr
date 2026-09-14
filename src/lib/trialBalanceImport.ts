@@ -1,5 +1,5 @@
 import type { Currency, FundId, Transaction } from '../types';
-import { createAccountTransaction, todayIso } from './utils';
+import { computeAccountBalances, createAccountTransaction, todayIso } from './utils';
 
 export const TRIAL_BALANCE_IMPORT_NOTE = 'استيراد ميزان مراجعة';
 export const TRIAL_BALANCE_OPENING_NOTE = 'رصيد مرحّل - استيراد';
@@ -175,6 +175,55 @@ export function buildAllImportTransactions(
     }
   }
   return all;
+}
+
+/** حركة واحدة لضبط الرصيد على المطلوب — بدون مسح الحركات اليدوية */
+export function buildBalanceSyncTransaction(
+  fundId: FundId,
+  accountName: string,
+  currency: Currency,
+  targetBalance: number,
+  currentBalance: number,
+  date = todayIso(),
+): Transaction[] {
+  const delta = Math.round((targetBalance - currentBalance) * 100) / 100;
+  if (Math.abs(delta) < 1e-9) return [];
+  const base = {
+    fundId,
+    party: accountName,
+    currency,
+    date,
+    status: 'posted' as const,
+    note: TRIAL_BALANCE_OPENING_NOTE,
+  };
+  if (delta > 0) {
+    return [createAccountTransaction({ ...base, kind: 'receipt', amount: delta })];
+  }
+  return [createAccountTransaction({ ...base, kind: 'payment', amount: Math.abs(delta) })];
+}
+
+/** يضبط أرصدة الحسابات على الملف — يحذف فقط حركات الاستيراد السابقة */
+export function buildAllImportBalanceSyncTransactions(
+  accounts: TrialBalanceImportAccount[],
+  fundId: FundId,
+  transactions: Transaction[],
+  date = todayIso(),
+): Transaction[] {
+  const all: Transaction[] = [];
+  for (const acc of accounts) {
+    for (const [currency, row] of Object.entries(acc.currencies)) {
+      if (!row) continue;
+      const cur = currency as Currency;
+      const current = computeAccountBalances(transactions, fundId, acc.name)[cur].balance;
+      all.push(...buildBalanceSyncTransaction(fundId, acc.name, cur, row.balance, current, date));
+    }
+  }
+  return all;
+}
+
+export function isTrialBalanceImportTransaction(tx: Transaction): boolean {
+  const note = tx.note ?? '';
+  return note.includes(TRIAL_BALANCE_IMPORT_NOTE) || note.includes(TRIAL_BALANCE_OPENING_NOTE);
 }
 
 /** يقرأ ملف Excel ويُرجع الحسابات المدمجة */

@@ -15,7 +15,6 @@ import {
 import { collectAccountResetIds } from '../lib/accountReset';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
-import { repairNemrRestoreState } from '../lib/nemrBalanceRestore';
 import { saveValuationRates } from '../lib/appSettings';
 import type { AppBackup } from '../lib/backup';
 import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
@@ -66,9 +65,8 @@ import {
 import { logAudit } from '../lib/auditLog';
 import { runAllHalabRepairs } from '../lib/halabBalance';
 import {
-  buildAllImportTransactions,
-  TRIAL_BALANCE_IMPORT_NOTE,
-  TRIAL_BALANCE_OPENING_NOTE,
+  buildAllImportBalanceSyncTransactions,
+  isTrialBalanceImportTransaction,
   type TrialBalanceImportAccount,
   type TrialBalanceImportResult,
 } from '../lib/trialBalanceImport';
@@ -1023,15 +1021,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterDupLinked);
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
-      const { transactions: afterNemrRestore, removeIds: nemrRestoreRemoveIds, upsert: nemrRestoreUpsert } = repairNemrRestoreState(afterOpening);
-      const { transactions: afterLinkIds, changed: linkIdChanged } = backfillMissingLinkIds(afterNemrRestore);
+      const { transactions: afterLinkIds, changed: linkIdChanged } = backfillMissingLinkIds(afterOpening);
       const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterLinkIds);
       const leadIds = getFeeSyncLeadIds(withBackfill);
       const feeSync = mergeFeeSync(withBackfill, leadIds);
-      if (feeSync.removeIds.length || nemrRestoreRemoveIds.length) {
-        await removeTransactions([...feeSync.removeIds, ...nemrRestoreRemoveIds]);
+      if (feeSync.removeIds.length) {
+        await removeTransactions(feeSync.removeIds);
       }
-      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...linkIdChanged, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
@@ -1043,7 +1040,6 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     accounts: TrialBalanceImportAccount[],
     fundId: FundId,
   ): Promise<TrialBalanceImportResult> => {
-    const importMarkers = [TRIAL_BALANCE_IMPORT_NOTE, TRIAL_BALANCE_OPENING_NOTE];
     const createdAccounts: string[] = [];
     const matchedByNumber: TrialBalanceImportResult['matchedByNumber'] = [];
     const resolvedAccounts: TrialBalanceImportAccount[] = [];
@@ -1076,10 +1072,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       .filter(t =>
         t.fundId === fundId
         && t.ledger === 'account'
-        && (
-          importMarkers.some(m => (t.note ?? '').includes(m))
-          || accountNames.includes((t.party ?? '').trim())
-        ),
+        && isTrialBalanceImportTransaction(t)
+        && accountNames.includes((t.party ?? '').trim()),
       )
       .map(t => t.id);
 
@@ -1105,7 +1099,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       }
     }
 
-    const importTxs = buildAllImportTransactions(resolvedAccounts, fundId);
+    const withoutOldImport = stateRef.current.transactions.filter(t => !deleteIds.includes(t.id));
+    const importDate = '2026-09-14';
+    const importTxs = buildAllImportBalanceSyncTransactions(
+      resolvedAccounts,
+      fundId,
+      withoutOldImport,
+      importDate,
+    );
 
     setState(prev => {
       const filteredTx = prev.transactions.filter(t => !deleteIds.includes(t.id));
