@@ -820,7 +820,7 @@ export function buildCustomerAccountsAcrossFunds(
   for (const id of boxFundIds) {
     all.push(...buildAccountSummaries(transactions, customers, id));
   }
-  return mergeAccountSummaries(all);
+  return mergeAccountSummaries(all, customers);
 }
 
 /** @deprecated use computeAccountBalances */
