@@ -4,13 +4,16 @@ import { CENTERS_FUND_ID } from '../config';
 import {
   buildAccountsSectionSummaries,
   getCustomersLedgerFundId,
+  sumSummariesByCurrency,
 } from '../lib/accountBranch';
+import { formatAmount } from '../lib/utils';
 import { loadUiPrefs, saveNavPrefs } from '../lib/uiPrefs';
 import {
   accountNeedsReconciliation,
 } from '../lib/utils';
 import type {
   AccountBranchId,
+  Currency,
   Customer,
   CustomerSummary,
   Fund,
@@ -112,10 +115,31 @@ export function AccountsSection({
     }
   }, [branch, canAccessCenters, boxFunds.length]);
 
-  const summaries = useMemo(
-    () => buildAccountsSectionSummaries(transactions, customers, branch, boxFunds),
-    [branch, transactions, customers, boxFunds],
+  const customerSummaries = useMemo(
+    () => (boxFunds.length > 0
+      ? buildAccountsSectionSummaries(transactions, customers, 'customers', boxFunds)
+      : []),
+    [transactions, customers, boxFunds],
   );
+
+  const centersSummaries = useMemo(
+    () => (canAccessCenters
+      ? buildAccountsSectionSummaries(transactions, customers, 'centers', boxFunds)
+      : []),
+    [transactions, customers, boxFunds, canAccessCenters],
+  );
+
+  const customerTotals = useMemo(
+    () => sumSummariesByCurrency(customerSummaries),
+    [customerSummaries],
+  );
+
+  const centersTotals = useMemo(
+    () => sumSummariesByCurrency(centersSummaries),
+    [centersSummaries],
+  );
+
+  const summaries = branch === 'centers' ? centersSummaries : customerSummaries;
 
   const needsReconciliation = useMemo(
     () => summaries.filter(s => {
@@ -150,8 +174,44 @@ export function AccountsSection({
     );
   }
 
+  function renderCurrencyTotals(
+    label: string,
+    totals: { currency: Currency; total: number; symbol: string }[],
+    accent: string,
+  ) {
+    if (totals.length === 0) {
+      return (
+        <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 px-3 py-2">
+          <p className={`text-xs font-medium ${accent}`}>{label}</p>
+          <p className="mt-1 text-[11px] text-slate-500">لا يوجد رصيد</p>
+        </div>
+      );
+    }
+    return (
+      <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 px-3 py-2">
+        <p className={`text-xs font-medium ${accent}`}>{label}</p>
+        <div className="mt-1.5 flex flex-wrap gap-2">
+          {totals.map(row => (
+            <span
+              key={row.currency}
+              className="rounded-lg bg-slate-800 px-2 py-1 text-[11px] tabular-nums text-slate-200"
+            >
+              {formatAmount(row.total, row.currency)}
+              <span className="mr-1 text-slate-500">{row.symbol}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {boxFunds.length > 0 && renderCurrencyTotals('مجموع الزبائن', customerTotals, 'text-amber-400')}
+        {canAccessCenters && renderCurrencyTotals('مجموع المراكز', centersTotals, 'text-cyan-400')}
+      </div>
+
       <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">
         {visibleBranches.map(b => {
           const Icon = b.icon;

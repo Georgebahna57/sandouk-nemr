@@ -1,7 +1,7 @@
 import { CENTERS_FUND_ID, CURRENCIES, emptyBalances, emptyCustomerBalances, getCurrencyLabel, getCurrencySymbol, getFund, getFundAccountName, isFundAccountName, isHalabFleilatFund, isHalabFundPartyName, isHalabLinkedAccountName, isWeightCurrency } from '../config';
 import { computeHalabAwareBalance } from './halabBalance';
 import { normalizeSyrianTransaction, syrianBalanceAmount, syrianBalanceCurrency } from './syrianCurrency';
-import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
+import { attachFeeFields, attachExtraFeeFields, parseStoredFee, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
 import { accountNumbersMatch, mergeAccountSummaries } from './accountMerge';
 import { INVERSE_RATE_CURRENCIES } from './valuationRates';
 import { safeSetItem } from './safeLocalStorage';
@@ -782,14 +782,14 @@ export function buildAccountSummaries(
   }
 
   for (const c of relevantCustomers) {
-    if (isCustomerAccountName(c.name)) names.add(c.name.trim());
+    if (isCustomerAccountName(c.name) && !isFeeAccountName(c.name)) names.add(c.name.trim());
   }
-  for (const feeAccount of ALL_FEE_ACCOUNTS) names.add(feeAccount);
   for (const tx of transactions) {
     if (
       (tx.ledger ?? 'fund') === 'account'
       && tx.fundId === fundId
       && isCustomerAccountName(tx.party)
+      && !isFeeAccountName(tx.party)
     ) {
       names.add(tx.party.trim());
     }
@@ -817,10 +817,12 @@ export function buildAccountSummaries(
 
   const halabAccountName = isHalabFleilatFund(fundId) ? getFundAccountName(fundId) : null;
   return summaries.filter(s => (
-    s.hasActivity
-    || s.customerId
-    || isFeeAccountName(s.name)
-    || (halabAccountName !== null && s.name === halabAccountName)
+    !isFeeAccountName(s.name)
+    && (
+      s.hasActivity
+      || s.customerId
+      || (halabAccountName !== null && s.name === halabAccountName)
+    )
   ));
 }
 
