@@ -66,7 +66,9 @@ import {
 import { logAudit } from '../lib/auditLog';
 import { runAllHalabRepairs } from '../lib/halabBalance';
 import {
+  assertAccountOnlyImportTransactions,
   buildAllImportBalanceSyncTransactions,
+  filterImportableTrialBalanceAccounts,
   isTrialBalanceImportTransaction,
   type TrialBalanceImportAccount,
   type TrialBalanceImportResult,
@@ -1057,11 +1059,16 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     accounts: TrialBalanceImportAccount[],
     fundId: FundId,
   ): Promise<TrialBalanceImportResult> => {
+    const { accounts: importableAccounts, skippedNames } = filterImportableTrialBalanceAccounts(accounts);
+    if (!importableAccounts.length) {
+      throw new Error('لا توجد حسابات زبائن للاستيراد — حسابات الصندوق لا تُستورد');
+    }
+
     const createdAccounts: string[] = [];
     const matchedByNumber: TrialBalanceImportResult['matchedByNumber'] = [];
     const resolvedAccounts: TrialBalanceImportAccount[] = [];
 
-    for (const acc of accounts) {
+    for (const acc of importableAccounts) {
       const name = acc.name.trim();
       const code = acc.code?.trim() || '';
       const byName = findCustomerForAccount(stateRef.current.customers, name, fundId)
@@ -1124,6 +1131,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       withoutOldImport,
       importDate,
     );
+    assertAccountOnlyImportTransactions(importTxs);
 
     setState(prev => {
       const filteredTx = prev.transactions.filter(t => !deleteIds.includes(t.id));
@@ -1156,6 +1164,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       importedCount: resolvedAccounts.length,
       createdAccounts,
       matchedByNumber,
+      skippedNames,
     };
   }, [runSync]);
 

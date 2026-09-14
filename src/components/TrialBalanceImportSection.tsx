@@ -4,6 +4,7 @@ import { BOX_FUNDS } from '../config';
 import { extractPdfText } from '../lib/pdfText';
 import { parseTrialBalancePdfText } from '../lib/trialBalancePdfImport';
 import {
+  filterImportableTrialBalanceAccounts,
   parseTrialBalanceWorkbook,
   type TrialBalanceImportAccount,
   type TrialBalanceImportResult,
@@ -22,32 +23,42 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [createdNotice, setCreatedNotice] = useState<string | null>(null);
+  const [skippedNotice, setSkippedNotice] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
+
+  function applyParsedAccounts(raw: TrialBalanceImportAccount[]) {
+    const { accounts: importable, skippedNames } = filterImportableTrialBalanceAccounts(raw);
+    setPreview(importable);
+    setSkippedNotice(skippedNames.length
+      ? `تم تجاهل ${skippedNames.length} حساب (صندوق/أجور) — لا يُستورد ولا يؤثر على رصيد الصندوق`
+      : null);
+    if (importable.length === 0) {
+      setError(raw.length
+        ? 'كل الحسابات بالملف صندوق أو أجور — الاستيراد للزبائن فقط'
+        : 'ما لقينا حسابات في الملف');
+    }
+  }
 
   async function handleFile(file: File) {
     setError(null);
     setSuccess(null);
     setCreatedNotice(null);
+    setSkippedNotice(null);
     setParsing(true);
     setFileName(file.name);
     try {
       const lower = file.name.toLowerCase();
-      let accounts: TrialBalanceImportAccount[];
       if (lower.endsWith('.pdf')) {
         const text = await extractPdfText(file);
-        accounts = parseTrialBalancePdfText(text);
+        applyParsedAccounts(parseTrialBalancePdfText(text));
       } else {
         const XLSX = await import('xlsx');
         const data = await file.arrayBuffer();
         const wb = XLSX.read(data, { type: 'array' });
-        accounts = parseTrialBalanceWorkbook(
+        applyParsedAccounts(parseTrialBalanceWorkbook(
           wb.SheetNames,
           name => XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' }) as unknown[][],
-        );
-      }
-      setPreview(accounts);
-      if (accounts.length === 0) {
-        setError('ما لقينا حسابات في الملف');
+        ));
       }
     } catch (err) {
       setPreview(null);
@@ -64,7 +75,10 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
     setCreatedNotice(null);
     try {
       const result = await onImport(preview, fundId);
-      setSuccess(`تم استيراد ${result.importedCount} حساب مع أرصدتهم`);
+      setSuccess(`تم استيراد ${result.importedCount} حساب — رصيد الصندوق لم يتغيّر`);
+      if (result.skippedNames.length > 0) {
+        setSkippedNotice(`تم تجاهل ${result.skippedNames.length} حساب صندوق/أجور`);
+      }
       if (result.createdAccounts.length > 0) {
         const sample = result.createdAccounts.slice(0, 8).join(' · ');
         const more = result.createdAccounts.length > 8
@@ -103,7 +117,7 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
         <div>
           <p className="font-medium text-slate-200">استيراد ميزان مراجعة (Excel / PDF)</p>
           <p className="text-xs text-slate-500">
-            أرصدة الحسابات — يدمج الحسابات بنفس رقم الحساب وعملات متعددة
+            يضبط أرصدة حسابات الزبائن فقط — لا يمس رصيد الصندوق أبداً
           </p>
         </div>
       </div>
@@ -148,10 +162,15 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
         </div>
       )}
 
-      {(error || success || createdNotice) && (
+      {(error || success || createdNotice || skippedNotice) && (
         <div className="mb-3 space-y-2">
           {error && (
             <div className="rounded-xl bg-rose-500/10 px-3 py-2 text-xs text-rose-400">{error}</div>
+          )}
+          {skippedNotice && (
+            <div className="rounded-xl border border-slate-600 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+              {skippedNotice}
+            </div>
           )}
           {success && (
             <div className="rounded-xl bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">{success}</div>
@@ -177,7 +196,7 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
       )}
 
       <p className="mt-2 text-[10px] text-slate-500">
-        يضبط الأرصدة على الملف — يحذف فقط حركات الاستيراد السابقة ولا يمسّ الحركات اليدوية. الحسابات الجديدة تُنشأ تلقائياً.
+        حركات حساب فقط — يحذف استيراد سابق ولا يمسّ الحركات اليدوية ولا رصيد الصندوق. حسابات جديدة تُنشأ تلقائياً.
       </p>
     </div>
   );
