@@ -44,7 +44,7 @@ interface Props {
   onAddOpeningBalance: (tx: Transaction[]) => void | Promise<void>;
   onRestoreNemrBalance: (plan: import('../lib/nemrBalanceRestore').NemrBalanceRestorePlan) => void | Promise<void>;
   onRepairHalab?: () => Promise<void>;
-  onResetAllAccounts?: () => Promise<void>;
+  onResetAllAccounts?: () => Promise<number>;
   onImportTrialBalance?: (accounts: TrialBalanceImportAccount[], fundId: FundId) => Promise<void>;
   importingTrialBalance?: boolean;
 }

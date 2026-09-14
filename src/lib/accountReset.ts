@@ -1,14 +1,26 @@
 import type { Transaction } from '../types';
 import {
   collectAutoFeeRemovalIds,
+  findCounterpartyLinkedPeerIds,
   isCustomerAccountName,
+  isFundOperationLead,
+  isFundPartyForLedger,
   isMislabeledLinkedAccountFundLeg,
 } from './utils';
 
 /** حركة تُحسب ضمن رصيد الحسابات (ledger حساب أو حركة حساب مخزّنة كصندوق) */
 export function isAccountSideTransaction(tx: Transaction, transactions: Transaction[]): boolean {
   if ((tx.ledger ?? 'fund') === 'account') return true;
-  return isMislabeledLinkedAccountFundLeg(tx, transactions, tx.fundId);
+  if (isMislabeledLinkedAccountFundLeg(tx, transactions, tx.fundId)) return true;
+  if (
+    (tx.ledger ?? 'fund') === 'fund'
+    && isCustomerAccountName(tx.party)
+    && !isFundPartyForLedger(tx.party, tx.fundId)
+    && transactions.some(f => isFundOperationLead(f) && findCounterpartyLinkedPeerIds(transactions, f).includes(tx.id))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export interface AccountResetPreview {
