@@ -873,26 +873,6 @@ export function accountNeedsReconciliation(
   return false;
 }
 
-/** عدد الحسابات بحاجة مطابقة عبر المراكز + زبائن مجمّعين */
-export function countAccountsNeedingReconciliation(
-  transactions: Transaction[],
-  customers: Customer[],
-  boxFundIds: FundId[],
-  includeCenters: boolean,
-): number {
-  let count = 0;
-  if (includeCenters) {
-    const centerSummaries = buildAccountSummaries(transactions, customers, 'marakiz');
-    count += centerSummaries.filter(s => accountNeedsReconciliation(transactions, 'marakiz', s)).length;
-  }
-  if (boxFundIds.length > 0) {
-    const merged = buildCustomerAccountsAcrossFunds(transactions, customers, boxFundIds);
-    const fallbackFund = boxFundIds[0];
-    count += merged.filter(s => accountNeedsReconciliation(transactions, s.fundId ?? fallbackFund, s)).length;
-  }
-  return count;
-}
-
 export function createTransaction(input: Omit<Transaction, 'id' | 'createdAt'>): Transaction {
   const normalized = normalizeSyrianTransaction(input);
   return {
