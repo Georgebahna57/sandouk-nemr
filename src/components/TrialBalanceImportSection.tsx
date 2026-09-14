@@ -1,28 +1,32 @@
 import { FileSpreadsheet, Loader2, Upload } from 'lucide-react';
 import { useState } from 'react';
-import { BOX_FUNDS } from '../config';
+import { ACCOUNT_BRANCH_LABELS } from '../lib/accountBranch';
 import { extractPdfText } from '../lib/pdfText';
 import { parseTrialBalancePdfText } from '../lib/trialBalancePdfImport';
 import {
   parseTrialBalanceWorkbook,
+  trialBalanceImportTargetLabel,
   type TrialBalanceImportAccount,
   type TrialBalanceImportResult,
+  type TrialBalanceImportTarget,
 } from '../lib/trialBalanceImport';
-import type { FundId } from '../types';
+import type { AccountBranchId } from '../types';
 
 interface Props {
-  onImport: (accounts: TrialBalanceImportAccount[], fundId: FundId) => Promise<TrialBalanceImportResult>;
+  onImport: (accounts: TrialBalanceImportAccount[], target: TrialBalanceImportTarget) => Promise<TrialBalanceImportResult>;
   busy?: boolean;
 }
 
 export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
-  const [fundId, setFundId] = useState<FundId>('nemr');
+  const [accountBranch, setAccountBranch] = useState<AccountBranchId>('customers');
   const [preview, setPreview] = useState<TrialBalanceImportAccount[] | null>(null);
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [createdNotice, setCreatedNotice] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
+
+  const target: TrialBalanceImportTarget = { accountBranch };
 
   async function handleFile(file: File) {
     setError(null);
@@ -63,15 +67,17 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
     setSuccess(null);
     setCreatedNotice(null);
     try {
-      const result = await onImport(preview, fundId);
-      setSuccess(`تم استيراد ${result.importedCount} حساب مع أرصدتهم`);
+      const result = await onImport(preview, target);
+      setSuccess(
+        `تم استيراد ${result.importedCount} حساب — ${trialBalanceImportTargetLabel(target)} — رصيد الصندوق لم يتغيّر`,
+      );
       if (result.createdAccounts.length > 0) {
         const sample = result.createdAccounts.slice(0, 8).join(' · ');
         const more = result.createdAccounts.length > 8
           ? ` … و${result.createdAccounts.length - 8} حساب آخر`
           : '';
         setCreatedNotice(
-          `⚠️ تم إنشاء ${result.createdAccounts.length} حساب جديد غير موجود بالبرنامج: ${sample}${more}`,
+          `⚠️ تم إنشاء ${result.createdAccounts.length} حساب جديد: ${sample}${more}`,
         );
       }
       setPreview(null);
@@ -103,20 +109,20 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
         <div>
           <p className="font-medium text-slate-200">استيراد ميزان مراجعة (Excel / PDF)</p>
           <p className="text-xs text-slate-500">
-            أرصدة الحسابات — يدمج الحسابات بنفس رقم الحساب وعملات متعددة
+            حسابات الزبائن والمراكز فقط — لا يمس أرصدة الصناديق
           </p>
         </div>
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
         <select
-          value={fundId}
-          onChange={e => setFundId(e.target.value as FundId)}
+          value={accountBranch}
+          onChange={e => setAccountBranch(e.target.value as AccountBranchId)}
           className="rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm"
+          aria-label="نوع الحسابات"
         >
-          {BOX_FUNDS.map(f => (
-            <option key={f.id} value={f.id}>{f.name}</option>
-          ))}
+          <option value="customers">حسابات — زبائن</option>
+          <option value="centers">حسابات — مراكز</option>
         </select>
         <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-slate-300 hover:border-violet-500/50">
           <Upload size={16} />
@@ -134,6 +140,10 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
           />
         </label>
       </div>
+
+      <p className="mb-2 text-[10px] text-slate-500">
+        الوجهة: {ACCOUNT_BRANCH_LABELS[accountBranch]} — حركات حساب فقط
+      </p>
 
       {fileName && (
         <p className="mb-2 text-xs text-slate-500">الملف: {fileName}</p>
@@ -167,17 +177,17 @@ export function TrialBalanceImportSection({ onImport, busy = false }: Props) {
       {preview && preview.length > 0 && (
         <button
           type="button"
-          onClick={runImport}
+          onClick={() => void runImport()}
           disabled={busy || parsing}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-60"
         >
           {busy ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-          استيراد {preview.length} حساب
+          استيراد {preview.length} حساب — {ACCOUNT_BRANCH_LABELS[accountBranch]}
         </button>
       )}
 
       <p className="mt-2 text-[10px] text-slate-500">
-        يضبط الأرصدة على الملف — يحذف فقط حركات الاستيراد السابقة ولا يمسّ الحركات اليدوية. الحسابات الجديدة تُنشأ تلقائياً.
+        يضبط أرصدة الحسابات على الملف — يحذف فقط حركات الاستيراد السابقة ولا يمسّ الصناديق.
       </p>
     </div>
   );

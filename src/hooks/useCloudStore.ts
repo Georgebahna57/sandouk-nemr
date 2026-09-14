@@ -12,7 +12,7 @@ import {
   upsertCustomer,
   upsertTransactions,
 } from '../lib/db';
-import { collectAccountResetIds } from '../lib/accountReset';
+import { collectAccountResetIds, type AccountResetResult } from '../lib/accountReset';
 import { collectFundDayPurgeIds } from '../lib/fundDayPurge';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
@@ -60,6 +60,8 @@ import {
   ACCOUNT_BRANCH_LABELS,
   applyAccountBranchMove,
   accountExistsInBranch,
+  getCustomerAccountBranch,
+  getCustomersLedgerFundId,
   inferAccountBranch,
   prepareCustomerForBranch,
 } from '../lib/accountBranch';
@@ -68,11 +70,19 @@ import { runAllHalabRepairs } from '../lib/halabBalance';
 import {
   buildAllImportBalanceSyncTransactions,
   isTrialBalanceImportTransaction,
+  resolveTrialBalanceImportFundId,
   type TrialBalanceImportAccount,
   type TrialBalanceImportResult,
+  type TrialBalanceImportTarget,
 } from '../lib/trialBalanceImport';
-import { createCustomer, findCustomerByAccountNumber, findCustomerForAccount } from '../lib/utils';
-import { getFund } from '../config';
+import { accountNumbersMatch } from '../lib/accountMerge';
+import {
+  createCustomer,
+  findCustomerByAccountNumber,
+  findCustomerForAccount,
+  isAccountInFund,
+} from '../lib/utils';
+import { BOX_FUNDS, getFund } from '../config';
 import {
   collectQueuedTransactionIds,
   enqueue,
@@ -1013,21 +1023,42 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     return removed;
   }, [runSync]);
 
-  const resetAllAccounts = useCallback(async (): Promise<number> => {
-    let removed = 0;
+  const resetAllAccounts = useCallback(async (): Promise<AccountResetResult> => {
+    let removedTransactions = 0;
+    let removedCustomers = 0;
     await runSync(async () => {
       const cloud = applyLinkedFundLegStabilization(await fetchAppState());
-      const removeIds = collectAccountResetIds(cloud.transactions);
-      if (!removeIds.length) return;
+      const removeTxIds = collectAccountResetIds(cloud.transactions);
+      const customerIds = cloud.customers.map(c => c.id);
+      if (!removeTxIds.length && !customerIds.length) return;
+
       savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
-      await removeTransactions(removeIds);
-      removed = removeIds.length;
+
+      if (removeTxIds.length) {
+        await removeTransactions(removeTxIds);
+        removedTransactions = removeTxIds.length;
+      }
+      if (customerIds.length) {
+        await Promise.all(customerIds.map(id => removeCustomer(id)));
+        removedCustomers = customerIds.length;
+      }
+
       const refreshed = applyLinkedFundLegStabilization(await fetchAppState());
       setState(refreshed);
       mirrorAppState(refreshed);
+
+      if (actor && (removedTransactions || removedCustomers)) {
+        logAudit({
+          userId: actor.userId,
+          userName: actor.displayName,
+          action: 'transaction_edit',
+          entityType: 'transaction',
+          details: `تصفير حسابات — حذف ${removedTransactions} حركة · ${removedCustomers} حساب`,
+        });
+      }
     });
-    return removed;
-  }, [runSync]);
+    return { removedTransactions, removedCustomers };
+  }, [actor, runSync]);
 
   const repairHalabData = useCallback(async () => {
     await runSync(async () => {
@@ -1055,8 +1086,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
   const importTrialBalance = useCallback(async (
     accounts: TrialBalanceImportAccount[],
-    fundId: FundId,
+    target: TrialBalanceImportTarget,
   ): Promise<TrialBalanceImportResult> => {
+    const fundId = resolveTrialBalanceImportFundId(target);
+    const customersLedgerFundId = getCustomersLedgerFundId(BOX_FUNDS);
+    const branch = target.accountBranch;
+
+    const matchesBranch = (c: Customer) => getCustomerAccountBranch(c) === branch;
+
     const createdAccounts: string[] = [];
     const matchedByNumber: TrialBalanceImportResult['matchedByNumber'] = [];
     const resolvedAccounts: TrialBalanceImportAccount[] = [];
@@ -1064,12 +1101,18 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     for (const acc of accounts) {
       const name = acc.name.trim();
       const code = acc.code?.trim() || '';
-      const byName = findCustomerForAccount(stateRef.current.customers, name, fundId)
-        ?? stateRef.current.customers.find(c => c.fundId === fundId && c.name === name);
+      const byName = stateRef.current.customers.find(
+        c => c.name === name && matchesBranch(c) && (c.fundId === fundId || isAccountInFund(c, fundId)),
+      ) ?? findCustomerForAccount(stateRef.current.customers, name, fundId);
       const byNumber = code
-        ? findCustomerByAccountNumber(stateRef.current.customers, code, fundId)
+        ? stateRef.current.customers.find(
+          c => matchesBranch(c)
+            && c.accountNumber
+            && accountNumbersMatch(c.accountNumber, code)
+            && (c.fundId === fundId || isAccountInFund(c, fundId)),
+        ) ?? findCustomerByAccountNumber(stateRef.current.customers, code, fundId)
         : undefined;
-      const existing = byName ?? byNumber;
+      const existing = byName && matchesBranch(byName) ? byName : byNumber && matchesBranch(byNumber) ? byNumber : undefined;
 
       if (existing && byNumber && !byName && existing.name !== name) {
         matchedByNumber.push({ importName: name, existingName: existing.name, code });
@@ -1100,15 +1143,26 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     for (const acc of resolvedAccounts) {
       const name = acc.name.trim();
       const code = acc.code?.trim() || '';
-      const existing = findCustomerForAccount(stateRef.current.customers, name, fundId)
-        ?? (code ? findCustomerByAccountNumber(stateRef.current.customers, code, fundId) : undefined)
-        ?? stateRef.current.customers.find(c => c.fundId === fundId && c.name === name);
+      const existing = stateRef.current.customers.find(
+        c => c.name === name && matchesBranch(c) && (c.fundId === fundId || isAccountInFund(c, fundId)),
+      ) ?? (code
+        ? stateRef.current.customers.find(
+          c => matchesBranch(c)
+            && c.accountNumber
+            && accountNumbersMatch(c.accountNumber, code)
+            && (c.fundId === fundId || isAccountInFund(c, fundId)),
+        )
+        : undefined);
       if (!existing) {
-        const created = createCustomer({
-          fundId,
-          name,
-          accountNumber: code || undefined,
-        });
+        const created = prepareCustomerForBranch(
+          createCustomer({
+            fundId,
+            name,
+            accountNumber: code || undefined,
+          }),
+          branch,
+          customersLedgerFundId,
+        );
         newCustomers.push(created);
         createdAccounts.push(name);
       } else if (code && existing.accountNumber !== code) {
@@ -1156,6 +1210,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       importedCount: resolvedAccounts.length,
       createdAccounts,
       matchedByNumber,
+      accountBranch: branch,
     };
   }, [runSync]);
 

@@ -1,4 +1,10 @@
-import type { Currency, FundId, Transaction } from '../types';
+import { BOX_FUNDS } from '../config';
+import type { AccountBranchId, Currency, FundId, Transaction } from '../types';
+import {
+  ACCOUNT_BRANCH_LABELS,
+  branchLedgerFundId,
+  getCustomersLedgerFundId,
+} from './accountBranch';
 import { computeAccountBalances, createAccountTransaction, todayIso } from './utils';
 
 export const TRIAL_BALANCE_IMPORT_NOTE = 'استيراد ميزان مراجعة';
@@ -16,10 +22,23 @@ export interface TrialBalanceImportAccount {
   currencies: Partial<Record<Currency, TrialBalanceCurrencyRow>>;
 }
 
+export interface TrialBalanceImportTarget {
+  accountBranch: AccountBranchId;
+}
+
 export interface TrialBalanceImportResult {
   importedCount: number;
   createdAccounts: string[];
   matchedByNumber: { importName: string; existingName: string; code: string }[];
+  accountBranch: AccountBranchId;
+}
+
+export function resolveTrialBalanceImportFundId(target: TrialBalanceImportTarget): FundId {
+  return branchLedgerFundId(target.accountBranch, getCustomersLedgerFundId(BOX_FUNDS));
+}
+
+export function trialBalanceImportTargetLabel(target: TrialBalanceImportTarget): string {
+  return `حسابات — ${ACCOUNT_BRANCH_LABELS[target.accountBranch]}`;
 }
 
 const SHEET_CURRENCY: Record<string, Currency> = {
