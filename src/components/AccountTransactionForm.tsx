@@ -1,7 +1,6 @@
 import { Loader2, Plus, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getFund, isHalabFleilatFund } from '../config';
-import { getFundForLinkedAccount } from '../lib/fundLinkedAccounts';
 import {
   createLinkedAccountAccountOperation,
   createLinkedAccountFundExchange,
@@ -50,15 +49,13 @@ export function AccountTransactionForm({
 }: Props) {
   const funds = fundOptions.length ? fundOptions : [getFund(fundId)];
   const canPickFund = funds.length > 1;
-  const linkedFundId = useMemo(() => getFundForLinkedAccount(accountName), [accountName]);
-  const mustLinkFund = !!linkedFundId;
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('out');
   const [lines, setLines] = useState(createDefaultLines);
   const [note, setNote] = useState('');
   const [isExchange, setIsExchange] = useState(false);
-  const [transferMode, setTransferMode] = useState<TransferMode>(() => (linkedFundId ? 'fund' : 'none'));
-  const [targetFundId, setTargetFundId] = useState<FundId>(() => linkedFundId ?? fundId);
+  const [transferMode, setTransferMode] = useState<TransferMode>('none');
+  const [targetFundId, setTargetFundId] = useState<FundId>(fundId);
   const [fundDirection, setFundDirection] = useState<'in' | 'out'>('out');
   const [targetAccount, setTargetAccount] = useState('');
   const [targetDirection, setTargetDirection] = useState<'in' | 'out'>('in');
@@ -96,19 +93,13 @@ export function AccountTransactionForm({
     lines: parsedLines,
   }), [isExchange, exchangeParsed.receivedAmount, receivedCurrency, parsedLines]);
 
-  useEffect(() => {
-    if (!linkedFundId) return;
-    setTransferMode('fund');
-    setTargetFundId(linkedFundId);
-  }, [linkedFundId]);
-
   function reset() {
     setDirection('out');
     setLines(createDefaultLines());
     setNote('');
     setIsExchange(false);
-    setTransferMode(mustLinkFund ? 'fund' : 'none');
-    setTargetFundId(linkedFundId ?? fundId);
+    setTransferMode('none');
+    setTargetFundId(fundId);
     setFundDirection('out');
     setTargetAccount('');
     setTargetDirection('in');
@@ -133,8 +124,7 @@ export function AccountTransactionForm({
     const feeFields = feeFieldsFromParsed(parsedFee);
     const extraFeeFields = extraFeeFieldsFromParsed(parsedExtraFee);
     const customerFees = [parsedFee, parsedExtraFee];
-    const effectiveTransferMode = mustLinkFund ? 'fund' : transferMode;
-    const fundLedgerId = effectiveTransferMode === 'fund' ? targetFundId : fundId;
+    const fundLedgerId = transferMode === 'fund' ? targetFundId : fundId;
     const shared = {
       fundId: fundLedgerId,
       date: todayIso(),
@@ -148,8 +138,8 @@ export function AccountTransactionForm({
 
     if (isExchange) {
       if (!exchangeParsed.valid) return;
-      if (effectiveTransferMode === 'account') return;
-      payload = effectiveTransferMode === 'fund'
+      if (transferMode === 'account') return;
+      payload = transferMode === 'fund'
         ? createLinkedAccountFundExchange(
           shared,
           accountName,
@@ -176,7 +166,7 @@ export function AccountTransactionForm({
       const items = parseAmountLines(lines);
       if (!items.length) return;
 
-      if (effectiveTransferMode === 'fund') {
+      if (transferMode === 'fund') {
         payload = createLinkedAccountFundOperation(
           shared,
           accountName,
@@ -186,7 +176,7 @@ export function AccountTransactionForm({
           customerFees,
           targetFundId,
         );
-      } else if (effectiveTransferMode === 'account') {
+      } else if (transferMode === 'account') {
         const toAccount = targetAccount.trim();
         if (!toAccount || toAccount === accountName) return;
         payload = createLinkedAccountAccountOperation(
@@ -323,35 +313,24 @@ export function AccountTransactionForm({
         </>
       )}
 
-      {mustLinkFund && (
-        <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-2 text-xs text-emerald-300/90">
-          مرتبط تلقائياً بـ {getFund(linkedFundId!).name}
-        </p>
-      )}
-
       {!isExchange && (
         <div className="space-y-2 rounded-xl border border-slate-600/80 bg-slate-900/40 p-2.5">
-          <p className="text-[10px] font-medium text-slate-400">
-            {mustLinkFund ? 'ترحيل على الصندوق' : 'ترحيل مرتبط (اختياري)'}
-          </p>
-          {!mustLinkFund && (
-            <label className="flex items-center gap-2 text-xs text-emerald-300/90">
-              <input
-                type="radio"
-                name={`transfer-${accountName}`}
-                checked={transferMode === 'none'}
-                onChange={() => setTransferMode('none')}
-              />
-              بدون ترحيل
-            </label>
-          )}
+          <p className="text-[10px] font-medium text-slate-400">ترحيل مرتبط (اختياري)</p>
+          <label className="flex items-center gap-2 text-xs text-emerald-300/90">
+            <input
+              type="radio"
+              name={`transfer-${accountName}`}
+              checked={transferMode === 'none'}
+              onChange={() => setTransferMode('none')}
+            />
+            بدون ترحيل
+          </label>
           <label className="flex items-center gap-2 text-xs text-emerald-300/90">
             <input
               type="radio"
               name={`transfer-${accountName}`}
               checked={transferMode === 'fund'}
               onChange={() => setTransferMode('fund')}
-              disabled={mustLinkFund}
             />
             ترحيل على الصندوق
           </label>
