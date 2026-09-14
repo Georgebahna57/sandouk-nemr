@@ -1,7 +1,6 @@
 import { Loader2, Plus, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getFund, isHalabFleilatFund } from '../config';
-import { fundRequiresAccountLink } from '../lib/fundLinkedAccounts';
 import {
   createLinkedAccountAccountOperation,
   createLinkedAccountFundExchange,
@@ -50,8 +49,6 @@ export function AccountTransactionForm({
 }: Props) {
   const funds = fundOptions.length ? fundOptions : [getFund(fundId)];
   const canPickFund = funds.length > 1;
-  /** نمر/زلقا/جورج: الحسابات منفصلة — حركات الصندوق من تبويب الصندوق فقط */
-  const accountOpsOnly = fundRequiresAccountLink(fundId);
   const [open, setOpen] = useState(false);
   const [direction, setDirection] = useState<'in' | 'out'>('out');
   const [lines, setLines] = useState(createDefaultLines);
@@ -89,10 +86,6 @@ export function AccountTransactionForm({
     : sumAmountForCurrency(parsedLines, extraFeeEditor.currency);
   const shamelEligible = isShamelFeeEligible(accountName);
   const canLinkAccount = otherAccountNames.length > 0;
-  useEffect(() => {
-    if (accountOpsOnly && transferMode === 'fund') setTransferMode('none');
-  }, [accountOpsOnly, transferMode]);
-
   const halabDeliverySource = useMemo(() => resolveHalabDeliverySource({
     isExchange,
     exchangeReceivedAmount: exchangeParsed.receivedAmount,
@@ -126,7 +119,6 @@ export function AccountTransactionForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    if (accountOpsOnly && transferMode === 'fund') return;
     const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
     const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
     const feeFields = feeFieldsFromParsed(parsedFee);
@@ -324,11 +316,6 @@ export function AccountTransactionForm({
       {!isExchange && (
         <div className="space-y-2 rounded-xl border border-slate-600/80 bg-slate-900/40 p-2.5">
           <p className="text-[10px] font-medium text-slate-400">ترحيل مرتبط (اختياري)</p>
-          {accountOpsOnly && (
-            <p className="text-[10px] text-amber-400/90">
-              حركات {getFund(fundId).shortName} على الصندوق — من تبويب الصندوق فقط، مش من هون
-            </p>
-          )}
           <label className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs ${
             transferMode === 'none'
               ? 'border border-slate-500/50 bg-slate-800/80 text-slate-100'
@@ -342,17 +329,15 @@ export function AccountTransactionForm({
             />
             بدون ترحيل — حساب فقط (لا يظهر على الصندوق)
           </label>
-          {!accountOpsOnly && (
-            <label className="flex items-center gap-2 text-xs text-emerald-300/90">
-              <input
-                type="radio"
-                name={`transfer-${accountName}`}
-                checked={transferMode === 'fund'}
-                onChange={() => setTransferMode('fund')}
-              />
-              ترحيل على الصندوق
-            </label>
-          )}
+          <label className="flex items-center gap-2 text-xs text-emerald-300/90">
+            <input
+              type="radio"
+              name={`transfer-${accountName}`}
+              checked={transferMode === 'fund'}
+              onChange={() => setTransferMode('fund')}
+            />
+            ترحيل على الصندوق
+          </label>
           {canLinkAccount && (
             <label className="flex items-center gap-2 text-xs text-sky-300/90">
               <input
@@ -367,7 +352,7 @@ export function AccountTransactionForm({
         </div>
       )}
 
-      {isExchange && !accountOpsOnly && transferMode === 'fund' && canPickFund && (
+      {isExchange && transferMode === 'fund' && canPickFund && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-2.5">
           <label className="mb-1 block text-[10px] text-emerald-300/90">صندوق الترحيل</label>
           <select
@@ -382,7 +367,7 @@ export function AccountTransactionForm({
         </div>
       )}
 
-      {isExchange && !accountOpsOnly && (
+      {isExchange && (
         <label className="flex items-center gap-2 text-xs text-emerald-300/90">
           <input
             type="checkbox"
@@ -394,7 +379,7 @@ export function AccountTransactionForm({
         </label>
       )}
 
-      {!accountOpsOnly && transferMode === 'fund' && !isExchange && (
+      {transferMode === 'fund' && !isExchange && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
           {canPickFund && (
             <div>
