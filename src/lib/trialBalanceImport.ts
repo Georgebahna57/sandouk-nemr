@@ -16,6 +16,12 @@ export interface TrialBalanceImportAccount {
   currencies: Partial<Record<Currency, TrialBalanceCurrencyRow>>;
 }
 
+export interface TrialBalanceImportResult {
+  importedCount: number;
+  createdAccounts: string[];
+  matchedByNumber: { importName: string; existingName: string; code: string }[];
+}
+
 const SHEET_CURRENCY: Record<string, Currency> = {
   'USD': 'USD',
   'EUR': 'EUR',

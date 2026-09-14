@@ -70,8 +70,9 @@ import {
   TRIAL_BALANCE_IMPORT_NOTE,
   TRIAL_BALANCE_OPENING_NOTE,
   type TrialBalanceImportAccount,
+  type TrialBalanceImportResult,
 } from '../lib/trialBalanceImport';
-import { createCustomer, findCustomerForAccount } from '../lib/utils';
+import { createCustomer, findCustomerByAccountNumber, findCustomerForAccount } from '../lib/utils';
 import { getFund } from '../config';
 import {
   collectQueuedTransactionIds,
@@ -1041,9 +1042,33 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   const importTrialBalance = useCallback(async (
     accounts: TrialBalanceImportAccount[],
     fundId: FundId,
-  ) => {
+  ): Promise<TrialBalanceImportResult> => {
     const importMarkers = [TRIAL_BALANCE_IMPORT_NOTE, TRIAL_BALANCE_OPENING_NOTE];
-    const accountNames = accounts.map(a => a.name.trim());
+    const createdAccounts: string[] = [];
+    const matchedByNumber: TrialBalanceImportResult['matchedByNumber'] = [];
+    const resolvedAccounts: TrialBalanceImportAccount[] = [];
+
+    for (const acc of accounts) {
+      const name = acc.name.trim();
+      const code = acc.code?.trim() || '';
+      const byName = findCustomerForAccount(stateRef.current.customers, name, fundId)
+        ?? stateRef.current.customers.find(c => c.fundId === fundId && c.name === name);
+      const byNumber = code
+        ? findCustomerByAccountNumber(stateRef.current.customers, code, fundId)
+        : undefined;
+      const existing = byName ?? byNumber;
+
+      if (existing && byNumber && !byName && existing.name !== name) {
+        matchedByNumber.push({ importName: name, existingName: existing.name, code });
+      }
+
+      resolvedAccounts.push({
+        ...acc,
+        name: existing?.name ?? name,
+      });
+    }
+
+    const accountNames = resolvedAccounts.map(a => a.name.trim());
 
     savePreDestructiveSnapshot(stateRef.current, 'pre-import');
 
@@ -1061,22 +1086,26 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     let newCustomers: Customer[] = [];
     const customerUpdates: Customer[] = [];
 
-    for (const acc of accounts) {
+    for (const acc of resolvedAccounts) {
       const name = acc.name.trim();
+      const code = acc.code?.trim() || '';
       const existing = findCustomerForAccount(stateRef.current.customers, name, fundId)
+        ?? (code ? findCustomerByAccountNumber(stateRef.current.customers, code, fundId) : undefined)
         ?? stateRef.current.customers.find(c => c.fundId === fundId && c.name === name);
       if (!existing) {
-        newCustomers.push(createCustomer({
+        const created = createCustomer({
           fundId,
           name,
-          accountNumber: acc.code?.trim() || undefined,
-        }));
-      } else if (acc.code?.trim() && existing.accountNumber !== acc.code.trim()) {
-        customerUpdates.push({ ...existing, accountNumber: acc.code.trim() });
+          accountNumber: code || undefined,
+        });
+        newCustomers.push(created);
+        createdAccounts.push(name);
+      } else if (code && existing.accountNumber !== code) {
+        customerUpdates.push({ ...existing, accountNumber: code });
       }
     }
 
-    const importTxs = buildAllImportTransactions(accounts, fundId);
+    const importTxs = buildAllImportTransactions(resolvedAccounts, fundId);
 
     setState(prev => {
       const filteredTx = prev.transactions.filter(t => !deleteIds.includes(t.id));
@@ -1104,6 +1133,12 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       for (const u of customerUpdates) await upsertCustomer(u);
       if (importTxs.length) await upsertTransactions(importTxs);
     }, makeQueueItem(importSteps.length ? importSteps : [{ type: 'upsertTransactions', txs: [] }]));
+
+    return {
+      importedCount: resolvedAccounts.length,
+      createdAccounts,
+      matchedByNumber,
+    };
   }, [runSync]);
 
   return {
