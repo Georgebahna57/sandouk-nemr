@@ -542,6 +542,15 @@ export function transactionAffectsAccountView(
   }
   const ledger = tx.ledger ?? 'fund';
   if (ledger === 'account' && tx.party === accountName) return true;
+  if (
+    ledger !== 'account'
+    && tx.linkId
+    && tx.party === accountName
+    && _allTransactions
+    && isMislabeledLinkedAccountFundLeg(tx, _allTransactions, fundId)
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -1195,7 +1204,7 @@ export function getOperationGroupIds(transactions: Transaction[], id: string): s
 
   if (target.linkId) {
     for (const tx of transactions) {
-      if (tx.linkId === target.linkId && tx.ledger === 'account') ids.add(tx.id);
+      if (tx.linkId === target.linkId) ids.add(tx.id);
     }
   }
 

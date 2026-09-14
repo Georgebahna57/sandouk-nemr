@@ -178,6 +178,7 @@ export default function App({ user, onLogout }: Props) {
     restoreBackup,
     restoreNemrBalance,
     repairHalabData,
+    resetAllAccounts,
     importTrialBalance,
     remoteNotice,
     clearRemoteNotice,
@@ -535,6 +536,7 @@ export default function App({ user, onLogout }: Props) {
         onAddOpeningBalance={addTransaction}
         onRestoreNemrBalance={restoreNemrBalance}
         onRepairHalab={repairHalabData}
+        onResetAllAccounts={resetAllAccounts}
         onImportTrialBalance={importTrialBalance}
         importingTrialBalance={syncing}
       />
