@@ -177,7 +177,7 @@ export function AccountTransactionForm({
           targetFundId,
         );
       } else if (transferMode === 'account') {
-        const toAccount = targetAccount.trim();
+        const toAccount = otherAccountNames.find(n => n === targetAccount.trim());
         if (!toAccount || toAccount === accountName) return;
         payload = createLinkedAccountAccountOperation(
           shared,
@@ -418,17 +418,20 @@ export function AccountTransactionForm({
         <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-3 space-y-2">
           <div>
             <label className="mb-1 block text-[10px] text-sky-300/90">الحساب الوجهة</label>
-            <select
+            <input
+              type="text"
               value={targetAccount}
               onChange={e => setTargetAccount(e.target.value)}
+              placeholder="اكتب أو اختر اسم الحساب"
               className="w-full rounded-lg border border-slate-600 bg-slate-900 px-2 py-2 text-sm"
+              list={`account-target-${accountName}`}
               required
-            >
-              <option value="">— اختر حساب —</option>
+            />
+            <datalist id={`account-target-${accountName}`}>
               {otherAccountNames.map(name => (
-                <option key={name} value={name}>{name}</option>
+                <option key={name} value={name} />
               ))}
-            </select>
+            </datalist>
           </div>
           <p className="text-xs font-medium text-sky-300/90">على الحساب الوجهة:</p>
           <div className="grid grid-cols-2 gap-2">
