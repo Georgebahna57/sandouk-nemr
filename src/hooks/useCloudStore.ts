@@ -36,6 +36,7 @@ import {
   repairDuplicateLinkedFundLegs,
   repairHalabFundTransactions,
   repairMislabeledAccountLegs,
+  backfillMissingLinkIds,
 } from '../lib/utils';
 import {
   collectFeeSyncLeadIds,
@@ -93,8 +94,9 @@ const MIGRATED_KEY = 'sandouk-cloud-migrated';
 function applyLinkedFundLegStabilization(cloud: AppState): AppState {
   const { transactions: afterMislabel } = repairMislabeledAccountLegs(cloud.transactions);
   const { transactions: afterDup } = repairDuplicateLinkedFundLegs(afterMislabel);
-  if (afterDup === cloud.transactions) return cloud;
-  return { ...cloud, transactions: afterDup };
+  const { transactions: afterLink } = backfillMissingLinkIds(afterDup);
+  if (afterLink === cloud.transactions) return cloud;
+  return { ...cloud, transactions: afterLink };
 }
 
 type FeeSyncResult = {
@@ -995,18 +997,20 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     }
   }, []);
 
-  const resetAllAccounts = useCallback(async () => {
+  const resetAllAccounts = useCallback(async (): Promise<number> => {
+    let removed = 0;
     await runSync(async () => {
-      const cloud = await fetchAppState();
+      const cloud = applyLinkedFundLegStabilization(await fetchAppState());
       const removeIds = collectAccountResetIds(cloud.transactions);
       if (!removeIds.length) return;
       savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
-      const drop = new Set(removeIds);
-      const next = { ...cloud, transactions: cloud.transactions.filter(tx => !drop.has(tx.id)) };
       await removeTransactions(removeIds);
-      setState(next);
-      mirrorAppState(next);
+      removed = removeIds.length;
+      const refreshed = applyLinkedFundLegStabilization(await fetchAppState());
+      setState(refreshed);
+      mirrorAppState(refreshed);
     });
+    return removed;
   }, [runSync]);
 
   const repairHalabData = useCallback(async () => {
@@ -1019,13 +1023,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
       const { transactions: afterNemrRestore, removeIds: nemrRestoreRemoveIds, upsert: nemrRestoreUpsert } = repairNemrRestoreState(afterOpening);
-      const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterNemrRestore);
+      const { transactions: afterLinkIds, changed: linkIdChanged } = backfillMissingLinkIds(afterNemrRestore);
+      const { transactions: withBackfill, changed } = backfillLinkedAccountFields(afterLinkIds);
       const leadIds = getFeeSyncLeadIds(withBackfill);
       const feeSync = mergeFeeSync(withBackfill, leadIds);
       if (feeSync.removeIds.length || nemrRestoreRemoveIds.length) {
         await removeTransactions([...feeSync.removeIds, ...nemrRestoreRemoveIds]);
       }
-      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...nemrRestoreUpsert, ...linkIdChanged, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);

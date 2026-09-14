@@ -408,10 +408,16 @@ export async function removeTransaction(id: string) {
   if (error) throw formatDbError(error);
 }
 
+const DELETE_CHUNK_SIZE = 200;
+
 export async function removeTransactions(ids: string[]) {
   if (!ids.length) return;
-  const { error } = await requireClient().from('transactions').delete().in('id', ids);
-  if (error) throw formatDbError(error);
+  const client = requireClient();
+  for (let i = 0; i < ids.length; i += DELETE_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + DELETE_CHUNK_SIZE);
+    const { error } = await client.from('transactions').delete().in('id', chunk);
+    if (error) throw formatDbError(error);
+  }
 }
 
 export async function upsertBill(bill: Bill) {

@@ -1188,23 +1188,208 @@ export function createLinkedFundTransfer(
   ];
 }
 
+export function isFundOperationLead(tx: Transaction): boolean {
+  const ledger = tx.ledger ?? 'fund';
+  if (ledger === 'account') return false;
+  return isFundPartyForLedger(tx.party, tx.fundId);
+}
+
+function isAccountOperationLeg(tx: Transaction, transactions: Transaction[]): boolean {
+  if ((tx.ledger ?? 'fund') === 'account') return true;
+  return isMislabeledLinkedAccountFundLeg(tx, transactions, tx.fundId);
+}
+
+function oppositeKind(kind: Transaction['kind']): Transaction['kind'] | null {
+  if (kind === 'receipt') return 'payment';
+  if (kind === 'payment') return 'receipt';
+  return null;
+}
+
+function batchLegSignature(txs: Transaction[]): string {
+  return txs
+    .filter(t => t.kind !== 'exchange')
+    .map(t => `${t.currency}:${t.amount}:${t.kind}`)
+    .sort()
+    .join('|');
+}
+
+function accountBatchMatchesFundBatch(
+  fundBatch: Transaction[],
+  accountBatch: Transaction[],
+): boolean {
+  const expectedAccountSig = batchLegSignature(
+    fundBatch.map(t => {
+      const opp = oppositeKind(t.kind);
+      return opp ? { ...t, kind: opp } : t;
+    }),
+  );
+  return batchLegSignature(accountBatch) === expectedAccountSig;
+}
+
+function sameFundScope(fundTx: Transaction, accountTx: Transaction): boolean {
+  return accountTx.fundId === fundTx.fundId;
+}
+
+function singleLegMatchesCounterparty(
+  fundTx: Transaction,
+  accountTx: Transaction,
+): boolean {
+  if (!sameFundScope(fundTx, accountTx)) return false;
+  if (fundTx.date !== accountTx.date) return false;
+  if (fundTx.currency !== accountTx.currency) return false;
+  if (fundTx.amount !== accountTx.amount) return false;
+  const expected = oppositeKind(fundTx.kind);
+  if (expected && accountTx.kind !== expected) return false;
+  return true;
+}
+
+/** ربط صندوق↔حساب حتى بدون linkId (بيانات قديمة) */
+export function findCounterpartyLinkedPeerIds(
+  transactions: Transaction[],
+  target: Transaction,
+): string[] {
+  const ids = new Set<string>();
+
+  if (isFundOperationLead(target)) {
+    const accountName = target.counterparty?.trim();
+    if (!accountName || !isCustomerAccountName(accountName)) return [];
+
+    const fundBatch = target.batchId
+      ? transactions.filter(t => t.batchId === target.batchId)
+      : [target];
+
+    const candidates = transactions.filter(tx =>
+      tx.id !== target.id
+      && isAccountOperationLeg(tx, transactions)
+      && tx.party?.trim() === accountName
+      && !isFeeAccountName(tx.party),
+    );
+
+    const batchGroups = new Map<string, Transaction[]>();
+    for (const tx of candidates) {
+      const key = tx.batchId ?? tx.id;
+      const group = batchGroups.get(key) ?? [];
+      group.push(tx);
+      batchGroups.set(key, group);
+    }
+
+    for (const group of batchGroups.values()) {
+      const lead = group[0];
+      if (!sameFundScope(target, lead)) continue;
+      if (fundBatch.length > 1) {
+        if (accountBatchMatchesFundBatch(fundBatch, group)) {
+          for (const tx of group) ids.add(tx.id);
+        }
+      } else if (singleLegMatchesCounterparty(target, lead)) {
+        for (const tx of group) ids.add(tx.id);
+      }
+    }
+    return [...ids];
+  }
+
+  if (isAccountOperationLeg(target, transactions) && !isFeeAccountName(target.party)) {
+    const accountName = target.party?.trim();
+    const accountBatch = target.batchId
+      ? transactions.filter(t => t.batchId === target.batchId)
+      : [target];
+
+    const candidates = transactions.filter(tx =>
+      tx.id !== target.id
+      && isFundOperationLead(tx)
+      && tx.counterparty?.trim() === accountName,
+    );
+
+    const batchGroups = new Map<string, Transaction[]>();
+    for (const tx of candidates) {
+      const key = tx.batchId ?? tx.id;
+      const group = batchGroups.get(key) ?? [];
+      group.push(tx);
+      batchGroups.set(key, group);
+    }
+
+    for (const group of batchGroups.values()) {
+      const lead = group[0];
+      if (!sameFundScope(lead, target)) continue;
+      if (accountBatch.length > 1) {
+        if (accountBatchMatchesFundBatch(group, accountBatch)) {
+          for (const tx of group) ids.add(tx.id);
+        }
+      } else if (singleLegMatchesCounterparty(lead, target)) {
+        for (const tx of group) ids.add(tx.id);
+      }
+    }
+  }
+
+  return [...ids];
+}
+
+/** يملأ linkId الناقص بين الصندوق والحساب المربوط */
+export function backfillMissingLinkIds(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const byId = new Map(transactions.map(tx => [tx.id, tx]));
+
+  for (const fund of transactions) {
+    if (!isFundOperationLead(fund)) continue;
+    const peerIds = findCounterpartyLinkedPeerIds(transactions, fund);
+    if (!peerIds.length) continue;
+
+    const linkId = fund.linkId
+      ?? peerIds.map(id => byId.get(id)?.linkId).find(Boolean)
+      ?? crypto.randomUUID();
+
+    if (!fund.linkId) {
+      const updated = { ...fund, linkId };
+      byId.set(fund.id, updated);
+      changed.push(updated);
+    }
+    for (const peerId of peerIds) {
+      const peer = byId.get(peerId);
+      if (peer && !peer.linkId) {
+        const updated = { ...peer, linkId };
+        byId.set(peerId, updated);
+        changed.push(updated);
+      }
+    }
+  }
+
+  if (!changed.length) return { transactions, changed: [] };
+  return { transactions: [...byId.values()], changed };
+}
+
 export function getOperationGroupIds(transactions: Transaction[], id: string): string[] {
   const target = transactions.find(tx => tx.id === id);
   if (!target) return [id];
 
   const ids = new Set<string>();
 
-  if (target.batchId) {
-    for (const tx of transactions) {
-      if (tx.batchId === target.batchId) ids.add(tx.id);
+  function addBatch(batchId: string | undefined, txId: string) {
+    if (batchId) {
+      for (const tx of transactions) {
+        if (tx.batchId === batchId) ids.add(tx.id);
+      }
+    } else {
+      ids.add(txId);
     }
-  } else {
-    ids.add(target.id);
   }
+
+  addBatch(target.batchId, target.id);
 
   if (target.linkId) {
     for (const tx of transactions) {
       if (tx.linkId === target.linkId) ids.add(tx.id);
+    }
+  }
+
+  for (const txId of [...ids]) {
+    const tx = transactions.find(t => t.id === txId);
+    if (!tx) continue;
+    for (const peerId of findCounterpartyLinkedPeerIds(transactions, tx)) {
+      ids.add(peerId);
+      const peer = transactions.find(t => t.id === peerId);
+      if (peer) addBatch(peer.batchId, peer.id);
     }
   }
 
@@ -1220,8 +1405,10 @@ function collectOrphanFeesForAccountDelete(
   if (!target || target.ledger !== 'account' || isFeeAccountName(target.party)) return [];
 
   const hasFundPeer = target.linkId
-    ? transactions.some(t => t.linkId === target.linkId && t.ledger === 'fund')
-    : false;
+    ? transactions.some(t => t.linkId === target.linkId && isFundOperationLead(t))
+    : findCounterpartyLinkedPeerIds(transactions, target).some(id =>
+      transactions.some(t => t.id === id && isFundOperationLead(t)),
+    );
   if (hasFundPeer) return [];
 
   const groupTxs = transactions.filter(t => groupIds.includes(t.id) && t.ledger === 'account');
@@ -1250,7 +1437,7 @@ export function getDeletionGroupIds(transactions: Transaction[], id: string): st
 /** عمليات حساب/أجور بقيت بعد حذف حركة الصندوق المربوطة */
 export function findOrphanedLinkedTransactionIds(transactions: Transaction[]): string[] {
   const fundLinkIds = new Set(
-    transactions.filter(t => t.ledger === 'fund' && t.linkId).map(t => t.linkId!),
+    transactions.filter(t => isFundOperationLead(t) && t.linkId).map(t => t.linkId!),
   );
   const fundIds = new Set(transactions.filter(t => t.ledger === 'fund').map(t => t.id));
   const orphanIds: string[] = [];

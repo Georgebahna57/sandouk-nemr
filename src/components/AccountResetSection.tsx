@@ -5,12 +5,13 @@ import type { Transaction } from '../types';
 
 interface Props {
   transactions: Transaction[];
-  onReset: () => Promise<void>;
+  onReset: () => Promise<number>;
 }
 
 export function AccountResetSection({ transactions, onReset }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
 
   const preview = useMemo(() => previewAccountReset(transactions), [transactions]);
@@ -19,8 +20,11 @@ export function AccountResetSection({ transactions, onReset }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await onReset();
+      const removed = await onReset();
       setConfirm(false);
+      setSuccess(removed > 0
+        ? `تم حذف ${removed.toLocaleString('ar-LB')} حركة حساب — الأرصدة صفر`
+        : 'لا توجد حركات حساب للحذف');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل تصفير الحسابات');
     } finally {
@@ -56,6 +60,9 @@ export function AccountResetSection({ transactions, onReset }: Props) {
 
       {error && (
         <p className="mb-3 text-xs text-rose-400">{error}</p>
+      )}
+      {success && (
+        <p className="mb-3 text-xs text-emerald-400">{success}</p>
       )}
 
       {!confirm ? (
