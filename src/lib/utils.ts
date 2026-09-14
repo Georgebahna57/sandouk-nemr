@@ -267,15 +267,25 @@ export function pickCanonicalFundBatchKey(
   const batchKeys = [...new Set(legs.map(fundBatchKey))];
   if (batchKeys.length <= 1) return batchKeys[0];
 
+  const fundId = legs[0]?.fundId;
   const scored = batchKeys.map(key => {
     const batch = legs.filter(t => fundBatchKey(t) === key);
+    const hasCustomerParty = batch.some(
+      t => fundId && isCustomerAccountName(t.party) && !isFundPartyForLedger(t.party, fundId),
+    );
+    const hasFundParty = fundId
+      ? batch.every(t => isFundPartyForLedger(t.party, fundId))
+      : false;
     const hasFee = batch.some(t => !!(t.fee?.trim() || t.feeAmount || t.feeCurrency));
     const createdAt = batch.map(t => t.createdAt).sort()[0] ?? '';
-    return { key, hasFee, createdAt };
+    return { key, hasCustomerParty, hasFundParty, hasFee, createdAt };
   });
   scored.sort((a, b) => {
+    if (a.hasCustomerParty !== b.hasCustomerParty) return a.hasCustomerParty ? 1 : -1;
+    if (a.hasFundParty !== b.hasFundParty) return a.hasFundParty ? -1 : 1;
     if (a.hasFee !== b.hasFee) return a.hasFee ? -1 : 1;
-    return a.createdAt.localeCompare(b.createdAt);
+    if (a.createdAt !== b.createdAt) return a.createdAt.localeCompare(b.createdAt);
+    return a.key.localeCompare(b.key);
   });
   return scored[0]?.key;
 }
@@ -355,6 +365,14 @@ export function repairBoxFundTransactions(transactions: Transaction[]): {
     const ledger = tx.ledger ?? 'fund';
     if (ledger !== 'fund') return tx;
     if (isFundPartyForLedger(tx.party, tx.fundId)) return tx;
+    if (tx.linkId && isCustomerAccountName(tx.party)) {
+      const hasFundPeer = transactions.some(
+        t => t.linkId === tx.linkId
+          && t.id !== tx.id
+          && isFundPartyForLedger(t.party, tx.fundId),
+      );
+      if (hasFundPeer) return tx;
+    }
     const fixed: Transaction = {
       ...tx,
       ledger: 'fund',
