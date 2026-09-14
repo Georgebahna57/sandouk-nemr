@@ -1,10 +1,11 @@
-import { BOX_FUNDS } from '../config';
+import { BOX_FUNDS, isFundAccountName } from '../config';
 import type { AccountBranchId, Currency, FundId, Transaction } from '../types';
 import {
   ACCOUNT_BRANCH_LABELS,
   branchLedgerFundId,
   getCustomersLedgerFundId,
 } from './accountBranch';
+import { isFeeAccountName } from './fees';
 import { computeAccountBalances, createAccountTransaction, todayIso } from './utils';
 
 export const TRIAL_BALANCE_IMPORT_NOTE = 'استيراد ميزان مراجعة';
@@ -31,6 +32,7 @@ export interface TrialBalanceImportResult {
   createdAccounts: string[];
   matchedByNumber: { importName: string; existingName: string; code: string }[];
   accountBranch: AccountBranchId;
+  skippedNames: string[];
 }
 
 export function resolveTrialBalanceImportFundId(target: TrialBalanceImportTarget): FundId {
@@ -39,6 +41,39 @@ export function resolveTrialBalanceImportFundId(target: TrialBalanceImportTarget
 
 export function trialBalanceImportTargetLabel(target: TrialBalanceImportTarget): string {
   return `حسابات — ${ACCOUNT_BRANCH_LABELS[target.accountBranch]}`;
+}
+
+export interface TrialBalanceImportFilterResult {
+  accounts: TrialBalanceImportAccount[];
+  skippedNames: string[];
+}
+
+/** يستبعد حسابات الصناديق والأجور — الاستيراد للزبائن/المراكز فقط */
+export function filterImportableTrialBalanceAccounts(
+  accounts: TrialBalanceImportAccount[],
+): TrialBalanceImportFilterResult {
+  const skippedNames: string[] = [];
+  const filtered = accounts.filter(acc => {
+    const name = acc.name.trim();
+    if (isFundAccountName(name) || isFeeAccountName(name)) {
+      skippedNames.push(name);
+      return false;
+    }
+    return true;
+  });
+  return { accounts: filtered, skippedNames };
+}
+
+/** يرفض أي حركة استيراد قد تظهر على الصندوق */
+export function assertAccountOnlyImportTransactions(txs: Transaction[]): void {
+  for (const tx of txs) {
+    if ((tx.ledger ?? 'fund') !== 'account') {
+      throw new Error('الاستيراد يجب أن يكون حركات حساب فقط — لا يمس الصندوق');
+    }
+    if (tx.linkId) {
+      throw new Error('حركة الاستيراد لا يجوز أن تكون مربوطة بصندوق');
+    }
+  }
 }
 
 const SHEET_CURRENCY: Record<string, Currency> = {
@@ -237,6 +272,7 @@ export function buildAllImportBalanceSyncTransactions(
       all.push(...buildBalanceSyncTransaction(fundId, acc.name, cur, row.balance, current, date));
     }
   }
+  assertAccountOnlyImportTransactions(all);
   return all;
 }
 
