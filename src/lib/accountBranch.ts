@@ -1,6 +1,7 @@
-import { CENTERS_FUND_ID, isBoxFund } from '../config';
-import type { AccountBranchId, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
+import { CENTERS_FUND_ID, CURRENCIES, isBoxFund } from '../config';
+import type { AccountBranchId, Currency, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { mergeAccountSummaries } from './accountMerge';
+import { isFeeAccountName } from './fees';
 import {
   accountNeedsReconciliation,
   applyCustomerFundMove,
@@ -206,11 +207,30 @@ export function buildBranchAccountSummaries(
   return enrichSummariesFundScope(
     transactions,
     summaries.filter(s => {
+      if (isFeeAccountName(s.name)) return false;
       const customer = findCustomerForSummary(s, customers);
       return inferAccountBranch(transactions, s.name, customer) === branch;
     }),
     boxFunds,
   );
+}
+
+/** مجموع الأرصدة لكل عملة عبر قائمة حسابات */
+export function sumSummariesByCurrency(
+  summaries: CustomerSummary[],
+): { currency: Currency; total: number; symbol: string }[] {
+  const totals = new Map<Currency, number>();
+  for (const s of summaries) {
+    if (isFeeAccountName(s.name)) continue;
+    for (const c of CURRENCIES) {
+      const balance = s.balances[c.id].balance;
+      if (balance === 0) continue;
+      totals.set(c.id, (totals.get(c.id) ?? 0) + balance);
+    }
+  }
+  return CURRENCIES
+    .map(c => ({ currency: c.id, total: totals.get(c.id) ?? 0, symbol: c.symbol }))
+    .filter(row => row.total !== 0);
 }
 
 /** كل الحسابات (مراكز + زبائن) من كل الصناديق — للعرض في أي صندوق */
