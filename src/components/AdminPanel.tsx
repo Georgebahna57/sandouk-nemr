@@ -47,7 +47,10 @@ interface Props {
   onRepairHalab?: () => Promise<void>;
   onResetAllAccounts?: () => Promise<import('../lib/accountReset').AccountResetResult>;
   onDeleteFundDayOperations?: (fundId: FundId, date: string) => Promise<number>;
-  onImportTrialBalance?: (accounts: TrialBalanceImportAccount[], fundId: FundId) => Promise<import('../lib/trialBalanceImport').TrialBalanceImportResult>;
+  onImportTrialBalance?: (
+    accounts: TrialBalanceImportAccount[],
+    target: import('../lib/trialBalanceImport').TrialBalanceImportTarget,
+  ) => Promise<import('../lib/trialBalanceImport').TrialBalanceImportResult>;
   importingTrialBalance?: boolean;
 }
 
