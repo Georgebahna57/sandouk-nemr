@@ -1,6 +1,7 @@
 import { Loader2, Plus, X } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { getFundAccountName, defaultCounterpartyForFund, isHalabFleilatFund } from '../config';
+import { fundRequiresAccountLink, resolveLinkedAccountName } from '../lib/fundLinkedAccounts';
 import { buildPendingWhatsAppMessage, getApprovalWhatsAppLine } from '../lib/whatsapp';
 import {
   createLinkedFundAccountOperation,
@@ -94,12 +95,18 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
   const paidCurrency = exchangeFields.paidCurrency;
   const receivedCurrency = exchangeFields.receivedCurrency;
 
-  const counterpartyTrimmed = counterparty.trim();
-  const matchedAccount = useMemo(
-    () => counterpartyNames.find(n => n === counterpartyTrimmed),
-    [counterpartyNames, counterpartyTrimmed],
+  const mustLinkAccount = fundRequiresAccountLink(fundId);
+  const linkedAccountName = useMemo(
+    () => resolveLinkedAccountName(fundId, counterpartyNames),
+    [fundId, counterpartyNames],
   );
-  const canLink = !!matchedAccount;
+  const counterpartyTrimmed = counterparty.trim();
+  const matchedAccount = useMemo(() => {
+    if (mustLinkAccount && linkedAccountName) return linkedAccountName;
+    return counterpartyNames.find(n => n === counterpartyTrimmed);
+  }, [mustLinkAccount, linkedAccountName, counterpartyNames, counterpartyTrimmed]);
+  const canLink = mustLinkAccount ? !!linkedAccountName : !!matchedAccount;
+  const linkActive = mustLinkAccount ? true : linkToAccount;
   const showHalabMirror = showHalabFields && linkToAccount && canLink
     && shouldOfferHalabMirror(fundId, matchedAccount);
   const parsedLines = useMemo(() => parseAmountLines(lines), [lines]);
@@ -134,7 +141,8 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
   useEffect(() => {
     const next = defaultCounterpartyForFund(fundId, counterpartyNames);
     if (!next) return;
-    setCounterparty(prev => prev || next);
+    setCounterparty(next);
+    if (fundRequiresAccountLink(fundId)) setLinkToAccount(true);
   }, [fundId, counterpartyNames]);
 
   function reset() {
@@ -183,7 +191,7 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
 
     if (isExchange) {
       if (!exchangeParsed.valid) return;
-      payload = linkToAccount && canLink && matchedAccount
+      payload = linkActive && canLink && matchedAccount
         ? createLinkedAccountFundExchange(
           shared,
           matchedAccount,
@@ -209,10 +217,10 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
       const items = parseAmountLines(lines);
       if (!items.length) return;
 
-      if (linkToAccount && canLink) {
+      if (linkActive && canLink && matchedAccount) {
         payload = createLinkedFundAccountOperation(
           shared,
-          counterpartyTrimmed,
+          matchedAccount,
           direction,
           items,
           counterpartyTrimmed,
@@ -331,11 +339,15 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
           )}
           {canLink && (
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-emerald-300/90">
-                <input type="checkbox" checked={linkToAccount} onChange={e => setLinkToAccount(e.target.checked)} className="rounded" />
-                نفّذ أيضاً على حساب {matchedAccount}
-              </label>
-              {linkToAccount && (
+              {mustLinkAccount ? (
+                <p className="text-sm text-emerald-300/90">مرتبط تلقائياً بحساب {matchedAccount}</p>
+              ) : (
+                <label className="flex items-center gap-2 text-sm text-emerald-300/90">
+                  <input type="checkbox" checked={linkToAccount} onChange={e => setLinkToAccount(e.target.checked)} className="rounded" />
+                  نفّذ أيضاً على حساب {matchedAccount}
+                </label>
+              )}
+              {linkActive && (
                 <LinkedAccountDirectionPicker direction={accountDirection} onChange={setAccountDirection} />
               )}
             </div>
@@ -344,27 +356,39 @@ export const TransactionForm = memo(function TransactionForm({ fundId, onAdd, de
       ) : (
         <>
           <AmountLinesEditor lines={lines} onChange={setLines} />
-          {counterpartyNames.length > 0 && (
-            <select
-              value={matchedAccount ?? ''}
-              onChange={e => setCounterparty(e.target.value)}
-              className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-            >
-              <option value="">اختر حساب موجود...</option>
-              {counterpartyNames.map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
+          {mustLinkAccount && linkedAccountName ? (
+            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5 text-sm text-emerald-300/90">
+              مرتبط تلقائياً بحساب: <span className="font-medium text-emerald-200">{linkedAccountName}</span>
+            </p>
+          ) : (
+            <>
+              {counterpartyNames.length > 0 && (
+                <select
+                  value={matchedAccount ?? ''}
+                  onChange={e => setCounterparty(e.target.value)}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
+                >
+                  <option value="">اختر حساب موجود...</option>
+                  {counterpartyNames.map(n => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              )}
+              <input type="text" placeholder="الطرف / الحساب (أو اكتب اسم جديد)" value={counterparty} onChange={e => setCounterparty(e.target.value)}
+                className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" list="counterparty-names" />
+            </>
           )}
-          <input type="text" placeholder="الطرف / الحساب (أو اكتب اسم جديد)" value={counterparty} onChange={e => setCounterparty(e.target.value)}
-            className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" list="counterparty-names" />
           {canLink && (
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm text-emerald-300/90">
-                <input type="checkbox" checked={linkToAccount} onChange={e => setLinkToAccount(e.target.checked)} className="rounded" />
-                نفّذ أيضاً على حساب {matchedAccount}
-              </label>
-              {linkToAccount && (
+              {mustLinkAccount ? (
+                <p className="text-sm text-emerald-300/90">تُرحَل الحركة على حساب {matchedAccount}</p>
+              ) : (
+                <label className="flex items-center gap-2 text-sm text-emerald-300/90">
+                  <input type="checkbox" checked={linkToAccount} onChange={e => setLinkToAccount(e.target.checked)} className="rounded" />
+                  نفّذ أيضاً على حساب {matchedAccount}
+                </label>
+              )}
+              {linkActive && (
                 <LinkedAccountDirectionPicker direction={accountDirection} onChange={setAccountDirection} />
               )}
             </div>
