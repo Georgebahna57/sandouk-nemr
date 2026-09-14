@@ -4,7 +4,7 @@ import {
   normalizeFeeSourceAccount,
   SEPARATE_FEE_ACCOUNTS,
 } from './fees';
-import type { CustomerBalances, CustomerSummary } from '../types';
+import type { AccountReconciliation, Customer, CustomerBalances, CustomerSummary } from '../types';
 
 /** مفتاح موحّد لدمج الحسابات المتكررة (كندا، نور، أجور كندا، أجور نور…) */
 export function canonicalAccountKey(name: string): string {
@@ -26,6 +26,73 @@ export function canonicalAccountDisplayName(key: string): string {
   return key;
 }
 
+/** توحيد رقم الحساب للمقارنة (4011-1114 = 40111114) */
+export function normalizeAccountNumber(num: string): string {
+  return num.trim().replace(/[\s-]/g, '').toLowerCase();
+}
+
+function buildAccountNumberMaps(customers: Customer[]) {
+  const nameToNormalized = new Map<string, string>();
+  const normalizedToDisplay = new Map<string, string>();
+  for (const c of customers) {
+    const raw = c.accountNumber?.trim();
+    if (!raw) continue;
+    const norm = normalizeAccountNumber(raw);
+    nameToNormalized.set(c.name.trim(), norm);
+    if (!normalizedToDisplay.has(norm)) normalizedToDisplay.set(norm, raw);
+  }
+  return { nameToNormalized, normalizedToDisplay };
+}
+
+function resolveSummaryAccountNumber(
+  summary: CustomerSummary,
+  nameToNormalized: Map<string, string>,
+): string | undefined {
+  const direct = summary.accountNumber?.trim();
+  if (direct) return normalizeAccountNumber(direct);
+  return nameToNormalized.get(summary.name.trim());
+}
+
+function accountMergeKey(
+  summary: CustomerSummary,
+  nameToNormalized: Map<string, string>,
+): string {
+  if (isFeeAccountName(summary.name)) {
+    return `name:${canonicalAccountKey(summary.name)}`;
+  }
+  const num = resolveSummaryAccountNumber(summary, nameToNormalized);
+  if (num) return `num:${num}`;
+  return `name:${canonicalAccountKey(summary.name)}`;
+}
+
+function pickMergedDisplayName(names: string[]): string {
+  return [...names].sort((a, b) => a.length - b.length || a.localeCompare(b, 'ar'))[0];
+}
+
+function pickMergedReconciliation(
+  a?: AccountReconciliation,
+  b?: AccountReconciliation,
+): AccountReconciliation | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a.throughDate <= b.throughDate ? a : b;
+}
+
+function displayAccountNumber(
+  normalized: string | undefined,
+  normalizedToDisplay: Map<string, string>,
+  summaries: CustomerSummary[],
+): string | undefined {
+  if (!normalized) return undefined;
+  const fromMap = normalizedToDisplay.get(normalized);
+  if (fromMap) return fromMap;
+  for (const s of summaries) {
+    const raw = s.accountNumber?.trim();
+    if (raw && normalizeAccountNumber(raw) === normalized) return raw;
+  }
+  return undefined;
+}
+
 export function mergeCustomerBalances(a: CustomerBalances, b: CustomerBalances): CustomerBalances {
   const result = emptyCustomerBalances();
   for (const c of CURRENCIES) {
@@ -37,18 +104,25 @@ export function mergeCustomerBalances(a: CustomerBalances, b: CustomerBalances):
   return result;
 }
 
-export function mergeAccountSummaries(summaries: CustomerSummary[]): CustomerSummary[] {
+/** دمج حسابات بنفس الاسم أو بنفس رقم الحساب */
+export function mergeAccountSummaries(
+  summaries: CustomerSummary[],
+  customers: Customer[] = [],
+): CustomerSummary[] {
+  const { nameToNormalized, normalizedToDisplay } = buildAccountNumberMaps(customers);
   const byKey = new Map<string, CustomerSummary>();
 
   for (const s of summaries) {
-    const key = canonicalAccountKey(s.name);
+    const key = accountMergeKey(s, nameToNormalized);
     const existing = byKey.get(key);
 
     if (!existing) {
       const fundIds = s.fundId ? [s.fundId] : [];
+      const norm = key.startsWith('num:') ? key.slice(4) : undefined;
       byKey.set(key, {
         ...s,
-        name: canonicalAccountDisplayName(key),
+        name: pickMergedDisplayName([s.name]),
+        accountNumber: s.accountNumber ?? (norm ? displayAccountNumber(norm, normalizedToDisplay, [s]) : undefined),
         aliases: [s.name],
         fundIds,
         fundId: s.fundId,
@@ -62,14 +136,17 @@ export function mergeAccountSummaries(summaries: CustomerSummary[]): CustomerSum
       ...(s.fundId ? [s.fundId] : []),
     ])];
     const aliases = [...new Set([...(existing.aliases ?? [existing.name]), s.name])];
+    const displayName = pickMergedDisplayName(aliases);
+    const norm = key.startsWith('num:') ? key.slice(4) : undefined;
 
     byKey.set(key, {
       ...existing,
-      name: canonicalAccountDisplayName(key),
+      name: displayName,
+      accountNumber: existing.accountNumber ?? s.accountNumber ?? (norm ? displayAccountNumber(norm, normalizedToDisplay, [existing, s]) : undefined),
       balances: mergeCustomerBalances(existing.balances, s.balances),
       hasActivity: existing.hasActivity || s.hasActivity,
       customerId: existing.customerId ?? s.customerId,
-      reconciliation: existing.reconciliation ?? s.reconciliation,
+      reconciliation: pickMergedReconciliation(existing.reconciliation, s.reconciliation),
       sharedFundIds: existing.sharedFundIds ?? s.sharedFundIds,
       fundIds,
       fundId: existing.fundId ?? s.fundId ?? fundIds[0],
@@ -85,4 +162,10 @@ export function isMergedAccountSummary(summary: CustomerSummary): boolean {
   return summary.merged
     || (summary.fundIds?.length ?? 0) > 1
     || (summary.aliases?.length ?? 0) > 1;
+}
+
+/** أسماء إضافية مدمجة (غير الاسم المعروض) */
+export function mergedAccountAliasLabels(summary: CustomerSummary): string[] {
+  const aliases = summary.aliases ?? [];
+  return aliases.filter(a => a.trim() !== summary.name.trim());
 }

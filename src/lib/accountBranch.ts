@@ -195,7 +195,7 @@ export function buildBranchAccountSummaries(
     for (const fid of fundIds) {
       perFund.push(...buildAccountSummaries(transactions, customers, fid));
     }
-    summaries = mergeAccountSummaries(perFund);
+    summaries = mergeAccountSummaries(perFund, customers);
   } else {
     const ledgerIds = customerBoxFundIds(boxFundIds);
     if (ledgerIds.length > 0) {

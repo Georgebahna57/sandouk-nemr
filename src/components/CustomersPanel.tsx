@@ -1,6 +1,7 @@
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CENTERS_FUND_ID, CURRENCIES, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
+import { mergedAccountAliasLabels } from '../lib/accountMerge';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
 import { accountExistsInFund, accountNeedsReconciliation, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
@@ -281,6 +282,11 @@ export function CustomersPanel({
                       {summary.accountNumber && (
                         <span className="mt-0.5 block text-[11px] text-slate-500 tabular-nums" dir="ltr">
                           {summary.accountNumber}
+                        </span>
+                      )}
+                      {mergedAccountAliasLabels(summary).length > 0 && (
+                        <span className="mt-0.5 block text-[10px] text-slate-500 break-words">
+                          يشمل: {mergedAccountAliasLabels(summary).join(' · ')}
                         </span>
                       )}
                       <div className="account-card-badges mt-1 flex flex-wrap items-center gap-1">
