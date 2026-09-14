@@ -1,3 +1,4 @@
+import { resolveLinkedAccountName } from './lib/fundLinkedAccounts';
 import type { Currency, CustomerBalances, Fund, FundBalances, FundId } from './types';
 
 export type AssetKind = 'money' | 'weight';
@@ -17,8 +18,12 @@ export const FUNDS: Fund[] = [
   { id: 'zalqa', name: 'صندوق زلقا', shortName: 'زلقا', accent: '#10b981' },
   { id: 'george', name: 'صندوق جورج', shortName: 'جورج', accent: '#3b82f6' },
   { id: 'marakiz', name: 'مراكز', shortName: 'مراكز', accent: '#06b6d4' },
-  { id: 'halabFleilat', name: 'حلب - الفيلات', shortName: 'حلب', accent: '#e11d48' },
 ];
+
+/** صناديق مُوقَفة — للبيانات القديمة فقط */
+const RETIRED_FUNDS: Partial<Record<FundId, Fund>> = {
+  halabFleilat: { id: 'halabFleilat', name: 'حلب - الفيلات', shortName: 'حلب', accent: '#e11d48' },
+};
 
 /** معرّف فرع المراكز — ليس صندوقاً نقدياً */
 export const CENTERS_FUND_ID: FundId = 'marakiz';
@@ -52,7 +57,7 @@ export const CURRENCIES: AssetConfig[] = [
 ];
 
 export function getFund(id: FundId) {
-  return FUNDS.find(f => f.id === id) ?? FUNDS[0];
+  return FUNDS.find(f => f.id === id) ?? RETIRED_FUNDS[id] ?? FUNDS[0];
 }
 
 export function isHalabFleilatFund(fundId: FundId): boolean {
@@ -86,11 +91,9 @@ export function getFundAccountName(fundId: FundId): string {
   return fund.name;
 }
 
-/** الطرف/الحساب الافتراضي عند إضافة حركة — حلب لصندوق الفيلات إذا موجود */
+/** الطرف/الحساب الافتراضي عند إضافة حركة صندوق */
 export function defaultCounterpartyForFund(fundId: FundId, accountNames: readonly string[]): string {
-  if (!isHalabFleilatFund(fundId)) return '';
-  const preferred = getFund(fundId).shortName;
-  return accountNames.includes(preferred) ? preferred : '';
+  return resolveLinkedAccountName(fundId, accountNames);
 }
 
 const FUND_ACCOUNT_NAMES = new Set(
