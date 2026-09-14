@@ -31,6 +31,7 @@ import { AuditLogSection } from './AuditLogSection';
 import { MessageTemplatesSection } from './MessageTemplatesSection';
 import { TrialBalanceImportSection } from './TrialBalanceImportSection';
 import { AccountResetSection } from './AccountResetSection';
+import { FundDayPurgeSection } from './FundDayPurgeSection';
 import type { TrialBalanceImportAccount } from '../lib/trialBalanceImport';
 
 interface Props {
@@ -45,6 +46,7 @@ interface Props {
   onRestoreNemrBalance: (plan: import('../lib/nemrBalanceRestore').NemrBalanceRestorePlan) => void | Promise<void>;
   onRepairHalab?: () => Promise<void>;
   onResetAllAccounts?: () => Promise<number>;
+  onDeleteFundDayOperations?: (fundId: FundId, date: string) => Promise<number>;
   onImportTrialBalance?: (accounts: TrialBalanceImportAccount[], fundId: FundId) => Promise<import('../lib/trialBalanceImport').TrialBalanceImportResult>;
   importingTrialBalance?: boolean;
 }
@@ -86,7 +88,7 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRestoreNemrBalance, onRepairHalab, onResetAllAccounts, onImportTrialBalance, importingTrialBalance = false }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRestoreNemrBalance, onRepairHalab, onResetAllAccounts, onDeleteFundDayOperations, onImportTrialBalance, importingTrialBalance = false }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
@@ -281,6 +283,13 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
         <NemrBalanceRestoreSection
           transactions={appState.transactions}
           onRestore={onRestoreNemrBalance}
+        />
+      )}
+
+      {onDeleteFundDayOperations && (
+        <FundDayPurgeSection
+          transactions={appState.transactions}
+          onPurge={onDeleteFundDayOperations}
         />
       )}
 

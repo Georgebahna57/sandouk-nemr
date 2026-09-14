@@ -316,14 +316,18 @@ export function AccountTransactionForm({
       {!isExchange && (
         <div className="space-y-2 rounded-xl border border-slate-600/80 bg-slate-900/40 p-2.5">
           <p className="text-[10px] font-medium text-slate-400">ترحيل مرتبط (اختياري)</p>
-          <label className="flex items-center gap-2 text-xs text-emerald-300/90">
+          <label className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs ${
+            transferMode === 'none'
+              ? 'border border-slate-500/50 bg-slate-800/80 text-slate-100'
+              : 'text-slate-400'
+          }`}>
             <input
               type="radio"
               name={`transfer-${accountName}`}
               checked={transferMode === 'none'}
               onChange={() => setTransferMode('none')}
             />
-            بدون ترحيل
+            بدون ترحيل — حساب فقط (لا يظهر على الصندوق)
           </label>
           <label className="flex items-center gap-2 text-xs text-emerald-300/90">
             <input
