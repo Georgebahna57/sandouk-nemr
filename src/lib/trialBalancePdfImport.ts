@@ -34,13 +34,22 @@ function isSkippableLine(line: string): boolean {
   const t = line.trim();
   if (!t) return true;
   if (/^--\s+\d+\s+of\s+\d+\s+--$/i.test(t)) return true;
-  if (/^Page\s+\d+\s+of\s+\d+/i.test(t)) return true;
-  if (/^Account No\./i.test(t)) return true;
+  if (/Page\s+\d+\s+of\s+\d+/i.test(t)) return true;
+  if (/Account No\./i.test(t)) return true;
+  if (/Account Name/i.test(t)) return true;
+  if (/Prev\.\s*Balance/i.test(t)) return true;
   if (t === 'Trial Balance' || t === 'Main' || t === '.') return true;
   if (/^\d{2}\/\d{2}\/\d{4}/.test(t)) return true;
   if (/^(Date|Time|For Transactions|Evaluated By)\s*:/i.test(t)) return true;
   if (/^Between\s*:/i.test(t)) return true;
   return false;
+}
+
+function looksLikePdfHeaderGarbage(name: string): boolean {
+  return /Page\s+\d+\s+of\s+\d+/i.test(name)
+    || /Account No\./i.test(name)
+    || /Account Name/i.test(name)
+    || /Prev\.\s*Balance/i.test(name);
 }
 
 function isSectionHeader(line: string): boolean {
@@ -51,6 +60,8 @@ function isSectionHeader(line: string): boolean {
 
 function cleanAccountName(raw: string): string {
   return raw
+    .replace(/Page\s+\d+\s+of\s+\d+[\s\S]*?(?=(?:USD|EUR|SYP|SYL|NSYP|LBP|GOLD|SILVER|AED|GBP|CAD|SAR|QAR|KWD|JOD)\s+\d{3,4}\s)/gi, '')
+    .replace(/Account No\.\s*Account Name[\s\S]*?Prev\.\s*Balance\s*/gi, '')
     .replace(/\s+[-]?[\d,]+\.?\d*(\s+[-]?[\d,]+\.?\d*)*\s*$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -67,6 +78,11 @@ function pickBetterName(current: string, candidate: string): string {
   const b = candidate.trim();
   if (!a) return b;
   if (!b) return a;
+  const aGarbage = looksLikePdfHeaderGarbage(a);
+  const bGarbage = looksLikePdfHeaderGarbage(b);
+  if (aGarbage && !bGarbage) return b;
+  if (bGarbage && !aGarbage) return a;
+  if (aGarbage && bGarbage) return b.length <= a.length ? b : a;
   return b.length > a.length ? b : a;
 }
 
@@ -81,7 +97,7 @@ function parseRecordMatch(nameRaw: string, currencyRaw: string, parent: string, 
   const currency = pdfCurrencyToAppCurrency(currencyRaw);
   if (!currency) return null;
   const name = cleanAccountName(nameRaw);
-  if (!name) return null;
+  if (!name || looksLikePdfHeaderGarbage(name)) return null;
   return {
     code: `${parent}-${sub}`,
     name,
