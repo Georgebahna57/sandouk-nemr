@@ -2,6 +2,7 @@ import { CENTERS_FUND_ID, isBoxFund } from '../config';
 import type { AccountBranchId, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { mergeAccountSummaries } from './accountMerge';
 import {
+  accountNeedsReconciliation,
   applyCustomerFundMove,
   buildAccountSummaries,
   buildCustomerAccountsAcrossFunds,
@@ -238,4 +239,39 @@ export function buildAccountsSectionSummaries(
   boxFunds: Fund[],
 ): CustomerSummary[] {
   return buildBranchAccountSummaries(transactions, customers, branch, boxFunds);
+}
+
+function reconciliationFundId(
+  summary: CustomerSummary,
+  branch: AccountBranchId,
+  customersLedgerFundId: FundId,
+): FundId {
+  return summary.fundId ?? (branch === 'centers' ? CENTERS_FUND_ID : customersLedgerFundId);
+}
+
+/** عدد الحسابات بحاجة مطابقة — نفس منطق تبويب «المطابقات» */
+export function countAccountsNeedingReconciliation(
+  transactions: Transaction[],
+  customers: Customer[],
+  boxFunds: Fund[],
+  includeCenters: boolean,
+): number {
+  const customersLedgerFundId = getCustomersLedgerFundId(boxFunds);
+  let count = 0;
+
+  if (includeCenters) {
+    const centers = buildBranchAccountSummaries(transactions, customers, 'centers', boxFunds);
+    count += centers.filter(s =>
+      accountNeedsReconciliation(transactions, reconciliationFundId(s, 'centers', customersLedgerFundId), s),
+    ).length;
+  }
+
+  if (customerBoxFundIds(boxFunds.map(f => f.id)).length > 0) {
+    const customerAccounts = buildBranchAccountSummaries(transactions, customers, 'customers', boxFunds);
+    count += customerAccounts.filter(s =>
+      accountNeedsReconciliation(transactions, reconciliationFundId(s, 'customers', customersLedgerFundId), s),
+    ).length;
+  }
+
+  return count;
 }

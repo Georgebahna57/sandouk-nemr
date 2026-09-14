@@ -23,6 +23,7 @@ import { PendingWhatsAppModal } from './components/PendingWhatsAppModal';
 import { getFund, isBoxFund, isHalabFleilatFund, CENTERS_FUND_ID } from './config';
 import {
   buildFundSectionAccountSummaries,
+  countAccountsNeedingReconciliation,
   findCustomerForSummary,
   getCustomersLedgerFundId,
 } from './lib/accountBranch';
@@ -32,7 +33,6 @@ import { usePermissions } from './hooks/usePermissions';
 import {
   applyTransactionFilters,
   accountNeedsReconciliation,
-  countAccountsNeedingReconciliation,
   computeBalances,
   computeProjectedFundBalances,
   describeTransaction,
@@ -351,7 +351,7 @@ export default function App({ user, onLogout }: Props) {
     () => countAccountsNeedingReconciliation(
       state.transactions,
       state.customers,
-      accountBoxFunds.map(f => f.id),
+      accountBoxFunds,
       canAccessCenters,
     ),
     [state.transactions, state.customers, accountBoxFunds, canAccessCenters],
