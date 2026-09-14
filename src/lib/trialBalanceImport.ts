@@ -1,4 +1,6 @@
+import { isFundAccountName } from '../config';
 import type { Currency, FundId, Transaction } from '../types';
+import { isFeeAccountName } from './fees';
 import { computeAccountBalances, createAccountTransaction, todayIso } from './utils';
 
 export const TRIAL_BALANCE_IMPORT_NOTE = 'استيراد ميزان مراجعة';
@@ -20,6 +22,38 @@ export interface TrialBalanceImportResult {
   importedCount: number;
   createdAccounts: string[];
   matchedByNumber: { importName: string; existingName: string; code: string }[];
+  /** حسابات صندوق/أجور — لا تُستورد لأنها لا تخص الزبائن */
+  skippedNames: string[];
+}
+
+export interface TrialBalanceImportFilterResult {
+  accounts: TrialBalanceImportAccount[];
+  skippedNames: string[];
+}
+
+/** يستبعد حسابات الصناديق والأجور — الاستيراد للزبائن فقط */
+export function filterImportableTrialBalanceAccounts(
+  accounts: TrialBalanceImportAccount[],
+): TrialBalanceImportFilterResult {
+  const skippedNames: string[] = [];
+  const filtered = accounts.filter(acc => {
+    const name = acc.name.trim();
+    if (isFundAccountName(name) || isFeeAccountName(name)) {
+      skippedNames.push(name);
+      return false;
+    }
+    return true;
+  });
+  return { accounts: filtered, skippedNames };
+}
+
+/** تأكيد أن الاستيراد لا يُنشئ حركات صندوق */
+export function assertAccountOnlyImportTransactions(txs: Transaction[]): void {
+  for (const tx of txs) {
+    if ((tx.ledger ?? 'fund') !== 'account') {
+      throw new Error('الاستيراد يجب أن يكون حركات حساب فقط — لا يمس الصندوق');
+    }
+  }
 }
 
 const SHEET_CURRENCY: Record<string, Currency> = {
@@ -216,6 +250,11 @@ export function buildAllImportBalanceSyncTransactions(
       const cur = currency as Currency;
       const current = computeAccountBalances(transactions, fundId, acc.name)[cur].balance;
       all.push(...buildBalanceSyncTransaction(fundId, acc.name, cur, row.balance, current, date));
+    }
+  }
+  for (const tx of all) {
+    if ((tx.ledger ?? 'fund') !== 'account') {
+      throw new Error('خطأ داخلي: حركة استيراد غير حساب');
     }
   }
   return all;
