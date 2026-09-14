@@ -88,17 +88,12 @@ import type { FundId } from '../types';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
 
-async function repairCloudDataOnLoad(cloud: AppState): Promise<AppState> {
-  const { transactions: afterMislabel, changed: mislabelChanged } = repairMislabeledAccountLegs(cloud.transactions);
-  const { transactions: afterDup, changed: dupChanged } = repairDuplicateLinkedFundLegs(afterMislabel);
-  const changedById = new Map<string, Transaction>();
-  for (const tx of [...mislabelChanged, ...dupChanged]) changedById.set(tx.id, tx);
-  const changed = [...changedById.values()];
-  if (!changed.length) {
-    return afterDup === cloud.transactions ? cloud : { ...cloud, transactions: afterDup };
-  }
-  await upsertTransactions(changed);
-  return fetchAppState();
+/** إصلاح ledger في الذاكرة فقط — لا يكتب على السحابة ولا يغيّر الرصيد بين التحديثات */
+function applyLinkedFundLegStabilization(cloud: AppState): AppState {
+  const { transactions: afterMislabel } = repairMislabeledAccountLegs(cloud.transactions);
+  const { transactions: afterDup } = repairDuplicateLinkedFundLegs(afterMislabel);
+  if (afterDup === cloud.transactions) return cloud;
+  return { ...cloud, transactions: afterDup };
 }
 
 type FeeSyncResult = {
@@ -165,7 +160,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   syncingRef.current = syncing;
 
   const pullFromCloud = useCallback(async (opts?: { notifyOthers?: boolean }) => {
-    const cloud = await fetchAppState();
+    const raw = await fetchAppState();
+    const cloud = applyLinkedFundLegStabilization(raw);
     pruneRedundantQueueItems(cloud);
     setPendingSyncCount(getQueueLength());
     const previous = stateRef.current.transactions;
@@ -238,7 +234,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
           cloud = await fetchAppState();
         }
 
-        cloud = await repairCloudDataOnLoad(cloud);
+        cloud = applyLinkedFundLegStabilization(cloud);
 
         const pruned = pruneRedundantQueueItems(cloud);
         setPendingSyncCount(getQueueLength());
@@ -248,7 +244,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
             flushingRef.current = true;
             setFlushingQueue(true);
             await flushOfflineQueue(count => setPendingSyncCount(count));
-            cloud = await fetchAppState();
+            cloud = applyLinkedFundLegStabilization(await fetchAppState());
             pruneRedundantQueueItems(cloud);
             setPendingSyncCount(getQueueLength());
           } catch {
@@ -277,7 +273,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         if (!cancelled) {
           if (navigator.onLine) {
             try {
-              const cloud = await fetchAppState();
+              const cloud = applyLinkedFundLegStabilization(await fetchAppState());
               pruneRedundantQueueItems(cloud);
               setState(cloud);
               mirrorAppState(cloud);
