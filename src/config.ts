@@ -1,4 +1,3 @@
-import { resolveLinkedAccountName } from './lib/fundLinkedAccounts';
 import type { Currency, CustomerBalances, Fund, FundBalances, FundId } from './types';
 
 export type AssetKind = 'money' | 'weight';
@@ -92,8 +91,8 @@ export function getFundAccountName(fundId: FundId): string {
 }
 
 /** الطرف/الحساب الافتراضي عند إضافة حركة صندوق */
-export function defaultCounterpartyForFund(fundId: FundId, accountNames: readonly string[]): string {
-  return resolveLinkedAccountName(fundId, accountNames);
+export function defaultCounterpartyForFund(_fundId: FundId, _accountNames: readonly string[]): string {
+  return '';
 }
 
 const FUND_ACCOUNT_NAMES = new Set(
