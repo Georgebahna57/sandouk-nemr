@@ -49,8 +49,13 @@ export function NemrBalanceRestoreSection({
     try {
       await onRestore(plan);
       const parts: string[] = [];
-      if (plan.removeIds.length) parts.push(`حذف ${plan.removeIds.length} تصحيح قديم`);
-      if (plan.add.length) parts.push(`إضافة ${plan.add.length} حركة`);
+      if (plan.postClosePurgeCount) {
+        parts.push(`حذف ${plan.postClosePurgeCount} حركة بعد ${NEMR_REFERENCE_LABEL}`);
+      }
+      if (plan.restoreRemoveCount) {
+        parts.push(`حذف ${plan.restoreRemoveCount} تصحيح استعادة`);
+      }
+      if (plan.add.length) parts.push(`إضافة ${plan.add.length} حركة ضبط`);
       setSuccess(parts.length ? `تم: ${parts.join(' · ')}` : 'تم ضبط الرصيد');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل الاستعادة');
@@ -68,7 +73,7 @@ export function NemrBalanceRestoreSection({
             استعادة رصيد صندوق نمر
           </p>
           <p className="text-xs text-slate-500">
-            يصحّح رصيد {NEMR_REFERENCE_LABEL} فقط — عمليات ما بعده (مثل اليوم) لا تُمس
+            يضبط الرصيد الكلي إلى {NEMR_REFERENCE_LABEL} — يحذف حركات الصندوق بعد هذا التاريخ
           </p>
           <p className="text-xs text-slate-500">
             المرجع: {NEMR_REFERENCE_BALANCES.USD.toLocaleString('en-US')} $ و{' '}
@@ -82,7 +87,7 @@ export function NemrBalanceRestoreSection({
           <thead>
             <tr className="text-slate-500">
               <th className="py-2 pr-3 text-right font-medium">عملة</th>
-              <th className="py-2 px-2 text-right font-medium">الافتتاح</th>
+              <th className="py-2 px-2 text-right font-medium">الحالي</th>
               <th className="py-2 px-2 text-right font-medium">المرجع</th>
               <th className="py-2 pl-3 text-right font-medium">الفرق</th>
             </tr>
@@ -90,13 +95,13 @@ export function NemrBalanceRestoreSection({
           <tbody className="text-slate-300">
             <tr className="border-t border-slate-800">
               <td className="py-2 pr-3">دولار</td>
-              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.closingUsd, 'USD')}</td>
+              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.totalUsd, 'USD')}</td>
               <td className="py-2 px-2 tabular-nums text-amber-300">{formatValueWithUnit(preview.targetUsd, 'USD')}</td>
               <td className="py-2 pl-3 tabular-nums">{formatNemrRestoreDelta('USD', preview.deltaUsd)}</td>
             </tr>
             <tr className="border-t border-slate-800">
               <td className="py-2 pr-3">يورو</td>
-              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.closingEur, 'EUR')}</td>
+              <td className="py-2 px-2 tabular-nums">{formatValueWithUnit(preview.totalEur, 'EUR')}</td>
               <td className="py-2 px-2 tabular-nums text-amber-300">{formatValueWithUnit(preview.targetEur, 'EUR')}</td>
               <td className="py-2 pl-3 tabular-nums">{formatNemrRestoreDelta('EUR', preview.deltaEur)}</td>
             </tr>
@@ -104,18 +109,20 @@ export function NemrBalanceRestoreSection({
         </table>
       </div>
 
-      <div className="mt-2 rounded-xl border border-slate-700/80 bg-slate-900/40 px-3 py-2 text-xs text-slate-400">
-        <p className="font-medium text-slate-300">الرصيد الكلي الحالي (بعد عمليات اليوم)</p>
-        <p className="mt-1 tabular-nums">
-          {formatValueWithUnit(preview.totalUsd, 'USD')} · {formatValueWithUnit(preview.totalEur, 'EUR')}
+      {preview.postCloseFundLedgerCount > 0 && (
+        <p className="mt-2 text-xs text-orange-300">
+          {preview.postCloseFundLedgerCount.toLocaleString('ar-LB')} حركة صندوق بعد {NEMR_REFERENCE_LABEL} — ستُحذف
         </p>
-      </div>
+      )}
 
       {!compact && nemrRestorePlanNeeded(plan) && (
         <div className="mt-3 rounded-xl border border-slate-700 bg-slate-900/40 p-3 text-xs text-slate-400 space-y-1">
           <p className="font-medium text-slate-300">سيُنفَّذ:</p>
-          {plan.removeIds.length > 0 && (
-            <p>حذف {plan.removeIds.length} حركة استعادة قديمة (تصحيح مكرّر)</p>
+          {plan.postClosePurgeCount > 0 && (
+            <p>حذف {plan.postClosePurgeCount} حركة (صندوق بعد المرجع + المربوطة)</p>
+          )}
+          {plan.restoreRemoveCount > 0 && (
+            <p>حذف {plan.restoreRemoveCount} حركة استعادة قديمة</p>
           )}
           {plan.add.map(tx => (
             <p key={tx.id}>
@@ -123,9 +130,6 @@ export function NemrBalanceRestoreSection({
               {formatValueWithUnit(tx.amount, tx.currency)}
             </p>
           ))}
-          {plan.removeIds.length > 0 && plan.add.length === 0 && (
-            <p className="text-emerald-400/90">الرصيد الأساسي مطابق — يكفي حذف التصحيحات القديمة</p>
-          )}
         </div>
       )}
 

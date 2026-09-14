@@ -3,23 +3,24 @@ import {
   buildOpeningBalanceTransactions,
   type OpeningBalanceLine,
 } from './openingBalance';
-import { computeBalances } from './utils';
+import { computeBalances, getDeletionGroupIds } from './utils';
 
-/** رصيد إغلاق صندوق نمر — 9 سبتمبر 2026 (مشاركة الرصيد) */
+/** رصيد إغلاق صندوق نمر — 11 سبتمبر 2026 (مشاركة الرصيد) */
 export const NEMR_REFERENCE_BALANCES: Record<'USD' | 'EUR', number> = {
-  USD: 640_790,
-  EUR: 1_773_520,
+  USD: 2_617_045,
+  EUR: 473_305,
 };
 
-export const NEMR_REFERENCE_LABEL = 'إغلاق 9 سبتمبر 2026';
+export const NEMR_REFERENCE_LABEL = 'إغلاق 11 سبتمبر 2026';
 
-export const NEMR_REFERENCE_CLOSE_DATE = '2026-09-09';
+export const NEMR_REFERENCE_CLOSE_DATE = '2026-09-11';
 
-export const NEMR_RESTORE_NOTE = 'استعادة رصيد — إغلاق 9 سبتمبر 2026';
+export const NEMR_RESTORE_NOTE = 'استعادة رصيد — إغلاق 11 سبتمبر 2026';
 
 /** ملاحظات حركات استعادة سابقة — تُحذف قبل إنشاء تصحيح جديد */
 export const NEMR_RESTORE_NOTE_MARKERS = [
   NEMR_RESTORE_NOTE,
+  'استعادة رصيد — إغلاق 9 سبتمبر 2026',
   'استعادة رصيد — قبل آخر تعديل',
 ];
 
@@ -48,11 +49,24 @@ export function nemrRawThroughCloseTransactions(transactions: Transaction[]): Tr
   );
 }
 
-/** حركات بعد تاريخ الإغلاق */
-export function nemrPostCloseTransactions(transactions: Transaction[]): Transaction[] {
+/** حركات صندوق بعد تاريخ المرجع */
+export function nemrPostCloseFundLedgerTransactions(transactions: Transaction[]): Transaction[] {
   return transactionsWithoutNemrRestore(transactions).filter(
-    tx => tx.fundId === 'nemr' && tx.date > NEMR_REFERENCE_CLOSE_DATE,
+    tx => tx.fundId === 'nemr'
+      && tx.date > NEMR_REFERENCE_CLOSE_DATE
+      && (tx.ledger ?? 'fund') === 'fund',
   );
+}
+
+/** حذف حركات صندوق بعد المرجع + المربوطة بها */
+export function collectNemrPostCloseFundPurgeIds(transactions: Transaction[]): string[] {
+  const removeIds = new Set<string>();
+  for (const tx of nemrPostCloseFundLedgerTransactions(transactions)) {
+    for (const id of getDeletionGroupIds(transactions, tx.id)) {
+      removeIds.add(id);
+    }
+  }
+  return [...removeIds];
 }
 
 export interface NemrBalanceRestorePlan {
@@ -60,52 +74,60 @@ export interface NemrBalanceRestorePlan {
   add: Transaction[];
   closingUsd: number;
   closingEur: number;
+  restoreRemoveCount: number;
+  postClosePurgeCount: number;
 }
 
 export interface NemrBalanceRestorePreview {
-  /** رصيد الإغلاق (حتى 9 سبتمبر، شامل تصحيح الاستعادة إن وُجد) */
-  closingUsd: number;
-  closingEur: number;
-  /** الرصيد الكلي (إغلاق + عمليات اليوم وما بعد) */
+  /** الرصيد الكلي الحالي */
   totalUsd: number;
   totalEur: number;
   targetUsd: number;
   targetEur: number;
   deltaUsd: number;
   deltaEur: number;
+  postCloseFundLedgerCount: number;
+  postClosePurgeCount: number;
+  restoreCount: number;
   needsRestore: boolean;
 }
 
 export function previewNemrBalanceRestore(transactions: Transaction[]): NemrBalanceRestorePreview {
-  const closingBalances = computeBalances(nemrThroughCloseTransactions(transactions), 'nemr');
   const totalBalances = computeBalances(transactions, 'nemr');
-  const closingUsd = closingBalances.USD.balance;
-  const closingEur = closingBalances.EUR.balance;
-  const deltaUsd = NEMR_REFERENCE_BALANCES.USD - closingUsd;
-  const deltaEur = NEMR_REFERENCE_BALANCES.EUR - closingEur;
+  const totalUsd = totalBalances.USD.balance;
+  const totalEur = totalBalances.EUR.balance;
+  const deltaUsd = NEMR_REFERENCE_BALANCES.USD - totalUsd;
+  const deltaEur = NEMR_REFERENCE_BALANCES.EUR - totalEur;
   const restoreCount = transactions.filter(isNemrRestoreTransaction).length;
-  const closingOk =
+  const postCloseFundLedgerCount = nemrPostCloseFundLedgerTransactions(transactions).length;
+  const postClosePurgeCount = collectNemrPostCloseFundPurgeIds(transactions).length;
+  const totalOk =
     Math.abs(deltaUsd) < 1e-9 && Math.abs(deltaEur) < 1e-9;
+  const restoreOk = restoreCount === 1;
   return {
-    closingUsd,
-    closingEur,
-    totalUsd: totalBalances.USD.balance,
-    totalEur: totalBalances.EUR.balance,
+    totalUsd,
+    totalEur,
     targetUsd: NEMR_REFERENCE_BALANCES.USD,
     targetEur: NEMR_REFERENCE_BALANCES.EUR,
     deltaUsd,
     deltaEur,
-    needsRestore: !closingOk || restoreCount > 1,
+    postCloseFundLedgerCount,
+    postClosePurgeCount,
+    restoreCount,
+    needsRestore: !totalOk || !restoreOk || postCloseFundLedgerCount > 0,
   };
 }
 
-/** خطة استعادة: حذف تصحيحات قديمة ثم ضبط إغلاق 9 سبتمبر — لا يمس عمليات ما بعده */
+/** خطة استعادة: حذف حركات الصندوق بعد المرجع + تصحيحات قديمة ثم ضبط الرصيد الكلي */
 export function buildNemrBalanceRestorePlan(
   transactions: Transaction[],
   date: string = NEMR_REFERENCE_CLOSE_DATE,
 ): NemrBalanceRestorePlan {
-  const removeIds = transactions.filter(isNemrRestoreTransaction).map(tx => tx.id);
-  const rawClosingBalances = computeBalances(nemrRawThroughCloseTransactions(transactions), 'nemr');
+  const restoreRemoveIds = transactions.filter(isNemrRestoreTransaction).map(tx => tx.id);
+  const postCloseRemoveIds = collectNemrPostCloseFundPurgeIds(transactions);
+  const removeIds = [...new Set([...restoreRemoveIds, ...postCloseRemoveIds])];
+  const remaining = transactions.filter(tx => !removeIds.includes(tx.id));
+  const rawClosingBalances = computeBalances(nemrRawThroughCloseTransactions(remaining), 'nemr');
   const lines: OpeningBalanceLine[] = [
     { currency: 'USD', amount: NEMR_REFERENCE_BALANCES.USD, side: 'ours' },
     { currency: 'EUR', amount: NEMR_REFERENCE_BALANCES.EUR, side: 'ours' },
@@ -122,6 +144,8 @@ export function buildNemrBalanceRestorePlan(
     add,
     closingUsd: rawClosingBalances.USD.balance,
     closingEur: rawClosingBalances.EUR.balance,
+    restoreRemoveCount: restoreRemoveIds.length,
+    postClosePurgeCount: postCloseRemoveIds.length,
   };
 }
 
@@ -136,11 +160,11 @@ export function nemrRestorePlanNeeded(plan: NemrBalanceRestorePlan): boolean {
   return plan.removeIds.length > 0 || plan.add.length > 0;
 }
 
-function nemrClosingMatchesReference(transactions: Transaction[]): boolean {
-  const closing = computeBalances(nemrThroughCloseTransactions(transactions), 'nemr');
+function nemrTotalMatchesReference(transactions: Transaction[]): boolean {
+  const total = computeBalances(transactions, 'nemr');
   return (
-    Math.abs(closing.USD.balance - NEMR_REFERENCE_BALANCES.USD) < 1e-9
-    && Math.abs(closing.EUR.balance - NEMR_REFERENCE_BALANCES.EUR) < 1e-9
+    Math.abs(total.USD.balance - NEMR_REFERENCE_BALANCES.USD) < 1e-9
+    && Math.abs(total.EUR.balance - NEMR_REFERENCE_BALANCES.EUR) < 1e-9
   );
 }
 
@@ -162,13 +186,13 @@ export function repairNemrRestoreState(transactions: Transaction[]): {
     };
   }
 
-  const closingOk = nemrClosingMatchesReference(transactions);
+  const totalOk = nemrTotalMatchesReference(transactions);
 
-  if (closingOk && restoreTxs.length <= 1) {
+  if (totalOk && restoreTxs.length <= 1 && nemrPostCloseFundLedgerTransactions(transactions).length === 0) {
     return { transactions, removeIds: [], upsert: [] };
   }
 
-  if (closingOk && restoreTxs.length > 1) {
+  if (totalOk && restoreTxs.length > 1) {
     const removeIds = restoreTxs.slice(1).map(tx => tx.id);
     return {
       transactions: transactions.filter(tx => !removeIds.includes(tx.id)),
