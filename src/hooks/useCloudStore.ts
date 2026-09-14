@@ -12,7 +12,7 @@ import {
   upsertCustomer,
   upsertTransactions,
 } from '../lib/db';
-import { collectAccountResetIds } from '../lib/accountReset';
+import { collectAccountResetIds, type AccountResetResult } from '../lib/accountReset';
 import { collectFundDayPurgeIds } from '../lib/fundDayPurge';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
@@ -1013,21 +1013,42 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     return removed;
   }, [runSync]);
 
-  const resetAllAccounts = useCallback(async (): Promise<number> => {
-    let removed = 0;
+  const resetAllAccounts = useCallback(async (): Promise<AccountResetResult> => {
+    let removedTransactions = 0;
+    let removedCustomers = 0;
     await runSync(async () => {
       const cloud = applyLinkedFundLegStabilization(await fetchAppState());
-      const removeIds = collectAccountResetIds(cloud.transactions);
-      if (!removeIds.length) return;
+      const removeTxIds = collectAccountResetIds(cloud.transactions);
+      const customerIds = cloud.customers.map(c => c.id);
+      if (!removeTxIds.length && !customerIds.length) return;
+
       savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
-      await removeTransactions(removeIds);
-      removed = removeIds.length;
+
+      if (removeTxIds.length) {
+        await removeTransactions(removeTxIds);
+        removedTransactions = removeTxIds.length;
+      }
+      if (customerIds.length) {
+        await Promise.all(customerIds.map(id => removeCustomer(id)));
+        removedCustomers = customerIds.length;
+      }
+
       const refreshed = applyLinkedFundLegStabilization(await fetchAppState());
       setState(refreshed);
       mirrorAppState(refreshed);
+
+      if (actor && (removedTransactions || removedCustomers)) {
+        logAudit({
+          userId: actor.userId,
+          userName: actor.displayName,
+          action: 'transaction_edit',
+          entityType: 'transaction',
+          details: `تصفير حسابات — حذف ${removedTransactions} حركة · ${removedCustomers} حساب`,
+        });
+      }
     });
-    return removed;
-  }, [runSync]);
+    return { removedTransactions, removedCustomers };
+  }, [actor, runSync]);
 
   const repairHalabData = useCallback(async () => {
     await runSync(async () => {

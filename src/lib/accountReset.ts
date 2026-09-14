@@ -1,4 +1,4 @@
-import type { Transaction } from '../types';
+import type { Customer, Transaction } from '../types';
 import {
   collectAutoFeeRemovalIds,
   findCounterpartyLinkedPeerIds,
@@ -25,10 +25,19 @@ export function isAccountSideTransaction(tx: Transaction, transactions: Transact
 
 export interface AccountResetPreview {
   transactionCount: number;
+  customerCount: number;
   accountNames: string[];
 }
 
-export function previewAccountReset(transactions: Transaction[]): AccountResetPreview {
+export interface AccountResetResult {
+  removedTransactions: number;
+  removedCustomers: number;
+}
+
+export function previewAccountReset(
+  transactions: Transaction[],
+  customers: Customer[] = [],
+): AccountResetPreview {
   const accountNames = new Set<string>();
   let transactionCount = 0;
   for (const tx of transactions) {
@@ -38,6 +47,7 @@ export function previewAccountReset(transactions: Transaction[]): AccountResetPr
   }
   return {
     transactionCount,
+    customerCount: customers.length,
     accountNames: [...accountNames].sort((a, b) => a.localeCompare(b, 'ar')),
   };
 }

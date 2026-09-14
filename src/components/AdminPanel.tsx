@@ -45,7 +45,7 @@ interface Props {
   onAddOpeningBalance: (tx: Transaction[]) => void | Promise<void>;
   onRestoreNemrBalance: (plan: import('../lib/nemrBalanceRestore').NemrBalanceRestorePlan) => void | Promise<void>;
   onRepairHalab?: () => Promise<void>;
-  onResetAllAccounts?: () => Promise<number>;
+  onResetAllAccounts?: () => Promise<import('../lib/accountReset').AccountResetResult>;
   onDeleteFundDayOperations?: (fundId: FundId, date: string) => Promise<number>;
   onImportTrialBalance?: (accounts: TrialBalanceImportAccount[], fundId: FundId) => Promise<import('../lib/trialBalanceImport').TrialBalanceImportResult>;
   importingTrialBalance?: boolean;
@@ -296,6 +296,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
       {onResetAllAccounts && (
         <AccountResetSection
           transactions={appState.transactions}
+          customers={appState.customers}
           onReset={onResetAllAccounts}
         />
       )}
