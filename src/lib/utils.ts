@@ -2,7 +2,7 @@ import { CENTERS_FUND_ID, CURRENCIES, emptyBalances, emptyCustomerBalances, getC
 import { computeHalabAwareBalance } from './halabBalance';
 import { normalizeSyrianTransaction, syrianBalanceAmount, syrianBalanceCurrency } from './syrianCurrency';
 import { attachFeeFields, attachExtraFeeFields, parseStoredFee, ALL_FEE_ACCOUNTS, isFeeAccountName, isAutoFeeTransaction, adjustAccountItemsForFees, resolveFeeAccountName, SHAMEL_FEE_ACCOUNT, type ParsedFee } from './fees';
-import { mergeAccountSummaries } from './accountMerge';
+import { accountNumbersMatch, mergeAccountSummaries } from './accountMerge';
 import { INVERSE_RATE_CURRENCIES } from './valuationRates';
 import { safeSetItem } from './safeLocalStorage';
 import type {
@@ -622,6 +622,20 @@ export function findCustomerForAccount(
 ): Customer | undefined {
   const trimmed = name.trim();
   return customers.find(c => c.name === trimmed && isAccountInFund(c, fundId));
+}
+
+export function findCustomerByAccountNumber(
+  customers: Customer[],
+  accountNumber: string,
+  fundId: FundId,
+): Customer | undefined {
+  const trimmed = accountNumber.trim();
+  if (!trimmed) return undefined;
+  return customers.find(c => (
+    isAccountInFund(c, fundId)
+    && c.accountNumber
+    && accountNumbersMatch(c.accountNumber, trimmed)
+  ));
 }
 
 /** حسابات هذا الصندوق + الحسابات المشتركة معه */

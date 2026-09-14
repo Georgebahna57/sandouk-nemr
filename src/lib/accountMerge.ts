@@ -31,6 +31,17 @@ export function normalizeAccountNumber(num: string): string {
   return num.trim().replace(/[\s-]/g, '').toLowerCase();
 }
 
+/** هل رقما حسابين يطابقان (4011-1114 = 1114) */
+export function accountNumbersMatch(a: string, b: string): boolean {
+  const na = normalizeAccountNumber(a);
+  const nb = normalizeAccountNumber(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  if (na.length > nb.length && na.endsWith(nb)) return true;
+  if (nb.length > na.length && nb.endsWith(na)) return true;
+  return false;
+}
+
 function buildAccountNumberMaps(customers: Customer[]) {
   const nameToNormalized = new Map<string, string>();
   const normalizedToDisplay = new Map<string, string>();
