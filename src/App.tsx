@@ -1108,8 +1108,6 @@ export default function App({ user, onLogout }: Props) {
           todayPostedCount={todayFundTx.length}
           whatsappDestinations={fundWhatsApp[fundId]}
           date={today}
-          canRestoreBalance={isAdmin && canEdit(fundId)}
-          onRestoreBalance={restoreNemrBalance}
           onClose={() => setFundDetailsOpen(false)}
         />
       )}
