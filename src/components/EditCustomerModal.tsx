@@ -6,7 +6,6 @@ import type { Customer, Fund, FundId } from '../types';
 interface Props {
   customer: Customer;
   fundOptions?: Fund[];
-  existingGroups?: string[];
   onClose: () => void;
   onSave: (updated: Customer, previousName: string) => void | Promise<void>;
   nameTaken?: (name: string, fundId: FundId) => boolean;
@@ -15,14 +14,12 @@ interface Props {
 export function EditCustomerModal({
   customer,
   fundOptions: _fundOptions = BOX_FUNDS,
-  existingGroups = [],
   onClose,
   onSave,
   nameTaken,
 }: Props) {
   const [name, setName] = useState(customer.name);
   const [accountNumber, setAccountNumber] = useState(customer.accountNumber ?? '');
-  const [accountGroup, setAccountGroup] = useState(customer.accountGroup ?? '');
   const [phone, setPhone] = useState(customer.phone ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -46,7 +43,6 @@ export function EditCustomerModal({
         ...customer,
         name: trimmed,
         accountNumber: accountNumber.trim() || undefined,
-        accountGroup: accountGroup.trim() || undefined,
         phone: phone.trim() || undefined,
         sharedFundIds: undefined,
       }, customer.name));
@@ -92,20 +88,6 @@ export function EditCustomerModal({
           className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
           dir="ltr"
         />
-
-        <input
-          type="text"
-          list="edit-account-group-options"
-          placeholder="القسم (مثل: مصاريف نثرية)"
-          value={accountGroup}
-          onChange={e => setAccountGroup(e.target.value)}
-          className="w-full rounded-xl border border-slate-600 bg-slate-800 px-3 py-2.5 text-sm"
-        />
-        <datalist id="edit-account-group-options">
-          {existingGroups.map(group => (
-            <option key={group} value={group} />
-          ))}
-        </datalist>
 
         <input
           type="text"

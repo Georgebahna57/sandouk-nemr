@@ -12,7 +12,7 @@ export interface NavPrefs {
   fundId: FundId;
   view: ViewId;
   accountsBranch: AccountBranchId;
-  accountsTab: 'list' | 'reconciliations' | 'trial_balance';
+  accountsTab: 'list' | 'reconciliations' | 'trial_balance' | 'sections';
 }
 
 export interface UiPrefs {

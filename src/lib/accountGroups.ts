@@ -1,24 +1,7 @@
-import type { Customer, CustomerSummary } from '../types';
-
-export const DEFAULT_ACCOUNT_GROUP = 'عام';
-
-export function normalizeAccountGroup(value?: string): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed || undefined;
-}
-
-export function accountGroupLabel(group?: string): string {
-  return normalizeAccountGroup(group) ?? DEFAULT_ACCOUNT_GROUP;
-}
-
-export function collectAccountGroups(customers: Customer[]): string[] {
-  const groups = new Set<string>();
-  for (const customer of customers) {
-    const group = normalizeAccountGroup(customer.accountGroup);
-    if (group) groups.add(group);
-  }
-  return [...groups].sort((a, b) => a.localeCompare(b, 'ar'));
-}
+import { UNASSIGNED_SECTION_LABEL } from './accountSections';
+import type { AccountSectionsState } from './accountSections';
+import { sectionNameById } from './accountSections';
+import type { CustomerSummary } from '../types';
 
 export interface AccountGroupSection {
   id: string;
@@ -26,27 +9,50 @@ export interface AccountGroupSection {
   summaries: CustomerSummary[];
 }
 
-export function groupSummariesBySection(summaries: CustomerSummary[]): AccountGroupSection[] {
-  const byGroup = new Map<string, CustomerSummary[]>();
+export function groupSummariesBySection(
+  summaries: CustomerSummary[],
+  sectionsState: AccountSectionsState,
+): AccountGroupSection[] {
+  const bySection = new Map<string, CustomerSummary[]>();
 
   for (const summary of summaries) {
-    const label = accountGroupLabel(summary.accountGroup);
-    const bucket = byGroup.get(label) ?? [];
+    const sectionId = summary.accountSectionId || UNASSIGNED_SECTION_LABEL;
+    const bucket = bySection.get(sectionId) ?? [];
     bucket.push(summary);
-    byGroup.set(label, bucket);
+    bySection.set(sectionId, bucket);
   }
 
-  const sections = [...byGroup.entries()].map(([label, items]) => ({
-    id: label,
-    label,
-    summaries: items.sort((a, b) => a.name.localeCompare(b.name, 'ar')),
-  }));
+  const configured = sectionsState.sections.map(section => ({
+    id: section.id,
+    label: section.name,
+    summaries: (bySection.get(section.id) ?? []).sort((a, b) => a.name.localeCompare(b.name, 'ar')),
+  })).filter(section => section.summaries.length > 0);
 
-  sections.sort((a, b) => {
-    if (a.label === DEFAULT_ACCOUNT_GROUP) return 1;
-    if (b.label === DEFAULT_ACCOUNT_GROUP) return -1;
-    return a.label.localeCompare(b.label, 'ar');
-  });
+  const unassigned = (bySection.get(UNASSIGNED_SECTION_LABEL) ?? [])
+    .sort((a, b) => a.name.localeCompare(b.name, 'ar'));
 
-  return sections;
+  if (unassigned.length > 0) {
+    configured.push({
+      id: UNASSIGNED_SECTION_LABEL,
+      label: UNASSIGNED_SECTION_LABEL,
+      summaries: unassigned,
+    });
+  }
+
+  return configured;
+}
+
+export function hasConfiguredSections(sectionsState: AccountSectionsState, branch?: string): boolean {
+  if (branch) {
+    return sectionsState.sections.some(section => section.branch === branch);
+  }
+  return sectionsState.sections.length > 0;
+}
+
+export function sectionLabelForSummary(
+  summary: CustomerSummary,
+  sectionsState: AccountSectionsState,
+): string {
+  if (!summary.accountSectionId) return UNASSIGNED_SECTION_LABEL;
+  return sectionNameById(sectionsState, summary.accountSectionId) ?? UNASSIGNED_SECTION_LABEL;
 }

@@ -183,6 +183,7 @@ export interface CustomerSummary {
   sharedFundIds?: FundId[];
   reconciliation?: AccountReconciliation;
   accountGroup?: string;
+  accountSectionId?: string;
   balances: CustomerBalances;
   hasActivity: boolean;
 }
