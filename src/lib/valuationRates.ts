@@ -1,4 +1,5 @@
 import { CURRENCIES, isWeightCurrency } from '../config';
+import { LEGACY_OLD_SYP_FACTOR } from './syrianCurrency';
 import type { Currency, CustomerBalances } from '../types';
 
 /** قيمة 1 وحدة (أو 1 غرام) بالدولار الأمريكي */
@@ -9,7 +10,7 @@ export type AccountValuationMode = 'breakdown' | 'usd' | 'gold';
 const STORAGE_KEY = 'sandouk-valuation-rates-v1';
 
 /** عملات يُعرض فيها الريت كـ «1 USD = X» بدل USD لكل وحدة */
-export const INVERSE_RATE_CURRENCIES = new Set<Currency>(['LBP', 'SYP', 'NSYP']);
+export const INVERSE_RATE_CURRENCIES = new Set<Currency>(['LBP', 'SYP']);
 
 export const DEFAULT_VALUATION_RATES: ValuationRates = {
   USD: 1,
@@ -21,8 +22,7 @@ export const DEFAULT_VALUATION_RATES: ValuationRates = {
   KWD: 3.25,
   JOD: 1.41,
   AED: 0.27,
-  SYP: 1 / 15000,
-  NSYP: 1 / 15000,
+  SYP: 1 / 150,
   LBP: 1 / 89500,
   GOLD: 95,
   SILVER: 1.1,
@@ -45,11 +45,19 @@ export function saveValuationRatesLocal(rates: ValuationRates) {
 export function normalizeValuationRates(raw: unknown): ValuationRates {
   const base = { ...DEFAULT_VALUATION_RATES };
   if (!raw || typeof raw !== 'object') return base;
+  const record = raw as Record<string, unknown>;
   for (const c of CURRENCIES) {
-    const value = (raw as Record<string, unknown>)[c.id];
+    const value = record[c.id];
     if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
       base[c.id] = value;
     }
+  }
+  const legacyNsyp = record.NSYP;
+  if (typeof legacyNsyp === 'number' && Number.isFinite(legacyNsyp) && legacyNsyp > 0 && !record.SYP) {
+    base.SYP = legacyNsyp;
+  }
+  if (base.SYP && base.SYP > 0 && base.SYP < 1 / 1000) {
+    base.SYP *= LEGACY_OLD_SYP_FACTOR;
   }
   base.USD = 1;
   return base;

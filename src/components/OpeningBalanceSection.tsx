@@ -46,7 +46,7 @@ export function OpeningBalanceSection({ appState, onAdd }: Props) {
   const [fundId, setFundId] = useState<FundId>('halabFleilat');
   const [date, setDate] = useState(todayIso());
   const [lines, setLines] = useState<LineDraft[]>([
-    newLine('SYP', '343211200', 'ours'),
+    newLine('SYP', '3432112', 'ours'),
     newLine('USD', '245542', 'theirs'),
   ]);
   const [busy, setBusy] = useState(false);

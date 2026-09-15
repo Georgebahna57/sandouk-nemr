@@ -7,7 +7,7 @@ const PDF_CURRENCY: Record<string, Currency> = {
   EUR: 'EUR',
   SYP: 'SYP',
   SYL: 'SYP',
-  NSYP: 'NSYP',
+  NSYP: 'SYP',
   LBP: 'LBP',
   GOLD: 'GOLD',
   SILVER: 'SILVER',

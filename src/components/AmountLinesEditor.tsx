@@ -1,6 +1,5 @@
 import { memo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { formatNsypConversionHint, isNsyp } from '../lib/syrianCurrency';
 import { CURRENCIES, getValueInputLabel, isWeightCurrency } from '../config';
 import type { Currency } from '../types';
 
@@ -92,11 +91,6 @@ export const AmountLinesEditor = memo(function AmountLinesEditor({ lines, onChan
               <Trash2 size={14} />
             </button>
             </div>
-            {isNsyp(line.currency) && Number(line.amount.replace(/,/g, '')) > 0 && (
-              <p className="text-[10px] text-amber-400/90 tabular-nums pr-1">
-                {formatNsypConversionHint(Number(line.amount.replace(/,/g, '')))}
-              </p>
-            )}
           </div>
         );
       })}

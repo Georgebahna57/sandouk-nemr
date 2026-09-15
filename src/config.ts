@@ -49,7 +49,6 @@ export const CURRENCIES: AssetConfig[] = [
   { id: 'JOD', label: 'دينار أردني', symbol: 'د.أ', kind: 'money', unit: 'مبلغ' },
   { id: 'AED', label: 'درهم إماراتي', symbol: 'د.إ', kind: 'money', unit: 'مبلغ' },
   { id: 'SYP', label: 'ليرة سورية', symbol: 'ل.س', kind: 'money', unit: 'مبلغ' },
-  { id: 'NSYP', label: 'ليرة سورية جديدة', symbol: 'ل.س ج', kind: 'money', unit: 'مبلغ' },
   { id: 'LBP', label: 'ليرة لبنانية', symbol: 'ل.ل.', kind: 'money', unit: 'مبلغ' },
   { id: 'GOLD', label: 'ذهب', symbol: 'غ', kind: 'weight', unit: 'غرام' },
   { id: 'SILVER', label: 'فضة', symbol: 'غ', kind: 'weight', unit: 'غرام' },

@@ -29,7 +29,7 @@ const CURRENCY_ALIASES: Record<string, Currency> = {
   jod: 'JOD',
   aed: 'AED',
   syp: 'SYP',
-  nsyp: 'NSYP',
+  nsyp: 'SYP',
   سوري: 'SYP',
   'ل.س': 'SYP',
   lbp: 'LBP',

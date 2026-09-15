@@ -16,9 +16,19 @@ import { collectAccountResetIds, type AccountResetResult } from '../lib/accountR
 import { collectFundDayJournalOnlyIds, collectFundDayPurgeIds } from '../lib/fundDayPurge';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
-import { saveValuationRates } from '../lib/appSettings';
+import {
+  fetchValuationRates,
+  isSyrianCurrencyUnified,
+  markSyrianCurrencyUnified,
+  saveValuationRates,
+} from '../lib/appSettings';
 import type { AppBackup } from '../lib/backup';
-import { repairNsypToSypTransactions, normalizeSyrianTransaction } from '../lib/syrianCurrency';
+import {
+  LEGACY_OLD_SYP_FACTOR,
+  normalizeSyrianTransaction,
+  repairUnifiedSyrianCurrency,
+  transactionsNeedSyrianUnification,
+} from '../lib/syrianCurrency';
 import {
   appendEditHistory,
   applyCustomerFundMove,
@@ -104,6 +114,29 @@ import { supabase } from '../lib/supabase';
 import type { FundId } from '../types';
 
 const MIGRATED_KEY = 'sandouk-cloud-migrated';
+
+async function maybeUnifySyrianCurrency(cloud: AppState): Promise<AppState> {
+  if (await isSyrianCurrencyUnified()) return cloud;
+  if (!transactionsNeedSyrianUnification(cloud.transactions)) {
+    await markSyrianCurrencyUnified();
+    return cloud;
+  }
+  const { changed, transactions } = repairUnifiedSyrianCurrency(cloud.transactions);
+  if (changed.length) {
+    await upsertTransactions(changed);
+  }
+  await markSyrianCurrencyUnified();
+  try {
+    const rates = await fetchValuationRates();
+    if (rates.SYP && rates.SYP > 0 && rates.SYP < 1 / 1000) {
+      await saveValuationRates({ ...rates, SYP: rates.SYP * LEGACY_OLD_SYP_FACTOR });
+    }
+  } catch {
+    // تجاهل — الريت يمكن تعديله يدوياً
+  }
+  if (changed.length) return { ...cloud, transactions };
+  return cloud;
+}
 
 /** إصلاح ledger في الذاكرة فقط — لا يكتب على السحابة ولا يغيّر الرصيد بين التحديثات */
 function applyLinkedFundLegStabilization(cloud: AppState): AppState {
@@ -254,6 +287,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         }
 
         cloud = applyLinkedFundLegStabilization(cloud);
+        cloud = await maybeUnifySyrianCurrency(cloud);
 
         const pruned = pruneRedundantQueueItems(cloud);
         setPendingSyncCount(getQueueLength());
@@ -1098,8 +1132,14 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       const cloud = await fetchAppState();
       const { changed: repairedImport, transactions: afterImport } =
         repairMislabeledTrialBalanceImportTransactions(cloud.transactions);
-      const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(afterImport);
-      const { changed: repairedAccountLegs, transactions: afterAccountLegs } = repairMislabeledAccountLegs(afterNsyp);
+      let afterSyrian = afterImport;
+      let repairedSyrian: Transaction[] = [];
+      if (!(await isSyrianCurrencyUnified())) {
+        const syrianRepair = repairUnifiedSyrianCurrency(afterImport);
+        afterSyrian = syrianRepair.transactions;
+        repairedSyrian = syrianRepair.changed;
+      }
+      const { changed: repairedAccountLegs, transactions: afterAccountLegs } = repairMislabeledAccountLegs(afterSyrian);
       const { changed: repairedDupLinked, transactions: afterDupLinked } = repairDuplicateLinkedFundLegs(afterAccountLegs);
       const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterDupLinked);
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
@@ -1111,8 +1151,9 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       if (feeSync.removeIds.length) {
         await removeTransactions(feeSync.removeIds);
       }
-      const toUpsert = [...repairedImport, ...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedImport, ...repairedSyrian, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
+      if (repairedSyrian.length) await markSyrianCurrencyUnified();
       const refreshed = await fetchAppState();
       setState(refreshed);
       mirrorAppState(refreshed);
