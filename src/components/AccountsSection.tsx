@@ -1,19 +1,26 @@
-import { Building2, CheckCircle2, List, Table2, Users } from 'lucide-react';
+import { Building2, CheckCircle2, FolderOpen, List, Table2, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { CENTERS_FUND_ID } from '../config';
 import {
   buildAccountsSectionSummaries,
   getCustomersLedgerFundId,
-  sumSummariesByCurrency,
 } from '../lib/accountBranch';
-import { formatAmount } from '../lib/utils';
+import {
+  assignSummaryToSection,
+  enrichSummariesWithSections,
+  fetchAccountSections,
+  migrateLegacyAccountGroups,
+  saveAccountSections,
+  type AccountSectionsState,
+} from '../lib/accountSections';
+import { AccountSectionsPanel } from './AccountSectionsPanel';
+import { AccountsGrandTotalCard } from './AccountsGrandTotalCard';
 import { loadUiPrefs, saveNavPrefs } from '../lib/uiPrefs';
 import {
   accountNeedsReconciliation,
 } from '../lib/utils';
 import type {
   AccountBranchId,
-  Currency,
   Customer,
   CustomerSummary,
   Fund,
@@ -24,7 +31,7 @@ import type { ValuationRates } from '../lib/valuationRates';
 import { CustomersPanel } from './CustomersPanel';
 import { TrialBalancePanel } from './TrialBalancePanel';
 
-type AccountsTab = 'list' | 'reconciliations' | 'trial_balance';
+type AccountsTab = 'list' | 'reconciliations' | 'trial_balance' | 'sections';
 
 interface Props {
   transactions: Transaction[];
@@ -59,6 +66,7 @@ const BRANCHES: { id: AccountBranchId; label: string; icon: typeof Users }[] = [
 
 const TABS: { id: AccountsTab; label: string; icon: typeof List }[] = [
   { id: 'list', label: 'قائمة الحسابات', icon: List },
+  { id: 'sections', label: 'الأقسام', icon: FolderOpen },
   { id: 'trial_balance', label: 'ميزان مراجعة', icon: Table2 },
   { id: 'reconciliations', label: 'المطابقات', icon: CheckCircle2 },
 ];
@@ -97,13 +105,28 @@ export function AccountsSection({
   );
   const [tab, setTab] = useState<AccountsTab>(() => {
     const saved = savedNav.accountsTab;
-    if (saved === 'reconciliations' || saved === 'trial_balance' || saved === 'list') {
+    if (saved === 'reconciliations' || saved === 'trial_balance' || saved === 'list' || saved === 'sections') {
       return saved;
     }
     return 'list';
   });
   const [navTab, setNavTab] = useState<AccountsTab>(tab);
+  const [sectionsState, setSectionsState] = useState<AccountSectionsState>({ sections: [], assignments: {} });
   const [, startNavTransition] = useTransition();
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAccountSections().then(raw => {
+      if (cancelled) return;
+      setSectionsState(raw);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const persistSections = useCallback(async (next: AccountSectionsState) => {
+    setSectionsState(next);
+    await saveAccountSections(next);
+  }, []);
 
   const selectBranch = useCallback((id: AccountBranchId) => {
     setNavBranch(id);
@@ -149,12 +172,20 @@ export function AccountsSection({
     [customerSummaries, centersSummaries],
   );
 
-  const grandTotals = useMemo(
-    () => sumSummariesByCurrency(allSummaries),
-    [allSummaries],
-  );
+  const panelFundId = branch === 'centers' ? CENTERS_FUND_ID : customersLedgerFundId;
+  const rawSummaries = branch === 'centers' ? centersSummaries : customerSummaries;
 
-  const summaries = branch === 'centers' ? centersSummaries : customerSummaries;
+  useEffect(() => {
+    const migrated = migrateLegacyAccountGroups(sectionsState, customers, branch);
+    if (migrated !== sectionsState) {
+      void persistSections(migrated);
+    }
+  }, [sectionsState, customers, branch, persistSections]);
+
+  const summaries = useMemo(
+    () => enrichSummariesWithSections(rawSummaries, sectionsState, branch, panelFundId, customers),
+    [rawSummaries, sectionsState, customers, branch, panelFundId],
+  );
 
   const needsReconciliation = useMemo(
     () => summaries.filter(s => {
@@ -172,7 +203,10 @@ export function AccountsSection({
     b.id === 'centers' ? canAccessCenters : boxFunds.length > 0
   ));
 
-  const panelFundId = branch === 'centers' ? CENTERS_FUND_ID : customersLedgerFundId;
+  const assignAccountSection = useCallback(async (summary: CustomerSummary, sectionId: string | null) => {
+    const next = assignSummaryToSection(sectionsState, summary, panelFundId, sectionId);
+    await persistSections(next);
+  }, [sectionsState, panelFundId, persistSections]);
 
   const handleMoveAccount = onMoveAccount
     ? (accountName: string, toBranch: AccountBranchId, opts?: {
@@ -189,40 +223,9 @@ export function AccountsSection({
     );
   }
 
-  function renderCurrencyTotals(
-    label: string,
-    totals: { currency: Currency; total: number; symbol: string }[],
-    accent: string,
-  ) {
-    if (totals.length === 0) {
-      return (
-        <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 px-3 py-2">
-          <p className={`text-xs font-medium ${accent}`}>{label}</p>
-          <p className="mt-1 text-[11px] text-slate-500">لا يوجد رصيد</p>
-        </div>
-      );
-    }
-    return (
-      <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 px-3 py-2">
-        <p className={`text-xs font-medium ${accent}`}>{label}</p>
-        <div className="mt-1.5 flex flex-wrap gap-2">
-          {totals.map(row => (
-            <span
-              key={row.currency}
-              className="rounded-lg bg-slate-800 px-2 py-1 text-[11px] tabular-nums text-slate-200"
-            >
-              {formatAmount(row.total, row.currency)}
-              <span className="mr-1 text-slate-500">{row.symbol}</span>
-            </span>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {renderCurrencyTotals('المجموع العام', grandTotals, 'text-amber-300')}
+      <AccountsGrandTotalCard summaries={allSummaries} />
 
       <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">
         {visibleBranches.map(b => {
@@ -302,7 +305,17 @@ export function AccountsSection({
         </p>
       )}
 
-      {tab === 'trial_balance' ? (
+      {tab === 'sections' ? (
+        <AccountSectionsPanel
+          branch={branch}
+          summaries={summaries}
+          sectionsState={sectionsState}
+          panelFundId={panelFundId}
+          readOnly={branch === 'centers' ? !canEdit(CENTERS_FUND_ID) : false}
+          onChangeSections={persistSections}
+          onAssignAccount={assignAccountSection}
+        />
+      ) : tab === 'trial_balance' ? (
         <TrialBalancePanel
           summaries={summaries}
           customers={customers}
@@ -319,7 +332,7 @@ export function AccountsSection({
             : undefined}
           readOnly={branch === 'centers' ? !canEdit(CENTERS_FUND_ID) : false}
         />
-      ) : tab === 'reconciliations' && displayedSummaries.length === 0 ? (
+      ) : tab !== 'list' && tab === 'reconciliations' && displayedSummaries.length === 0 ? (
         <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-6 text-center">
           <CheckCircle2 size={28} className="mx-auto text-emerald-400" />
           <p className="mt-2 text-sm font-medium text-emerald-300">كل الحسابات مطابقة</p>
@@ -334,6 +347,8 @@ export function AccountsSection({
           fundOptions={boxFunds}
           accountBranch={branch}
           customersLedgerFundId={customersLedgerFundId}
+          sectionsState={sectionsState}
+          onAssignAccountSection={assignAccountSection}
           multiFundCustomers={true}
           canEditFund={canEdit}
           onAddCustomer={onAddCustomer}

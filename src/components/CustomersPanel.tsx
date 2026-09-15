@@ -1,11 +1,13 @@
-import { CheckCircle2, ChevronDown, ChevronUp, FileText, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle, ArrowRightLeft } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, FileText, FolderInput, MessageCircle, Pencil, Plus, Search, Share2, Trash2, User, AlertTriangle, ArrowRightLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CENTERS_FUND_ID, CURRENCIES, canRegisterCustomerName, isHalabLinkedAccountName } from '../config';
-import { collectAccountGroups, groupSummariesBySection, DEFAULT_ACCOUNT_GROUP } from '../lib/accountGroups';
-import { sumSummariesByCurrency } from '../lib/accountBranch';
+import { groupSummariesBySection, hasConfiguredSections } from '../lib/accountGroups';
+import { sectionsForBranch, type AccountSectionsState } from '../lib/accountSections';
+import { AccountsGrandTotalCard } from './AccountsGrandTotalCard';
+import { AssignAccountSectionModal } from './AssignAccountSectionModal';
 import { mergedAccountAliasLabels } from '../lib/accountMerge';
 import { isMoneyOutReconciliationAccount } from '../lib/halabMirror';
-import { accountExistsInFund, accountNeedsReconciliation, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatAmount, formatDateAr } from '../lib/utils';
+import { accountExistsInFund, accountNeedsReconciliation, createCustomer, enrichAccountTransactionsForDisplay, filterAccountViewTransactions, filterMergedAccountTransactions, findCustomerForAccount, formatDateAr } from '../lib/utils';
 import { isFeeAccountName } from '../lib/fees';
 import type { AccountBranchId, Customer, CustomerSummary, Fund, FundId, Transaction } from '../types';
 import { AccountStatementModal } from './AccountStatementModal';
@@ -52,6 +54,8 @@ interface Props {
   /** حسابات زبائن مجمّعة من كل الصناديق */
   multiFundCustomers?: boolean;
   canEditFund?: (fundId: FundId) => boolean;
+  sectionsState?: AccountSectionsState;
+  onAssignAccountSection?: (summary: CustomerSummary, sectionId: string | null) => void | Promise<void>;
 }
 
 export function CustomersPanel({
@@ -80,6 +84,8 @@ export function CustomersPanel({
   reconciliationFocus = false,
   multiFundCustomers = false,
   canEditFund,
+  sectionsState = { sections: [], assignments: {} },
+  onAssignAccountSection,
 }: Props) {
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -88,8 +94,8 @@ export function CustomersPanel({
   const [statementAccount, setStatementAccount] = useState<CustomerSummary | null>(null);
   const [name, setName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
-  const [accountGroup, setAccountGroup] = useState('');
   const [phone, setPhone] = useState('');
+  const [assigningSummary, setAssigningSummary] = useState<CustomerSummary | null>(null);
   const [nameError, setNameError] = useState('');
   const [valuationMode, setValuationMode] = useState<AccountValuationMode>('breakdown');
   const [pendingDelete, setPendingDelete] = useState<{
@@ -149,23 +155,18 @@ export function CustomersPanel({
   }, [summaries, search]);
 
   const groupedSections = useMemo(
-    () => groupSummariesBySection(filtered),
-    [filtered],
+    () => groupSummariesBySection(filtered, sectionsState),
+    [filtered, sectionsState],
   );
 
   const showSectionHeaders = useMemo(
-    () => groupedSections.some(section => section.label !== DEFAULT_ACCOUNT_GROUP),
-    [groupedSections],
+    () => hasConfiguredSections(sectionsState, accountBranch),
+    [sectionsState, accountBranch],
   );
 
-  const existingGroups = useMemo(
-    () => collectAccountGroups(customers.filter(c => c.accountBranch === accountBranch || (
-      !c.accountBranch && (
-        (accountBranch === 'centers' && c.fundId === CENTERS_FUND_ID)
-        || (accountBranch === 'customers' && c.fundId !== CENTERS_FUND_ID)
-      )
-    ))),
-    [customers, accountBranch],
+  const branchSections = useMemo(
+    () => sectionsForBranch(sectionsState, accountBranch),
+    [sectionsState, accountBranch],
   );
 
   const transferAccountNames = useMemo(
@@ -194,11 +195,9 @@ export function CustomersPanel({
       accountNumber: accountNumber.trim() || undefined,
       phone: phone.trim() || undefined,
       accountBranch,
-      accountGroup: accountGroup.trim() || undefined,
     }));
     setName('');
     setAccountNumber('');
-    setAccountGroup('');
     setPhone('');
   }
 
@@ -232,19 +231,6 @@ export function CustomersPanel({
         {nameError && <p className="text-xs text-rose-400">{nameError}</p>}
         <input type="text" placeholder="رقم الحساب (اختياري)" value={accountNumber} onChange={e => setAccountNumber(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" dir="ltr" />
-        <input
-          type="text"
-          list="account-group-options"
-          placeholder="القسم (مثل: مصاريف نثرية)"
-          value={accountGroup}
-          onChange={e => setAccountGroup(e.target.value)}
-          className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm"
-        />
-        <datalist id="account-group-options">
-          {existingGroups.map(group => (
-            <option key={group} value={group} />
-          ))}
-        </datalist>
         <input type="text" placeholder="واتساب (اختياري)" value={phone} onChange={e => setPhone(e.target.value)}
           className="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2.5 text-sm" />
         <button type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 py-2.5 font-semibold text-slate-900">
@@ -284,30 +270,15 @@ export function CustomersPanel({
         <p className="text-center text-sm text-slate-500">لا يوجد حسابات</p>
       ) : (
         <div className="space-y-4">
-          {groupedSections.map(section => {
-            const sectionTotals = sumSummariesByCurrency(section.summaries);
-            return (
+          {groupedSections.map(section => (
               <div key={section.id} className="space-y-2">
                 {showSectionHeaders && (
-                  <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 px-3 py-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-200">{section.label}</p>
-                      <span className="text-[11px] text-slate-500">{section.summaries.length} حساب</span>
-                    </div>
-                    {sectionTotals.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        {sectionTotals.map(row => (
-                          <span
-                            key={row.currency}
-                            className="rounded-md bg-slate-800/80 px-2 py-0.5 text-[10px] tabular-nums text-slate-300"
-                          >
-                            {formatAmount(row.total, row.currency)}
-                            <span className="mr-1 text-slate-500">{row.symbol}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <AccountsGrandTotalCard
+                    summaries={section.summaries}
+                    title={section.label}
+                    subtitle={`${section.summaries.length} حساب في هذا القسم`}
+                    compact
+                  />
                 )}
                 {section.summaries.map(summary => {
             const summaryFund = resolveFund(summary);
@@ -435,6 +406,20 @@ export function CustomersPanel({
                         <Trash2 size={14} />
                       </button>
                     )}
+                    {!summaryReadOnly && onAssignAccountSection && branchSections.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          setAssigningSummary(summary);
+                        }}
+                        className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[10px] font-medium text-violet-300 hover:bg-violet-500/20"
+                        title="تعيين قسم"
+                      >
+                        <FolderInput size={12} />
+                        قسم
+                      </button>
+                    )}
                     {!summaryReadOnly && onMoveAccount && (
                       <button
                         type="button"
@@ -527,8 +512,7 @@ export function CustomersPanel({
             );
                 })}
               </div>
-            );
-          })}
+          ))}
         </div>
       )}
 
@@ -536,7 +520,6 @@ export function CustomersPanel({
         <EditCustomerModal
           customer={editingCustomer}
           fundOptions={fundOptions}
-          existingGroups={existingGroups}
           onClose={() => setEditingCustomer(null)}
           onSave={async (updated, previousName) => {
             await onUpdateCustomer(updated, previousName);
@@ -570,6 +553,16 @@ export function CustomersPanel({
           transactions={transactions}
           reconciledThroughDate={statementAccount.reconciliation?.throughDate}
           onClose={() => setStatementAccount(null)}
+        />
+      )}
+
+      {assigningSummary && onAssignAccountSection && (
+        <AssignAccountSectionModal
+          summary={assigningSummary}
+          sections={branchSections}
+          currentSectionId={assigningSummary.accountSectionId}
+          onClose={() => setAssigningSummary(null)}
+          onAssign={sectionId => onAssignAccountSection(assigningSummary, sectionId)}
         />
       )}
 
