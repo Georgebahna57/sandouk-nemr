@@ -73,13 +73,12 @@ async function main() {
   const supabase = createClient(url, key);
   const { data: rows, error } = await supabase
     .from('transactions')
-    .select('id, party, counterparty, currency, amount, kind, link_id, ledger, status, fee_source_id')
+    .select('id, party, counterparty, currency, amount, kind, link_id, ledger, status')
     .eq('fund_id', fundId)
     .eq('date', date)
     .eq('ledger', 'fund')
     .eq('party', party)
-    .eq('status', 'posted')
-    .is('fee_source_id', null);
+    .eq('status', 'posted');
 
   if (error) throw error;
 
