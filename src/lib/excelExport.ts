@@ -1,6 +1,6 @@
 import { getFund } from '../config';
 import type { FundId, Transaction } from '../types';
-import { describeTransaction, formatDateAr } from './utils';
+import { describeTransaction, filterFundJournalTransactions, formatDateAr } from './utils';
 
 function csvEscape(value: string): string {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
@@ -39,8 +39,7 @@ export function buildDailyOperationsRows(
     'التاريخ,النوع,البيان,المبلغ,الحالة,ملاحظة',
   ];
 
-  const txs = transactions
-    .filter(t => t.fundId === fundId && t.date === dateIso && (t.ledger ?? 'fund') === 'fund')
+  const txs = filterFundJournalTransactions(transactions, fundId, { status: 'posted', date: dateIso })
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   for (const tx of txs) {

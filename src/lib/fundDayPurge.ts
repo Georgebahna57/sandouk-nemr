@@ -1,6 +1,5 @@
-import { getFundAccountName } from '../config';
 import type { FundId, Transaction } from '../types';
-import { getDeletionGroupIds } from './utils';
+import { filterFundJournalTransactions, getDeletionGroupIds } from './utils';
 
 export interface FundDayPurgePreview {
   fundLedgerCount: number;
@@ -18,13 +17,8 @@ export interface FundDayJournalOnlyPurgePreview {
 }
 
 /** حركات دفتر اليومية فقط — نفس معايير buildDailyJournalReport بدون حذف الحسابات المربوطة */
-function isFundJournalEntry(tx: Transaction, fundId: FundId): boolean {
-  const party = getFundAccountName(fundId);
-  return tx.fundId === fundId
-    && tx.status === 'posted'
-    && (tx.ledger ?? 'fund') === 'fund'
-    && tx.party === party
-    && !tx.feeSourceId;
+function isFundJournalEntry(tx: Transaction, fundId: FundId, date: string): boolean {
+  return filterFundJournalTransactions([tx], fundId, { status: 'posted', date }).length > 0;
 }
 
 /** حركات صندوق بتاريخ محدد + كل المربوطة بها (حساب، أجور…) */
@@ -81,7 +75,7 @@ export function previewFundDayJournalOnlyPurge(
   fundId: FundId,
   date: string,
 ): FundDayJournalOnlyPurgePreview {
-  const fundRows = transactions.filter(tx => tx.date === date && isFundJournalEntry(tx, fundId));
+  const fundRows = transactions.filter(tx => isFundJournalEntry(tx, fundId, date));
   const fundLinkIds = new Set(fundRows.map(tx => tx.linkId).filter(Boolean) as string[]);
   let preservedAccountCount = 0;
   for (const tx of transactions) {
@@ -103,6 +97,6 @@ export function collectFundDayJournalOnlyIds(
   date: string,
 ): string[] {
   return transactions
-    .filter(tx => tx.date === date && isFundJournalEntry(tx, fundId))
+    .filter(tx => isFundJournalEntry(tx, fundId, date))
     .map(tx => tx.id);
 }
