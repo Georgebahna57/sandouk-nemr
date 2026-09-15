@@ -1,5 +1,6 @@
 import { Loader2, Plus, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { deferToNextPaint } from '../lib/deferPaint';
 import { BOX_FUNDS, getFund, isHalabFleilatFund } from '../config';
 import {
   createLinkedAccountAccountOperation,
@@ -121,6 +122,9 @@ export function AccountTransactionForm({
     e.preventDefault();
     if (submitting) return;
     setFormError(null);
+    setSubmitting(true);
+    await deferToNextPaint();
+
     const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
     const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
     const feeFields = feeFieldsFromParsed(parsedFee);
@@ -141,10 +145,12 @@ export function AccountTransactionForm({
     if (isExchange) {
       if (!exchangeParsed.valid) {
         setFormError('أكمل مبالغ وريت التبديل');
+        setSubmitting(false);
         return;
       }
       if (transferMode === 'account') {
         setFormError('التبديل بين حسابين غير مدعوم — اختر حساب فقط أو ترحيل صندوق');
+        setSubmitting(false);
         return;
       }
       payload = transferMode === 'fund'
@@ -174,6 +180,7 @@ export function AccountTransactionForm({
       const items = parseAmountLines(lines);
       if (!items.length) {
         setFormError('أدخل مبلغاً أكبر من صفر');
+        setSubmitting(false);
         return;
       }
 
@@ -191,6 +198,7 @@ export function AccountTransactionForm({
         const toAccount = otherAccountNames.find(n => n === targetAccount.trim());
         if (!toAccount || toAccount === accountName) {
           setFormError('اختر حساب وجهة صحيحاً من القائمة');
+          setSubmitting(false);
           return;
         }
         payload = createLinkedAccountAccountOperation(
@@ -220,7 +228,6 @@ export function AccountTransactionForm({
       Array.isArray(withRemittance) ? withRemittance : [withRemittance],
       mirrorToHalab && showHalabMirror && transferMode !== 'account',
     );
-    setSubmitting(true);
     try {
       await Promise.resolve(onAdd(mirrored.length === 1 ? mirrored[0] : mirrored));
       reset();

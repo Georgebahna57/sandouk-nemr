@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { CheckCircle2, BookOpen, Clock, Eye, FileText, Info, Loader2, LogOut, RefreshCw, ScrollText, Search, Settings, Share2, Users, Wallet, X, Download } from 'lucide-react';
 import { BalanceCards } from './components/BalanceCards';
 import { BillsPanel } from './components/BillsPanel';
@@ -103,7 +103,15 @@ export default function App({ user, onLogout }: Props) {
     initialPrefs.nav.appSection ?? 'funds',
   );
   const [fundId, setFundId] = useState<FundId>(initialPrefs.nav.fundId ?? 'nemr');
-  const [view, setView] = useState<ViewId>(initialPrefs.nav.view ?? 'ledger');
+  const initialView = initialPrefs.nav.view ?? 'ledger';
+  const [view, setView] = useState<ViewId>(initialView);
+  const [navView, setNavView] = useState<ViewId>(initialView);
+  const [viewPending, startViewTransition] = useTransition();
+
+  const selectView = useCallback((id: ViewId) => {
+    setNavView(id);
+    startViewTransition(() => setView(id));
+  }, []);
   const [displayMode, setDisplayMode] = useState<DisplayMode>(initialPrefs.displayMode);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(initialPrefs.layoutMode);
   const [pendingNotify, setPendingNotify] = useState(initialPrefs.pendingNotify);
@@ -259,7 +267,10 @@ export default function App({ user, onLogout }: Props) {
     if (prefs.fundId && visibleBoxFunds.some(f => f.id === prefs.fundId)) {
       setFundId(prefs.fundId);
     }
-    if (prefs.view) setView(prefs.view);
+    if (prefs.view) {
+      setNavView(prefs.view);
+      setView(prefs.view);
+    }
   }, [permsLoading, accountsOnly, visibleBoxFunds, canAccessAccountsSection]);
 
   useEffect(() => {
@@ -399,14 +410,14 @@ export default function App({ user, onLogout }: Props) {
       if (e.key === 'p' || e.key === 'P') {
         if (visibleBoxFunds.length > 0) {
           setAppSection('funds');
-          setView('pending');
+          selectView('pending');
         }
         return;
       }
 
       if (e.key === 'n' || e.key === 'N') {
         if (appSection === 'funds' && (view === 'ledger' || view === 'pending') && !readOnly) {
-          setView(view === 'pending' ? 'pending' : 'ledger');
+          selectView(view === 'pending' ? 'pending' : 'ledger');
           requestAnimationFrame(() => {
             const el = document.getElementById('new-transaction-form');
             el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -419,7 +430,7 @@ export default function App({ user, onLogout }: Props) {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [appSection, view, readOnly, showAdmin, visibleBoxFunds.length, closeAllModals]);
+  }, [appSection, view, readOnly, showAdmin, visibleBoxFunds.length, closeAllModals, selectView]);
 
   useEffect(() => {
     if (appSection !== 'funds') {
@@ -783,8 +794,8 @@ export default function App({ user, onLogout }: Props) {
               ? fundAccountsNeedingReconciliation
               : null;
           return (
-            <button key={v.id} type="button" onClick={() => setView(v.id)}
-              className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-xs font-medium transition sm:text-sm ${view === v.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}>
+            <button key={v.id} type="button" onClick={() => selectView(v.id)}
+              className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-xs font-medium transition sm:text-sm ${navView === v.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}>
               <Icon size={15} />
               {v.label}
               {badge !== null && (
@@ -799,7 +810,7 @@ export default function App({ user, onLogout }: Props) {
       </>
       )}
 
-      <main>
+      <main className={viewPending ? 'opacity-90 transition-opacity' : undefined}>
         {appSection === 'funds' && view === 'ledger' && (
           <div className="space-y-4">
             {!readOnly && (

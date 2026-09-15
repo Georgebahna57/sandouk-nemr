@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react';
 import type { AccountBranchId, AppState, Bill, Customer, Transaction, TransactionComment } from '../types';
 import {
   fetchAppState,
@@ -467,14 +467,12 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     const txs = toArray(tx).map(t => sealAccountOnlyTransaction(
       stampActor(normalizeSyrianTransaction(t) as Transaction, actor),
     ));
-    let previous: Transaction[] = [];
-    let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
-    setState(prev => {
-      previous = prev.transactions;
-      const merged = mergeUniqueTransactions(txs, prev.transactions);
-      const leadIds = collectFeeSyncLeadIds(merged, txs.map(t => t.id));
-      syncResult = mergeFeeSync(merged, leadIds);
-      return { ...prev, transactions: syncResult.transactions };
+    const previous = stateRef.current.transactions;
+    const merged = mergeUniqueTransactions(txs, previous);
+    const leadIds = collectFeeSyncLeadIds(merged, txs.map(t => t.id));
+    const syncResult = mergeFeeSync(merged, leadIds);
+    startTransition(() => {
+      setState(prev => ({ ...prev, transactions: syncResult.transactions }));
     });
     const upsertIds = new Set(txs.map(t => t.id));
     const feeUpsert = syncResult.upsert.filter(t => !upsertIds.has(t.id));
