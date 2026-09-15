@@ -36,7 +36,6 @@ import {
   repairDuplicateLinkedFundLegs,
   repairHalabFundTransactions,
   repairMislabeledAccountLegs,
-  repairUnlinkedFundCounterpartyAsAccount,
   backfillMissingLinkIds,
   sealAccountOnlyTransaction,
 } from '../lib/utils';
@@ -110,8 +109,7 @@ const MIGRATED_KEY = 'sandouk-cloud-migrated';
 function applyLinkedFundLegStabilization(cloud: AppState): AppState {
   const { transactions: afterImport } = repairMislabeledTrialBalanceImportTransactions(cloud.transactions);
   const { transactions: afterMislabel } = repairMislabeledAccountLegs(afterImport);
-  const { transactions: afterUnlinked } = repairUnlinkedFundCounterpartyAsAccount(afterMislabel);
-  const { transactions: afterDup } = repairDuplicateLinkedFundLegs(afterUnlinked);
+  const { transactions: afterDup } = repairDuplicateLinkedFundLegs(afterMislabel);
   const { transactions: afterLink } = backfillMissingLinkIds(afterDup);
   if (afterLink === cloud.transactions) return cloud;
   return { ...cloud, transactions: afterLink };
@@ -1104,8 +1102,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         repairMislabeledTrialBalanceImportTransactions(cloud.transactions);
       const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(afterImport);
       const { changed: repairedAccountLegs, transactions: afterAccountLegs } = repairMislabeledAccountLegs(afterNsyp);
-      const { changed: repairedUnlinked, transactions: afterUnlinked } = repairUnlinkedFundCounterpartyAsAccount(afterAccountLegs);
-      const { changed: repairedDupLinked, transactions: afterDupLinked } = repairDuplicateLinkedFundLegs(afterUnlinked);
+      const { changed: repairedDupLinked, transactions: afterDupLinked } = repairDuplicateLinkedFundLegs(afterAccountLegs);
       const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterDupLinked);
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
@@ -1116,7 +1113,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       if (feeSync.removeIds.length) {
         await removeTransactions(feeSync.removeIds);
       }
-      const toUpsert = [...repairedImport, ...repairedNsyp, ...repairedAccountLegs, ...repairedUnlinked, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedImport, ...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
