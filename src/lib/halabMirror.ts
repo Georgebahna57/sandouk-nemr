@@ -7,7 +7,6 @@ import { formatAmount, todayIso } from './utils';
 const MONEY_OUT_RECON_CURRENCIES: { currency: Currency; label: string }[] = [
   { currency: 'USD', label: 'دولار' },
   { currency: 'SYP', label: 'سوري' },
-  { currency: 'NSYP', label: 'سوري جديد' },
 ];
 
 function mirrorKind(kind: TransactionKind): TransactionKind | null {
