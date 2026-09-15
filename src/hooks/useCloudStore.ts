@@ -13,7 +13,7 @@ import {
   upsertTransactions,
 } from '../lib/db';
 import { collectAccountResetIds, type AccountResetResult } from '../lib/accountReset';
-import { collectFundDayPurgeIds } from '../lib/fundDayPurge';
+import { collectFundDayJournalOnlyIds, collectFundDayPurgeIds } from '../lib/fundDayPurge';
 import { formatNemrAuditBalanceDetails } from '../lib/fundBalancePreview';
 import type { NemrBalanceRestorePlan } from '../lib/nemrBalanceRestore';
 import { saveValuationRates } from '../lib/appSettings';
@@ -1028,6 +1028,22 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     return removed;
   }, [runSync]);
 
+  const deleteFundDayJournalOnly = useCallback(async (fundId: FundId, date: string): Promise<number> => {
+    let removed = 0;
+    await runSync(async () => {
+      const cloud = await fetchAppState();
+      const removeIds = collectFundDayJournalOnlyIds(cloud.transactions, fundId, date);
+      if (!removeIds.length) return;
+      savePreDestructiveSnapshot(stateRef.current, 'pre-delete');
+      await removeTransactions(removeIds);
+      removed = removeIds.length;
+      const refreshed = await fetchAppState();
+      setState(refreshed);
+      mirrorAppState(refreshed);
+    });
+    return removed;
+  }, [runSync]);
+
   const resetAllAccounts = useCallback(async (): Promise<AccountResetResult> => {
     let removedTransactions = 0;
     let removedCustomers = 0;
@@ -1268,6 +1284,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     restoreBackup,
     repairHalabData,
     deleteFundDayOperations,
+    deleteFundDayJournalOnly,
     resetAllAccounts,
   };
 }

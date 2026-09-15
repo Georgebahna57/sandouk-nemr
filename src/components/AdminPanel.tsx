@@ -47,6 +47,7 @@ interface Props {
   onRepairHalab?: () => Promise<void>;
   onResetAllAccounts?: () => Promise<import('../lib/accountReset').AccountResetResult>;
   onDeleteFundDayOperations?: (fundId: FundId, date: string) => Promise<number>;
+  onDeleteFundDayJournalOnly?: (fundId: FundId, date: string) => Promise<number>;
   onImportTrialBalance?: (
     accounts: TrialBalanceImportAccount[],
     target: import('../lib/trialBalanceImport').TrialBalanceImportTarget,
@@ -91,7 +92,7 @@ function buildPermissionMap(
   return map;
 }
 
-export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRestoreNemrBalance, onRepairHalab, onResetAllAccounts, onDeleteFundDayOperations, onImportTrialBalance, importingTrialBalance = false }: Props) {
+export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValuationRates, savingValuationRates = false, appState, onRestoreBackup, onAddOpeningBalance, onRestoreNemrBalance, onRepairHalab, onResetAllAccounts, onDeleteFundDayOperations, onDeleteFundDayJournalOnly, onImportTrialBalance, importingTrialBalance = false }: Props) {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({});
   const [nameEdits, setNameEdits] = useState<Record<string, string>>({});
@@ -293,6 +294,7 @@ export function AdminPanel({ onBack, onWhatsAppSaved, valuationRates, onSaveValu
         <FundDayPurgeSection
           transactions={appState.transactions}
           onPurge={onDeleteFundDayOperations}
+          onPurgeJournalOnly={onDeleteFundDayJournalOnly}
         />
       )}
 
