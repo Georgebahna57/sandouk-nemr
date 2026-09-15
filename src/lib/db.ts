@@ -46,9 +46,12 @@ function resolveTransactionLedger(
   rowLedger: unknown,
   decodedLedger?: TransactionLedger,
   userNote?: string,
+  rawNote?: string,
 ): TransactionLedger {
-  // عمود ledger في قاعدة البيانات يتقدّم على الميتاداتا القديمة في الملاحظة
-  if (rowLedger === 'account' || rowLedger === 'fund') return rowLedger;
+  if (rowLedger === 'account') return 'account';
+  // ميتاداتا الملاحظة تتقدّم على القيمة الافتراضية fund عند غياب عمود ledger
+  if (decodedLedger === 'account' && rawNote?.startsWith('[[SNDK]]')) return 'account';
+  if (rowLedger === 'fund') return 'fund';
   if (decodedLedger === 'account') return 'account';
   if (isTrialBalanceImportNote(userNote)) return 'account';
   return decodedLedger ?? 'fund';
@@ -61,7 +64,7 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
   return normalizeTransaction({
     id: row.id as string,
     fundId: row.fund_id as Transaction['fundId'],
-    ledger: resolveTransactionLedger(row.ledger, decoded.ledger, decoded.userNote),
+    ledger: resolveTransactionLedger(row.ledger, decoded.ledger, decoded.userNote, rawNote),
     date: row.date as string,
     currency: row.currency as Transaction['currency'],
     kind: row.kind as Transaction['kind'],

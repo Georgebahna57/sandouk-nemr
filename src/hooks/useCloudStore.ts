@@ -460,8 +460,10 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
 
   const addTransaction = useCallback(async (tx: Transaction | Transaction[]) => {
     const txs = toArray(tx).map(t => stampActor(normalizeSyrianTransaction(t) as Transaction, actor));
+    let previous: Transaction[] = [];
     let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
     setState(prev => {
+      previous = prev.transactions;
       const merged = mergeUniqueTransactions(txs, prev.transactions);
       const leadIds = collectFeeSyncLeadIds(merged, txs.map(t => t.id));
       syncResult = mergeFeeSync(merged, leadIds);
@@ -471,10 +473,15 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
     const feeUpsert = syncResult.upsert.filter(t => !upsertIds.has(t.id));
     const toUpsert = [...txs, ...feeUpsert];
     const queueItem = queueTxSync({ removeIds: syncResult.removeIds, upsert: toUpsert });
-    await runSync(async () => {
-      if (syncResult.removeIds.length) await removeTransactions(syncResult.removeIds);
-      await upsertTransactions(toUpsert);
-    }, queueItem);
+    try {
+      await runSync(async () => {
+        if (syncResult.removeIds.length) await removeTransactions(syncResult.removeIds);
+        await upsertTransactions(toUpsert);
+      }, queueItem);
+    } catch {
+      setState(prev => ({ ...prev, transactions: previous }));
+      throw new Error('فشل حفظ العملية — تحقق من الاتصال أو صلاحيات الصندوق');
+    }
   }, [actor, runSync]);
 
   const restoreNemrBalance = useCallback(async (plan: NemrBalanceRestorePlan) => {
