@@ -152,6 +152,10 @@ export function normalizeTransaction(tx: Transaction): Transaction {
   const ledger = base.ledger ?? 'fund';
   if (ledger === 'fund') {
     if (!isFundAccountName(base.party) && isCustomerAccountName(base.party)) {
+      // حركة حساب فقط بدون ربط صندوق — لا تُحوَّل لحركة صندوق في اليومية
+      if (!base.linkId) {
+        return { ...base, ledger: 'account' };
+      }
       return {
         ...base,
         ledger: 'fund',
@@ -388,6 +392,11 @@ export function repairBoxFundTransactions(transactions: Transaction[]): {
     const ledger = tx.ledger ?? 'fund';
     if (ledger !== 'fund') return tx;
     if (isFundPartyForLedger(tx.party, tx.fundId)) return tx;
+    if (!tx.linkId && isCustomerAccountName(tx.party)) {
+      const fixed: Transaction = { ...tx, ledger: 'account' };
+      changed.push(fixed);
+      return fixed;
+    }
     if (tx.linkId && isCustomerAccountName(tx.party)) {
       const hasFundPeer = transactions.some(
         t => t.linkId === tx.linkId
@@ -425,6 +434,21 @@ export function dedupeTransactionsById(transactions: Transaction[]): Transaction
   const byId = new Map<string, Transaction>();
   for (const tx of transactions) byId.set(tx.id, tx);
   return [...byId.values()];
+}
+
+/** حركات دفتر اليومية — نفس معايير رصيد الصندوق وقائمة العمليات */
+export function filterFundJournalTransactions(
+  transactions: Transaction[],
+  fundId: FundId,
+  opts?: { date?: string; status?: TransactionStatus },
+): Transaction[] {
+  const posted = filterTransactions(transactions, fundId, {
+    status: opts?.status ?? 'posted',
+    ledger: 'fund',
+  });
+  const withoutFees = posted.filter(tx => !tx.feeSourceId);
+  if (!opts?.date) return withoutFees;
+  return withoutFees.filter(tx => tx.date === opts.date);
 }
 
 export function filterTransactions(
