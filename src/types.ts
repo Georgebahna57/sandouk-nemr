@@ -43,8 +43,6 @@ export interface Customer {
   reconciliation?: AccountReconciliation;
   /** مراكز أو زبائن — ليس تبعيّة لصندوق نمر/حلب */
   accountBranch?: AccountBranchId;
-  /** قسم/تصنيف الحساب — مثل «مصاريف نثرية» */
-  accountGroup?: string;
   createdAt: string;
 }
 
@@ -182,8 +180,6 @@ export interface CustomerSummary {
   merged?: boolean;
   sharedFundIds?: FundId[];
   reconciliation?: AccountReconciliation;
-  accountGroup?: string;
-  accountSectionId?: string;
   balances: CustomerBalances;
   hasActivity: boolean;
 }

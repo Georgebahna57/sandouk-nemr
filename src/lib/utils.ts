@@ -849,7 +849,6 @@ export function buildAccountSummaries(
       name,
       customerId: customer?.id,
       accountNumber: customer?.accountNumber,
-      accountGroup: customer?.accountGroup,
       fundId,
       sharedFundIds: customer?.sharedFundIds,
       reconciliation: customer?.reconciliation,
