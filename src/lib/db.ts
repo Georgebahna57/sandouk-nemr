@@ -17,6 +17,7 @@ function isMissingColumnError(error: { message?: string; code?: string }): boole
   const msg = (error.message ?? '').toLowerCase();
   return (
     error.code === 'PGRST204'
+    || error.code === '42703'
     || msg.includes('ledger')
     || msg.includes('counterparty')
     || msg.includes('batch_id')
@@ -24,8 +25,15 @@ function isMissingColumnError(error: { message?: string; code?: string }): boole
     || msg.includes('created_by')
     || msg.includes('comments')
     || msg.includes('claimed_by')
+    || msg.includes('ordered_date')
+    || msg.includes('approval')
+    || msg.includes('exchange_')
+    || msg.includes('edit_history')
+    || msg.includes('pending_whatsapp')
     || msg.includes('fee')
     || msg.includes('shared_fund_ids')
+    || msg.includes('schema cache')
+    || msg.includes('column')
     || msg.includes('could not find')
   );
 }
@@ -46,9 +54,12 @@ function resolveTransactionLedger(
   rowLedger: unknown,
   decodedLedger?: TransactionLedger,
   userNote?: string,
+  rawNote?: string,
 ): TransactionLedger {
-  // عمود ledger في قاعدة البيانات يتقدّم على الميتاداتا القديمة في الملاحظة
-  if (rowLedger === 'account' || rowLedger === 'fund') return rowLedger;
+  if (rowLedger === 'account') return 'account';
+  // ميتاداتا الملاحظة تتقدّم على القيمة الافتراضية fund عند غياب عمود ledger
+  if (decodedLedger === 'account' && rawNote?.startsWith('[[SNDK]]')) return 'account';
+  if (rowLedger === 'fund') return 'fund';
   if (decodedLedger === 'account') return 'account';
   if (isTrialBalanceImportNote(userNote)) return 'account';
   return decodedLedger ?? 'fund';
@@ -61,7 +72,7 @@ function mapTransaction(row: Record<string, unknown>): Transaction {
   return normalizeTransaction({
     id: row.id as string,
     fundId: row.fund_id as Transaction['fundId'],
-    ledger: resolveTransactionLedger(row.ledger, decoded.ledger, decoded.userNote),
+    ledger: resolveTransactionLedger(row.ledger, decoded.ledger, decoded.userNote, rawNote),
     date: row.date as string,
     currency: row.currency as Transaction['currency'],
     kind: row.kind as Transaction['kind'],
@@ -207,6 +218,30 @@ function txToRow(tx: Transaction) {
   };
 }
 
+function standardTxToRow(tx: Transaction) {
+  return {
+    id: tx.id,
+    fund_id: tx.fundId,
+    ledger: tx.ledger ?? 'fund',
+    date: tx.date,
+    currency: tx.currency,
+    kind: tx.kind,
+    amount: tx.amount,
+    party: tx.party,
+    counterparty: tx.counterparty ?? null,
+    intermediary: formatIntermediary(tx.intermediary) ?? null,
+    fee: feeToDbValue(tx),
+    note: txNoteToDb(tx),
+    status: tx.status,
+    batch_id: tx.batchId ?? null,
+    link_id: tx.linkId ?? null,
+    exchange_to_currency: tx.exchangeToCurrency ?? null,
+    exchange_rate: tx.exchangeRate ?? null,
+    exchange_to_amount: tx.exchangeToAmount ?? null,
+    created_at: tx.createdAt,
+  };
+}
+
 function minimalTxToRow(tx: Transaction) {
   return {
     id: tx.id,
@@ -257,7 +292,11 @@ function customerToRow(customer: Customer) {
 
 async function upsertTxRows(txs: Transaction[]) {
   const client = requireClient();
-  let { error } = await client.from('transactions').upsert(txs.map(txToRow));
+  const rows = txs.map(txToRow);
+  let { error } = await client.from('transactions').upsert(rows);
+  if (error && isMissingColumnError(error)) {
+    ({ error } = await client.from('transactions').upsert(txs.map(standardTxToRow)));
+  }
   if (error && isMissingColumnError(error)) {
     ({ error } = await client.from('transactions').upsert(txs.map(minimalTxToRow)));
   }

@@ -1,8 +1,9 @@
-import { CURRENCIES, getFund, getFundAccountName } from '../config';
+import { CURRENCIES, getFund } from '../config';
 import type { Currency, FundId, Transaction, TransactionKind } from '../types';
 import {
   computeBalances,
   describeTransaction,
+  filterFundJournalTransactions,
   formatAmount,
   formatDateAr,
   formatValueWithUnit,
@@ -36,14 +37,7 @@ export interface DailyJournalReport {
 }
 
 function fundLedgerPosted(transactions: Transaction[], fundId: FundId): Transaction[] {
-  const party = getFundAccountName(fundId);
-  return transactions.filter(
-    tx => tx.fundId === fundId
-      && tx.status === 'posted'
-      && (tx.ledger ?? 'fund') === 'fund'
-      && tx.party === party
-      && !tx.feeSourceId,
-  );
+  return filterFundJournalTransactions(transactions, fundId, { status: 'posted' });
 }
 
 function sortByDateCreated(txs: Transaction[]): Transaction[] {

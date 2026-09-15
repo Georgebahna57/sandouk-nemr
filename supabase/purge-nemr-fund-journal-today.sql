@@ -9,8 +9,7 @@ where fund_id = 'nemr'
   and date = current_date
   and ledger = 'fund'
   and party = 'صندوق نمر'
-  and status = 'posted'
-  and fee_source_id is null;
+  and status = 'posted';
 
 -- الحذف:
 delete from transactions
@@ -18,5 +17,4 @@ where fund_id = 'nemr'
   and date = current_date
   and ledger = 'fund'
   and party = 'صندوق نمر'
-  and status = 'posted'
-  and fee_source_id is null;
+  and status = 'posted';
