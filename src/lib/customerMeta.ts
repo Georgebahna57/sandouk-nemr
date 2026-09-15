@@ -9,6 +9,8 @@ interface CustomerMeta {
   ac?: string;
   /** c=مراكز · u=زبائن */
   br?: 'c' | 'u';
+  /** قسم الحساب */
+  gp?: string;
 }
 
 export function isTransactionReconciled(txDate: string, reconciledThroughDate?: string): boolean {
@@ -18,7 +20,12 @@ export function isTransactionReconciled(txDate: string, reconciledThroughDate?: 
 
 export function encodeCustomerNote(
   userNote: string | undefined,
-  meta: { reconciliation?: AccountReconciliation; accountNumber?: string; accountBranch?: AccountBranchId },
+  meta: {
+    reconciliation?: AccountReconciliation;
+    accountNumber?: string;
+    accountBranch?: AccountBranchId;
+    accountGroup?: string;
+  },
 ): string | undefined {
   const payload: CustomerMeta = {};
   if (meta.reconciliation?.throughDate) {
@@ -29,6 +36,7 @@ export function encodeCustomerNote(
   if (meta.accountNumber?.trim()) payload.ac = meta.accountNumber.trim();
   if (meta.accountBranch === 'centers') payload.br = 'c';
   if (meta.accountBranch === 'customers') payload.br = 'u';
+  if (meta.accountGroup?.trim()) payload.gp = meta.accountGroup.trim();
 
   const hasMeta = Object.keys(payload).length > 0;
   const trimmed = userNote?.trim();
@@ -42,6 +50,7 @@ export function decodeCustomerNote(note?: string): {
   reconciliation?: AccountReconciliation;
   accountNumber?: string;
   accountBranch?: AccountBranchId;
+  accountGroup?: string;
 } {
   if (!note?.startsWith(META_PREFIX)) {
     return { userNote: note?.trim() || undefined };
@@ -65,6 +74,7 @@ export function decodeCustomerNote(note?: string): {
       reconciliation,
       accountNumber: meta.ac?.trim() || undefined,
       accountBranch: meta.br === 'c' ? 'centers' : meta.br === 'u' ? 'customers' : undefined,
+      accountGroup: meta.gp?.trim() || undefined,
     };
   } catch {
     return { userNote: note.trim() || undefined };

@@ -157,6 +157,7 @@ export function mergeAccountSummaries(
       balances: mergeCustomerBalances(existing.balances, s.balances),
       hasActivity: existing.hasActivity || s.hasActivity,
       customerId: existing.customerId ?? s.customerId,
+      accountGroup: existing.accountGroup ?? s.accountGroup,
       reconciliation: pickMergedReconciliation(existing.reconciliation, s.reconciliation),
       sharedFundIds: existing.sharedFundIds ?? s.sharedFundIds,
       fundIds,
