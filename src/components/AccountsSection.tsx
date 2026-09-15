@@ -1,5 +1,5 @@
 import { Building2, CheckCircle2, List, Table2, Users } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { CENTERS_FUND_ID } from '../config';
 import {
   buildAccountsSectionSummaries,
@@ -92,6 +92,9 @@ export function AccountsSection({
   const [branch, setBranch] = useState<AccountBranchId>(
     savedNav.accountsBranch ?? defaultBranch,
   );
+  const [navBranch, setNavBranch] = useState<AccountBranchId>(
+    savedNav.accountsBranch ?? defaultBranch,
+  );
   const [tab, setTab] = useState<AccountsTab>(() => {
     const saved = savedNav.accountsTab;
     if (saved === 'reconciliations' || saved === 'trial_balance' || saved === 'list') {
@@ -99,6 +102,18 @@ export function AccountsSection({
     }
     return 'list';
   });
+  const [navTab, setNavTab] = useState<AccountsTab>(tab);
+  const [, startNavTransition] = useTransition();
+
+  const selectBranch = useCallback((id: AccountBranchId) => {
+    setNavBranch(id);
+    startNavTransition(() => setBranch(id));
+  }, []);
+
+  const selectTab = useCallback((id: AccountsTab) => {
+    setNavTab(id);
+    startNavTransition(() => setTab(id));
+  }, []);
 
   useEffect(() => {
     saveNavPrefs({ accountsBranch: branch, accountsTab: tab });
@@ -108,12 +123,12 @@ export function AccountsSection({
 
   useEffect(() => {
     if (branch === 'centers' && !canAccessCenters && boxFunds.length > 0) {
-      setBranch('customers');
+      selectBranch('customers');
     }
     if (branch === 'customers' && boxFunds.length === 0 && canAccessCenters) {
-      setBranch('centers');
+      selectBranch('centers');
     }
-  }, [branch, canAccessCenters, boxFunds.length]);
+  }, [branch, canAccessCenters, boxFunds.length, selectBranch]);
 
   const customerSummaries = useMemo(
     () => (boxFunds.length > 0
@@ -219,9 +234,9 @@ export function AccountsSection({
             <button
               key={b.id}
               type="button"
-              onClick={() => setBranch(b.id)}
+              onClick={() => selectBranch(b.id)}
               className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                branch === b.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'
+                navBranch === b.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <Icon size={16} />
@@ -269,9 +284,9 @@ export function AccountsSection({
             <button
               key={t.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => selectTab(t.id)}
               className={`flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-2 py-2.5 text-xs font-medium transition sm:text-sm ${
-                tab === t.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'
+                navTab === t.id ? 'bg-slate-700 text-amber-400' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <Icon size={15} />
