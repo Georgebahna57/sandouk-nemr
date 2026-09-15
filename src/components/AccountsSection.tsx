@@ -144,14 +144,14 @@ export function AccountsSection({
     [transactions, customers, boxFunds, canAccessCenters],
   );
 
-  const customerTotals = useMemo(
-    () => sumSummariesByCurrency(customerSummaries),
-    [customerSummaries],
+  const allSummaries = useMemo(
+    () => [...customerSummaries, ...centersSummaries],
+    [customerSummaries, centersSummaries],
   );
 
-  const centersTotals = useMemo(
-    () => sumSummariesByCurrency(centersSummaries),
-    [centersSummaries],
+  const grandTotals = useMemo(
+    () => sumSummariesByCurrency(allSummaries),
+    [allSummaries],
   );
 
   const summaries = branch === 'centers' ? centersSummaries : customerSummaries;
@@ -222,10 +222,7 @@ export function AccountsSection({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 sm:grid-cols-2">
-        {boxFunds.length > 0 && renderCurrencyTotals('مجموع الزبائن', customerTotals, 'text-amber-400')}
-        {canAccessCenters && renderCurrencyTotals('مجموع المراكز', centersTotals, 'text-cyan-400')}
-      </div>
+      {renderCurrencyTotals('المجموع العام', grandTotals, 'text-amber-300')}
 
       <nav className="flex gap-1 overflow-x-auto rounded-2xl border border-slate-700 bg-slate-800/50 p-1">
         {visibleBranches.map(b => {
