@@ -67,6 +67,7 @@ export function AccountTransactionForm({
   const [halabRemittance, setHalabRemittance] = useState<HalabRemittanceFields>(() => defaultHalabRemittanceFields());
   const [mirrorToHalab, setMirrorToHalab] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const showHalabFields = isHalabFleilatFund(fundId);
   const showHalabMirror = showHalabFields && shouldOfferHalabMirror(fundId, accountName);
 
@@ -125,7 +126,11 @@ export function AccountTransactionForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    if (accountOpsOnly && transferMode === 'fund') return;
+    setFormError(null);
+    if (accountOpsOnly && transferMode === 'fund') {
+      setFormError('حركات الصندوق من تبويب «الصندوق» فقط — اختر «حساب فقط»');
+      return;
+    }
     const parsedFee = buildFeeFromEditor(feeEditor, feeBaseAmount);
     const parsedExtraFee = shamelEligible ? buildFeeFromEditor(extraFeeEditor, extraFeeBaseAmount) : undefined;
     const feeFields = feeFieldsFromParsed(parsedFee);
@@ -144,8 +149,14 @@ export function AccountTransactionForm({
     let payload: Transaction | Transaction[];
 
     if (isExchange) {
-      if (!exchangeParsed.valid) return;
-      if (transferMode === 'account') return;
+      if (!exchangeParsed.valid) {
+        setFormError('أكمل مبالغ وريت التبديل');
+        return;
+      }
+      if (transferMode === 'account') {
+        setFormError('التبديل بين حسابين غير مدعوم — اختر حساب فقط أو ترحيل صندوق');
+        return;
+      }
       payload = transferMode === 'fund'
         ? createLinkedAccountFundExchange(
           shared,
@@ -171,7 +182,10 @@ export function AccountTransactionForm({
         });
     } else {
       const items = parseAmountLines(lines);
-      if (!items.length) return;
+      if (!items.length) {
+        setFormError('أدخل مبلغاً أكبر من صفر');
+        return;
+      }
 
       if (transferMode === 'fund') {
         payload = createLinkedAccountFundOperation(
@@ -185,7 +199,10 @@ export function AccountTransactionForm({
         );
       } else if (transferMode === 'account') {
         const toAccount = otherAccountNames.find(n => n === targetAccount.trim());
-        if (!toAccount || toAccount === accountName) return;
+        if (!toAccount || toAccount === accountName) {
+          setFormError('اختر حساب وجهة صحيحاً من القائمة');
+          return;
+        }
         payload = createLinkedAccountAccountOperation(
           shared,
           accountName,
@@ -217,6 +234,8 @@ export function AccountTransactionForm({
       await Promise.resolve(onAdd(mirrored.length === 1 ? mirrored[0] : mirrored));
       reset();
       setOpen(false);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'فشل حفظ العملية');
     } finally {
       setSubmitting(false);
     }
@@ -469,6 +488,12 @@ export function AccountTransactionForm({
             </button>
           </div>
         </div>
+      )}
+
+      {formError && (
+        <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-2 text-xs text-rose-300">
+          {formError}
+        </p>
       )}
 
       <button
