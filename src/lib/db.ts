@@ -17,6 +17,7 @@ function isMissingColumnError(error: { message?: string; code?: string }): boole
   const msg = (error.message ?? '').toLowerCase();
   return (
     error.code === 'PGRST204'
+    || error.code === '42703'
     || msg.includes('ledger')
     || msg.includes('counterparty')
     || msg.includes('batch_id')
@@ -24,8 +25,15 @@ function isMissingColumnError(error: { message?: string; code?: string }): boole
     || msg.includes('created_by')
     || msg.includes('comments')
     || msg.includes('claimed_by')
+    || msg.includes('ordered_date')
+    || msg.includes('approval')
+    || msg.includes('exchange_')
+    || msg.includes('edit_history')
+    || msg.includes('pending_whatsapp')
     || msg.includes('fee')
     || msg.includes('shared_fund_ids')
+    || msg.includes('schema cache')
+    || msg.includes('column')
     || msg.includes('could not find')
   );
 }
@@ -210,6 +218,30 @@ function txToRow(tx: Transaction) {
   };
 }
 
+function standardTxToRow(tx: Transaction) {
+  return {
+    id: tx.id,
+    fund_id: tx.fundId,
+    ledger: tx.ledger ?? 'fund',
+    date: tx.date,
+    currency: tx.currency,
+    kind: tx.kind,
+    amount: tx.amount,
+    party: tx.party,
+    counterparty: tx.counterparty ?? null,
+    intermediary: formatIntermediary(tx.intermediary) ?? null,
+    fee: feeToDbValue(tx),
+    note: txNoteToDb(tx),
+    status: tx.status,
+    batch_id: tx.batchId ?? null,
+    link_id: tx.linkId ?? null,
+    exchange_to_currency: tx.exchangeToCurrency ?? null,
+    exchange_rate: tx.exchangeRate ?? null,
+    exchange_to_amount: tx.exchangeToAmount ?? null,
+    created_at: tx.createdAt,
+  };
+}
+
 function minimalTxToRow(tx: Transaction) {
   return {
     id: tx.id,
@@ -260,7 +292,11 @@ function customerToRow(customer: Customer) {
 
 async function upsertTxRows(txs: Transaction[]) {
   const client = requireClient();
-  let { error } = await client.from('transactions').upsert(txs.map(txToRow));
+  const rows = txs.map(txToRow);
+  let { error } = await client.from('transactions').upsert(rows);
+  if (error && isMissingColumnError(error)) {
+    ({ error } = await client.from('transactions').upsert(txs.map(standardTxToRow)));
+  }
   if (error && isMissingColumnError(error)) {
     ({ error } = await client.from('transactions').upsert(txs.map(minimalTxToRow)));
   }

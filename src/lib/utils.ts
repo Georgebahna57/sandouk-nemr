@@ -380,6 +380,33 @@ export function repairDuplicateLinkedFundLegs(transactions: Transaction[]): {
   return { transactions: next, changed };
 }
 
+/**
+ * حركة «حساب فقط» خُزّنت خطأً كصندوق: party=صندوق، counterparty=زبون، بدون linkId
+ * (الحركات الحقيقية على الصندوق من التطبيق تربط الحساب بـ linkId)
+ */
+export function repairUnlinkedFundCounterpartyAsAccount(transactions: Transaction[]): {
+  transactions: Transaction[];
+  changed: Transaction[];
+} {
+  const changed: Transaction[] = [];
+  const next = transactions.map(tx => {
+    if (tx.linkId || tx.feeSourceId) return tx;
+    if (tx.ledger === 'account') return tx;
+    if (!isFundPartyForLedger(tx.party, tx.fundId)) return tx;
+    const cp = tx.counterparty?.trim();
+    if (!cp || !isCustomerAccountName(cp) || isFeeAccountName(cp)) return tx;
+    const fixed: Transaction = {
+      ...tx,
+      ledger: 'account',
+      party: cp,
+      counterparty: undefined,
+    };
+    changed.push(fixed);
+    return fixed;
+  });
+  return { transactions: next, changed };
+}
+
 /** إصلاح حركات الصناديق النقدية المخزّنة بحساب الزبون بدل حساب الصندوق */
 export function repairBoxFundTransactions(transactions: Transaction[]): {
   transactions: Transaction[];
@@ -952,6 +979,18 @@ export function createTransaction(input: Omit<Transaction, 'id' | 'createdAt'>):
 
 export function createAccountTransaction(input: Omit<Transaction, 'id' | 'createdAt' | 'ledger'>): Transaction {
   return createTransaction({ ...input, ledger: 'account' });
+}
+
+/** يضمن أن حركة «حساب فقط» تُحفظ كحساب — لا ترحيل على الصندوق */
+export function sealAccountOnlyTransaction(tx: Transaction): Transaction {
+  if (tx.linkId) return tx;
+  if (tx.ledger !== 'account') return tx;
+  if (isFundAccountName(tx.party)) return tx;
+  return {
+    ...tx,
+    ledger: 'account',
+    linkId: undefined,
+  };
 }
 
 type TxBase = Omit<Transaction, 'id' | 'createdAt' | 'currency' | 'amount' | 'batchId'>;

@@ -220,6 +220,7 @@ export function AccountTransactionForm({
           ledger: 'account',
           kind: inferKind(direction, false),
           party: accountName,
+          linkId: undefined,
         }, adjustedItems);
       }
     }

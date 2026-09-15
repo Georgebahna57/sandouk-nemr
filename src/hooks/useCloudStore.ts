@@ -36,7 +36,9 @@ import {
   repairDuplicateLinkedFundLegs,
   repairHalabFundTransactions,
   repairMislabeledAccountLegs,
+  repairUnlinkedFundCounterpartyAsAccount,
   backfillMissingLinkIds,
+  sealAccountOnlyTransaction,
 } from '../lib/utils';
 import {
   collectFeeSyncLeadIds,
@@ -108,7 +110,8 @@ const MIGRATED_KEY = 'sandouk-cloud-migrated';
 function applyLinkedFundLegStabilization(cloud: AppState): AppState {
   const { transactions: afterImport } = repairMislabeledTrialBalanceImportTransactions(cloud.transactions);
   const { transactions: afterMislabel } = repairMislabeledAccountLegs(afterImport);
-  const { transactions: afterDup } = repairDuplicateLinkedFundLegs(afterMislabel);
+  const { transactions: afterUnlinked } = repairUnlinkedFundCounterpartyAsAccount(afterMislabel);
+  const { transactions: afterDup } = repairDuplicateLinkedFundLegs(afterUnlinked);
   const { transactions: afterLink } = backfillMissingLinkIds(afterDup);
   if (afterLink === cloud.transactions) return cloud;
   return { ...cloud, transactions: afterLink };
@@ -276,9 +279,13 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         }
 
         if (!cancelled) {
-          // تحميل البيانات كما هي — الإصلاحات التلقائية من زر الإدارة فقط (تجنّب حلقة تحديث بين الأجهزة)
-          setState(cloud);
-          mirrorAppState(cloud);
+          const preserveIds = collectQueuedTransactionIds();
+          const initial = preserveIds.size > 0
+            ? mergeCloudState(loadState(), cloud, preserveIds)
+            : cloud;
+          const stabilized = applyLinkedFundLegStabilization(initial);
+          setState(stabilized);
+          mirrorAppState(stabilized);
           try {
             const fp = await fetchDataFingerprint();
             fingerprintRef.current = fingerprintKey(fp);
@@ -459,7 +466,9 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
   }, [flushQueue]);
 
   const addTransaction = useCallback(async (tx: Transaction | Transaction[]) => {
-    const txs = toArray(tx).map(t => stampActor(normalizeSyrianTransaction(t) as Transaction, actor));
+    const txs = toArray(tx).map(t => sealAccountOnlyTransaction(
+      stampActor(normalizeSyrianTransaction(t) as Transaction, actor),
+    ));
     let previous: Transaction[] = [];
     let syncResult: FeeSyncResult = { transactions: [], upsert: [], removeIds: [] };
     setState(prev => {
@@ -1095,7 +1104,8 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
         repairMislabeledTrialBalanceImportTransactions(cloud.transactions);
       const { changed: repairedNsyp, transactions: afterNsyp } = repairNsypToSypTransactions(afterImport);
       const { changed: repairedAccountLegs, transactions: afterAccountLegs } = repairMislabeledAccountLegs(afterNsyp);
-      const { changed: repairedDupLinked, transactions: afterDupLinked } = repairDuplicateLinkedFundLegs(afterAccountLegs);
+      const { changed: repairedUnlinked, transactions: afterUnlinked } = repairUnlinkedFundCounterpartyAsAccount(afterAccountLegs);
+      const { changed: repairedDupLinked, transactions: afterDupLinked } = repairDuplicateLinkedFundLegs(afterUnlinked);
       const { changed: repairedBox, transactions: afterBox } = repairBoxFundTransactions(afterDupLinked);
       const { changed: repairedHalab, transactions: afterParty } = repairHalabFundTransactions(afterBox);
       const { changed: repairedOpening, transactions: afterOpening } = runAllHalabRepairs(afterParty);
@@ -1106,7 +1116,7 @@ export function useCloudStore(enabled: boolean, actor?: StoreActor) {
       if (feeSync.removeIds.length) {
         await removeTransactions(feeSync.removeIds);
       }
-      const toUpsert = [...repairedImport, ...repairedNsyp, ...repairedAccountLegs, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
+      const toUpsert = [...repairedImport, ...repairedNsyp, ...repairedAccountLegs, ...repairedUnlinked, ...repairedDupLinked, ...repairedBox, ...repairedHalab, ...repairedOpening, ...linkIdChanged, ...changed, ...feeSync.upsert];
       if (toUpsert.length) await upsertTransactions(toUpsert);
       const refreshed = await fetchAppState();
       setState(refreshed);
