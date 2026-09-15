@@ -1,19 +1,20 @@
 import { AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { BOX_FUNDS } from '../config';
-import { previewFundDayPurge } from '../lib/fundDayPurge';
+import { previewFundDayJournalOnlyPurge, previewFundDayPurge } from '../lib/fundDayPurge';
 import { todayIso } from '../lib/utils';
 import type { FundId, Transaction } from '../types';
 
 interface Props {
   transactions: Transaction[];
   onPurge: (fundId: FundId, date: string) => Promise<number>;
+  onPurgeJournalOnly?: (fundId: FundId, date: string) => Promise<number>;
 }
 
-export function FundDayPurgeSection({ transactions, onPurge }: Props) {
+export function FundDayPurgeSection({ transactions, onPurge, onPurgeJournalOnly }: Props) {
   const [fundId, setFundId] = useState<FundId>('nemr');
   const [date, setDate] = useState(todayIso());
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState<'full' | 'journal' | false>(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -22,16 +23,24 @@ export function FundDayPurgeSection({ transactions, onPurge }: Props) {
     () => previewFundDayPurge(transactions, fundId, date),
     [transactions, fundId, date],
   );
+  const journalPreview = useMemo(
+    () => previewFundDayJournalOnlyPurge(transactions, fundId, date),
+    [transactions, fundId, date],
+  );
 
-  async function handlePurge() {
+  async function handlePurge(mode: 'full' | 'journal') {
     setBusy(true);
     setError(null);
     setSuccess(null);
     try {
-      const removed = await onPurge(fundId, date);
+      const handler = mode === 'journal' ? onPurgeJournalOnly : onPurge;
+      if (!handler) throw new Error('الحذف غير متاح');
+      const removed = await handler(fundId, date);
       setConfirm(false);
       setSuccess(removed > 0
-        ? `تم حذف ${removed.toLocaleString('ar-LB')} حركة (صندوق + المربوطة)`
+        ? mode === 'journal'
+          ? `تم حذف ${removed.toLocaleString('ar-LB')} حركة من دفتر اليومية — الحسابات لم تُمس`
+          : `تم حذف ${removed.toLocaleString('ar-LB')} حركة (صندوق + المربوطة)`
         : 'لا توجد حركات صندوق في هذا اليوم');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'فشل الحذف');
@@ -71,13 +80,21 @@ export function FundDayPurgeSection({ transactions, onPurge }: Props) {
       </div>
 
       <div className="mb-3 rounded-xl bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
-        <p>{preview.fundLedgerCount.toLocaleString('ar-LB')} حركة صندوق</p>
+        <p>{preview.fundLedgerCount.toLocaleString('ar-LB')} حركة صندوق في دفتر اليومية</p>
         <p className="mt-1">
-          إجمالي الحذف: {preview.totalRemovalCount.toLocaleString('ar-LB')} حركة
+          حذف كامل: {preview.totalRemovalCount.toLocaleString('ar-LB')} حركة
           {preview.linkedAccountCount > 0 && (
             <span> (يشمل {preview.linkedAccountCount.toLocaleString('ar-LB')} حركة حساب مربوطة)</span>
           )}
         </p>
+        {onPurgeJournalOnly && (
+          <p className="mt-1 text-emerald-400/90">
+            حذف اليومية فقط: {journalPreview.fundLedgerCount.toLocaleString('ar-LB')} حركة صندوق
+            {journalPreview.preservedAccountCount > 0 && (
+              <span> — يُبقي {journalPreview.preservedAccountCount.toLocaleString('ar-LB')} حركة حساب</span>
+            )}
+          </p>
+        )}
       </div>
 
       {error && <p className="mb-3 text-xs text-rose-400">{error}</p>}
@@ -86,24 +103,40 @@ export function FundDayPurgeSection({ transactions, onPurge }: Props) {
       {!preview.fundLedgerCount ? (
         <p className="text-xs text-slate-500">لا توجد حركات صندوق في هذا اليوم</p>
       ) : !confirm ? (
-        <button
-          type="button"
-          onClick={() => setConfirm(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/40 py-2 text-sm font-medium text-orange-300 hover:bg-orange-500/10"
-        >
-          <Trash2 size={14} />
-          حذف حركات {BOX_FUNDS.find(f => f.id === fundId)?.shortName ?? fundId} — {date}
-        </button>
+        <div className="space-y-2">
+          {onPurgeJournalOnly && (
+            <button
+              type="button"
+              onClick={() => setConfirm('journal')}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 py-2 text-sm font-medium text-emerald-300 hover:bg-emerald-500/10"
+            >
+              <Trash2 size={14} />
+              حذف دفتر اليومية فقط (بدون الحسابات) — {date}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setConfirm('full')}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-orange-500/40 py-2 text-sm font-medium text-orange-300 hover:bg-orange-500/10"
+          >
+            <Trash2 size={14} />
+            حذف صندوق + المربوطة — {date}
+          </button>
+        </div>
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-orange-300">
-            ⚠️ سيتم حذف {preview.totalRemovalCount} حركة — لا يمكن التراجع
+            {confirm === 'journal'
+              ? `⚠️ سيتم حذف ${journalPreview.fundLedgerCount} حركة من دفتر اليومية فقط — الحسابات تبقى كما هي`
+              : `⚠️ سيتم حذف ${preview.totalRemovalCount} حركة — لا يمكن التراجع`}
           </p>
           <button
             type="button"
             disabled={busy}
-            onClick={() => void handlePurge()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-600 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-60"
+            onClick={() => void handlePurge(confirm)}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl py-2 text-sm font-semibold text-white disabled:opacity-60 ${
+              confirm === 'journal' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-orange-600 hover:bg-orange-500'
+            }`}
           >
             {busy ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
             تأكيد الحذف

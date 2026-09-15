@@ -180,6 +180,7 @@ export default function App({ user, onLogout }: Props) {
     repairHalabData,
     resetAllAccounts,
     deleteFundDayOperations,
+    deleteFundDayJournalOnly,
     importTrialBalance,
     remoteNotice,
     clearRemoteNotice,
@@ -539,6 +540,7 @@ export default function App({ user, onLogout }: Props) {
         onRepairHalab={repairHalabData}
         onResetAllAccounts={resetAllAccounts}
         onDeleteFundDayOperations={deleteFundDayOperations}
+        onDeleteFundDayJournalOnly={deleteFundDayJournalOnly}
         onImportTrialBalance={importTrialBalance}
         importingTrialBalance={syncing}
       />
