@@ -37,7 +37,7 @@ export default function App() {
           onImport={store.importFile}
           onExport={store.exportExcel}
           onBackup={store.backupJson}
-          onReset={store.resetAll}
+          onRestoreDefaults={store.restoreExcelDefaults}
         />
 
         <div className="grid lg:grid-cols-[220px_1fr] gap-4">

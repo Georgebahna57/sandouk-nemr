@@ -3,7 +3,7 @@ import type { CurrencySide, LedgerEntry, TreasuryItem, WorkshopState } from '../
 import { getAccountDef, getBalanceMode } from '../lib/accountsConfig';
 import { addEntry, deleteEntry, getAccountBalances, updateEntry } from '../lib/ledger';
 import { buildDashboardSummary } from '../lib/excelExport';
-import { exportStateJson, loadState, saveState } from '../lib/storage';
+import { exportStateJson, getDefaultState, loadState, saveState } from '../lib/storage';
 import { importExcelFile } from '../lib/excelImport';
 import { exportWorkbook } from '../lib/excelExport';
 
@@ -80,10 +80,10 @@ export function useWorkshopStore() {
     [state],
   );
 
-  const resetAll = useCallback(() => {
-    if (!confirm('هل أنت متأكد من مسح كل البيانات؟')) return;
+  const restoreExcelDefaults = useCallback(() => {
+    if (!confirm('استعادة بيانات Excel الأصلية (ميزانية-05-2026)؟ سيتم مسح التعديلات المحلية.')) return;
     localStorage.removeItem('workshop-budget-v1');
-    setState(loadState());
+    setState(getDefaultState());
   }, []);
 
   return {
@@ -98,6 +98,6 @@ export function useWorkshopStore() {
     exportExcel,
     backupJson,
     getBalances,
-    resetAll,
+    restoreExcelDefaults,
   };
 }

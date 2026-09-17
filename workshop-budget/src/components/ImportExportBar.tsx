@@ -7,10 +7,10 @@ interface Props {
   onImport: (file: File) => Promise<unknown>;
   onExport: () => void;
   onBackup: () => void;
-  onReset: () => void;
+  onRestoreDefaults: () => void;
 }
 
-export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExport, onBackup, onReset }: Props) {
+export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExport, onBackup, onRestoreDefaults }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState('');
@@ -60,9 +60,9 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
         نسخة احتياطية
       </button>
 
-      <button type="button" className="btn-secondary flex items-center gap-2 text-red-400" onClick={onReset}>
+      <button type="button" className="btn-secondary flex items-center gap-2" onClick={onRestoreDefaults}>
         <RotateCcw className="h-4 w-4" />
-        مسح البيانات
+        استعادة Excel الأصلي
       </button>
 
       {msg && <span className="text-sm text-emerald-400">{msg}</span>}
