@@ -24,8 +24,8 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3">
           <Gem className="h-8 w-8 text-amber-500" />
           <div>
-            <h1 className="text-xl font-bold text-amber-400">ميزانية الورشة</h1>
-            <p className="text-xs text-slate-400">معمل الذهب — مصاريف · أجور · أرباح · مدفوعات</p>
+            <h1 className="text-xl font-bold text-amber-400">Ora Gold</h1>
+            <p className="text-xs text-slate-400">ميزانية معمل الذهب — مصاريف · أجور · أرباح · مدفوعات</p>
           </div>
         </div>
       </header>

@@ -1,0 +1,19 @@
+{
+  "name": "Ora Gold",
+  "short_name": "Ora Gold",
+  "description": "ميزانية معمل الذهب — مصاريف، أجور، أرباح، مدفوعات",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c1222",
+  "theme_color": "#d97706",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
