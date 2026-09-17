@@ -19,7 +19,7 @@ export function Dashboard({ summary, onSelectAccount }: Props) {
   return (
     <div className="card overflow-hidden">
       <div className="border-b border-slate-700 bg-slate-800/50 px-4 py-3">
-        <h2 className="text-lg font-bold text-amber-400">حسابات الورشة — معمل الذهب</h2>
+        <h2 className="text-lg font-bold text-amber-400">Ora Gold — حسابات الورشة</h2>
         <p className="text-xs text-slate-400 mt-1">ملخص الأصول والالتزامات — يجب أن يتوازن المجموع</p>
       </div>
 

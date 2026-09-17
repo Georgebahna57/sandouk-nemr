@@ -52,17 +52,17 @@ npm run dev
 
 يفتح على `http://localhost:3001`
 
-## ميزانية الورشة (معمل الذهب)
+## Ora Gold — ميزانية معمل الذهب
 
 تطبيق منفصل لإدارة ميزانية معمل الذهب (مصاريف، أجور، أرباح، مدفوعات) مع استيراد/تصدير Excel:
 
 ```bash
-cd workshop-budget
+cd ora-gold
 npm install
 npm run dev
 ```
 
-يفتح على `http://localhost:3002` — راجع `workshop-budget/README.md`
+يفتح على `http://localhost:3002` — راجع `ora-gold/README.md`
 
 ## الصناديق (نقدية)
 
