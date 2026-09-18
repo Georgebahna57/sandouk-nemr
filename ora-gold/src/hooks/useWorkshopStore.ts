@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { CurrencySide, InvoiceInput, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
+import type { CurrencySide, EntryKind, InvoiceInput, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
+import type { LedgerVoucherInput } from '../lib/ledgerVoucher';
+import { voucherToLedgerEntries } from '../lib/ledgerVoucher';
 import { getAccountDef, getBalanceMode } from '../lib/accountsConfig';
 import { addEntry, deleteEntry, getAccountBalances, updateEntry } from '../lib/ledger';
 import { buildDashboardSummary } from '../lib/excelExport';
@@ -33,6 +35,26 @@ export function useWorkshopStore() {
           [accountId]: addEntry(s.accounts[accountId], side, entry, mode),
         },
       }));
+    },
+    [],
+  );
+
+  const addLedgerVoucher = useCallback(
+    (accountId: string, entryKind: EntryKind, voucher: LedgerVoucherInput) => {
+      const entries = voucherToLedgerEntries(entryKind, voucher);
+      if (!entries.length) return;
+      const def = getAccountDef(accountId);
+      setState((s) => {
+        let accountData = s.accounts[accountId];
+        for (const { side, entry } of entries) {
+          const mode = def ? getBalanceMode(def, side) : 'credit-minus-debit';
+          accountData = addEntry(accountData, side, entry, mode);
+        }
+        return {
+          ...s,
+          accounts: { ...s.accounts, [accountId]: accountData },
+        };
+      });
     },
     [],
   );
@@ -137,6 +159,7 @@ export function useWorkshopStore() {
     profitRate,
     updatePeriod,
     addLedgerEntry,
+    addLedgerVoucher,
     editLedgerEntry,
     removeLedgerEntry,
     updateTreasury,
