@@ -1,28 +1,21 @@
 import * as XLSX from 'xlsx';
 import { ACCOUNTS } from './accountsConfig';
-import type { AccountData, LedgerEntry, WorkshopState } from '../types';
+import type { AccountData, EntryKind, LedgerEntry, WorkshopState } from '../types';
 import { getAccountBalances } from './ledger';
+import { entryToExcelRow } from './ledgerDisplay';
 
-function entryRowGold(e: LedgerEntry, kind: string): (string | number)[] {
-  if (kind === 'profit') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'inout') return [e.date, e.credit ?? '', e.debit ?? '', e.balance, e.description];
-  return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
+function entryRow(e: LedgerEntry, kind: EntryKind): (string | number)[] {
+  return entryToExcelRow(e, kind);
 }
 
-function entryRowUsd(e: LedgerEntry, kind: string): (string | number)[] {
-  if (kind === 'profit') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'partner') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'expense') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'inout') return [e.date, e.credit ?? '', e.debit ?? '', e.balance, e.description];
-  return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-}
-
-function buildAccountSheet(name: string, data: AccountData, entryKind: string): XLSX.WorkSheet {
+function buildAccountSheet(name: string, data: AccountData, entryKind: EntryKind): XLSX.WorkSheet {
   const goldHeaders = entryKind === 'profit'
     ? ['التاريخ', 'خسارة', 'ربح', 'الرصيد', 'البيان']
     : entryKind === 'inout'
       ? ['التاريخ', 'دخول ', 'خروج', 'الرصيد', 'البيان']
-      : ['التاريخ', 'مدفوع له', 'مستلم منه', 'الرصيد', 'البيان'];
+      : entryKind === 'expense'
+        ? ['التاريخ', 'مدفوع ', 'مرتجع مصروف', 'الرصيد', 'البيان']
+        : ['التاريخ', 'مدفوع له', 'مستلم منه', 'الرصيد', 'البيان'];
 
   const usdHeaders = entryKind === 'profit'
     ? ['التاريخ', 'مدفوع', 'مستلم', 'الرصيد', 'البيان']
@@ -46,8 +39,8 @@ function buildAccountSheet(name: string, data: AccountData, entryKind: string): 
   for (let i = 0; i < maxLen; i++) {
     const g = data.gold[i];
     const u = data.usd[i];
-    const goldPart = g ? entryRowGold(g, entryKind) : ['', '', '', '', ''];
-    const usdPart = u ? entryRowUsd(u, entryKind) : ['', '', '', '', ''];
+    const goldPart = g ? entryRow(g, entryKind) : ['', '', '', '', ''];
+    const usdPart = u ? entryRow(u, entryKind) : ['', '', '', '', ''];
     rows.push([...goldPart, '', ...usdPart]);
   }
 

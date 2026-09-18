@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import { formatDateAr, formatNumber } from '../lib/format';
+import { getColumnHeaders, getDisplayValues } from '../lib/ledgerDisplay';
 import type { AccountData, EntryKind } from '../types';
 import { EntryForm } from './EntryForm';
 
@@ -22,16 +23,8 @@ function LedgerTable({
   entryKind: EntryKind;
   onDelete: (id: string) => void;
 }) {
-  const headers =
-    entryKind === 'profit'
-      ? ['التاريخ', 'خسارة', 'ربح', 'الرصيد', 'البيان', '']
-      : entryKind === 'inout'
-        ? ['التاريخ', 'دخول', 'خروج', 'الرصيد', 'البيان', '']
-        : entryKind === 'expense'
-          ? ['التاريخ', 'مدفوع', 'مرتجع', 'الرصيد', 'البيان', '']
-          : entryKind === 'partner'
-            ? ['التاريخ', 'Debit', 'Credit', 'الرصيد', 'البيان', '']
-            : ['التاريخ', 'مدفوع له', 'مستلم منه', 'الرصيد', 'البيان', ''];
+  const [col1, col2] = getColumnHeaders(entryKind);
+  const headers = ['التاريخ', col1, col2, 'الرصيد', 'البيان', ''];
 
   return (
     <div className="card overflow-hidden">
@@ -47,11 +40,13 @@ function LedgerTable({
             {entries.length === 0 && (
               <tr><td colSpan={6} className="text-center text-slate-500 py-6">لا توجد حركات</td></tr>
             )}
-            {entries.map((e) => (
+            {entries.map((e) => {
+              const { col1: v1, col2: v2 } = getDisplayValues(e, entryKind);
+              return (
               <tr key={e.id}>
                 <td>{formatDateAr(e.date)}</td>
-                <td className="num">{e.debit ? formatNumber(e.debit) : ''}</td>
-                <td className="num">{e.credit ? formatNumber(e.credit) : ''}</td>
+                <td className="num">{v1 ? formatNumber(v1) : ''}</td>
+                <td className="num">{v2 ? formatNumber(v2) : ''}</td>
                 <td className={`num font-medium ${e.balance < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(e.balance)}</td>
                 <td className="max-w-[200px] truncate" title={e.description}>{e.description}</td>
                 <td>
@@ -60,7 +55,8 @@ function LedgerTable({
                   </button>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>
