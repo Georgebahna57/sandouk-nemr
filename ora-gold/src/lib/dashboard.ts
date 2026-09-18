@@ -1,6 +1,6 @@
-import { ACCOUNTS, getAccountDef } from './accountsConfig';
+import { ACCOUNTS, DASHBOARD_ALIASES, getAccountDef } from './accountsConfig';
 import { getAccountBalances } from './ledger';
-import type { WorkshopState } from '../types';
+import type { DashboardRow, WorkshopState } from '../types';
 
 function treasuryValue(state: WorkshopState, labelPart: string, field: 'usd' | 'gold995' | 'weight'): number {
   const item = state.treasury.find((t) => t.label.includes(labelPart));
@@ -8,10 +8,15 @@ function treasuryValue(state: WorkshopState, labelPart: string, field: 'usd' | '
   return item[field] ?? 0;
 }
 
+/** رصيد دفتر الحساب الكامل */
+export function getLedgerBalance(state: WorkshopState, accountId: string): { gold: number; usd: number } {
+  return getAccountBalances(state.accounts[accountId]);
+}
+
 /** رصيد حساب كما يظهر في لوحة الملخص / ورقة «رئيسي» */
 export function getDashboardBalance(state: WorkshopState, accountId: string): { gold: number; usd: number } {
   const def = getAccountDef(accountId);
-  const bal = getAccountBalances(state.accounts[accountId]);
+  const bal = getLedgerBalance(state, accountId);
   const override = state.dashboardOverrides?.[accountId];
 
   if (accountId === 'mainTreasury') {
@@ -29,7 +34,6 @@ export function getDashboardBalance(state: WorkshopState, accountId: string): { 
     return { gold: 0, usd: bal.usd };
   }
 
-  // قيمة ملخص ثابتة من Excel الرئيسي (مثل بورصة 10,000$)
   if (def?.dashboardGold != null || def?.dashboardUsd != null || override) {
     return {
       gold: override?.gold ?? def?.dashboardGold ?? bal.gold,
@@ -40,16 +44,55 @@ export function getDashboardBalance(state: WorkshopState, accountId: string): { 
   return bal;
 }
 
+function applyDashboardSide(
+  bal: { gold: number; usd: number },
+  side?: 'gold' | 'usd',
+): { gold: number; usd: number } {
+  if (side === 'gold') return { gold: bal.gold, usd: 0 };
+  if (side === 'usd') return { gold: 0, usd: bal.usd };
+  return bal;
+}
+
+function buildRow(
+  label: string,
+  accountId: string,
+  navigateAccountId: string,
+  bal: { gold: number; usd: number },
+  side?: 'gold' | 'usd',
+): DashboardRow {
+  const filtered = applyDashboardSide(bal, side);
+  return {
+    label,
+    gold: filtered.gold,
+    usd: filtered.usd,
+    accountId,
+    navigateAccountId,
+  };
+}
+
+function pushAccountRows(
+  target: DashboardRow[],
+  def: typeof ACCOUNTS[number],
+  state: WorkshopState,
+) {
+  const bal = getDashboardBalance(state, def.id);
+  target.push(buildRow(def.dashboardLabel ?? def.nameAr, def.id, def.id, bal, def.dashboardSide));
+  for (const alias of DASHBOARD_ALIASES.filter(
+    (a) => a.sourceAccountId === def.id && a.showOnDashboard === def.showOnDashboard,
+  )) {
+    const sourceBal = getDashboardBalance(state, alias.sourceAccountId);
+    target.push(buildRow(alias.label, alias.id, alias.sourceAccountId, sourceBal, alias.side));
+  }
+}
+
 export function buildDashboardSummary(state: WorkshopState) {
-  const assets: { label: string; gold: number; usd: number; accountId: string }[] = [];
-  const liabilities: { label: string; gold: number; usd: number; accountId: string }[] = [];
+  const assets: DashboardRow[] = [];
+  const liabilities: DashboardRow[] = [];
 
   for (const def of ACCOUNTS) {
     if (!def.showOnDashboard) continue;
-    const bal = getDashboardBalance(state, def.id);
-    const row = { label: def.dashboardLabel ?? def.nameAr, gold: bal.gold, usd: bal.usd, accountId: def.id };
-    if (def.showOnDashboard === 'assets') assets.push(row);
-    else liabilities.push(row);
+    if (def.showOnDashboard === 'assets') pushAccountRows(assets, def, state);
+    else pushAccountRows(liabilities, def, state);
   }
 
   const totalAssets = { gold: assets.reduce((s, r) => s + r.gold, 0), usd: assets.reduce((s, r) => s + r.usd, 0) };
@@ -63,4 +106,10 @@ export function buildDashboardSummary(state: WorkshopState) {
     goldDiff: totalAssets.gold + totalLiab.gold,
     usdDiff: totalAssets.usd + totalLiab.usd,
   };
+}
+
+/** الحساب الذي يُفتح عند النقر على صف الملخص */
+export function resolveDashboardNavigation(accountId: string): string {
+  const alias = DASHBOARD_ALIASES.find((a) => a.id === accountId);
+  return alias?.sourceAccountId ?? accountId;
 }

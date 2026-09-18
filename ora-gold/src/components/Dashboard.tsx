@@ -72,7 +72,7 @@ function AccountTable({
                   <button
                     type="button"
                     className="account-link"
-                    onClick={() => onSelect(row.accountId)}
+                    onClick={() => onSelect(row.navigateAccountId)}
                   >
                     <ArrowLeft className="account-link-arrow h-3.5 w-3.5 shrink-0" />
                     <span>{row.label}</span>

@@ -1,4 +1,4 @@
-import type { AccountDef, TreasuryItem } from '../types';
+import type { AccountDef, DashboardAlias, TreasuryItem } from '../types';
 
 export const ACCOUNTS: AccountDef[] = [
   { id: 'setup', nameAr: 'تأسيس ورشة', sheetName: 'تأسيس ورشة', entryKind: 'standard', goldBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'مصاريف تأسيس الورشة' },
@@ -11,8 +11,8 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'silver', nameAr: 'فضة', sheetName: 'فضة', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'SILVER $' },
   { id: 'wax', nameAr: 'شمع', sheetName: 'شمع', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'شمع' },
   { id: 'alloy', nameAr: 'ALLOY', sheetName: 'ALLOY', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'ALLOY' },
-  { id: 'trading', nameAr: 'متاجرة', sheetName: 'Trading', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'متاجرة' },
-  { id: 'bourse', nameAr: 'بورصة', sheetName: 'CASH', entryKind: 'standard', showOnDashboard: 'assets', dashboardLabel: 'بورصة', dashboardUsd: 10000 },
+  { id: 'trading', nameAr: 'متاجرة', sheetName: 'Trading', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'متاجرة', dashboardSide: 'gold' },
+  { id: 'cash', nameAr: 'Cash', sheetName: 'CASH', entryKind: 'standard' },
   { id: 'pro', nameAr: 'أرباح الإنتاج', sheetName: 'Pro', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'profit' },
   { id: 'ahmad', nameAr: 'مدفوع من أحمد', sheetName: 'Ahmad', entryKind: 'partner', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'Paid from Ahmad' },
   { id: 'mzen', nameAr: 'مدفوع من مازن', sheetName: 'Mzen', entryKind: 'partner', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'Paid from Mazen' },
@@ -29,6 +29,11 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'k18', nameAr: 'K18', sheetName: 'K18', entryKind: 'inout' },
   { id: 'k21', nameAr: 'K21', sheetName: 'K21', entryKind: 'inout' },
   { id: 'k22', nameAr: 'K22', sheetName: 'K22', entryKind: 'inout' },
+];
+
+/** صفوف الملخص المرتبطة بورقة أخرى — مطابق لـ Excel */
+export const DASHBOARD_ALIASES: DashboardAlias[] = [
+  { id: 'bourse', label: 'بورصة', sourceAccountId: 'trading', side: 'usd', showOnDashboard: 'assets' },
 ];
 
 export const DEFAULT_TREASURY: TreasuryItem[] = [

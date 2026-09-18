@@ -1,5 +1,4 @@
-import { ACCOUNTS, getAccountNavLabel, normalizeSheetKey } from './accountsConfig';
-import type { AccountDef } from '../types';
+import { ACCOUNTS, DASHBOARD_ALIASES, getAccountNavLabel, normalizeSheetKey } from './accountsConfig';
 
 export interface AccountAuditRow {
   id: string;
@@ -9,6 +8,14 @@ export interface AccountAuditRow {
   entryKind: string;
   matchesExcel: boolean;
   navLabel: string;
+}
+
+export interface DashboardLinkRow {
+  id: string;
+  label: string;
+  sourceAccountId: string;
+  side: string;
+  sourceSheet: string;
 }
 
 /** تقرير مطابقة الحسابات مع أوراق Excel */
@@ -25,6 +32,20 @@ export function auditAccountMappings(): AccountAuditRow[] {
 }
 
 /** الحسابات التي يختلف اسمها العربي عن ورقة Excel */
-export function accountsWithSheetAlias(): AccountDef[] {
+export function accountsWithSheetAlias() {
   return ACCOUNTS.filter((a) => normalizeSheetKey(a.nameAr) !== normalizeSheetKey(a.sheetName));
+}
+
+/** روابط الملخص الرئيسي — مثل بورصة ← Trading */
+export function dashboardLinks(): DashboardLinkRow[] {
+  return DASHBOARD_ALIASES.map((a) => {
+    const source = ACCOUNTS.find((d) => d.id === a.sourceAccountId);
+    return {
+      id: a.id,
+      label: a.label,
+      sourceAccountId: a.sourceAccountId,
+      side: a.side,
+      sourceSheet: source?.sheetName ?? a.sourceAccountId,
+    };
+  });
 }

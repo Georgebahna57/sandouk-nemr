@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download, Upload, Save, FileSpreadsheet, RotateCcw, ChevronDown } from 'lucide-react';
-import { accountsWithSheetAlias } from '../lib/accountAudit';
+import { accountsWithSheetAlias, dashboardLinks } from '../lib/accountAudit';
 
 interface Props {
   periodLabel: string;
@@ -16,7 +16,8 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState('');
   const [showMap, setShowMap] = useState(false);
-  const aliases = accountsWithSheetAlias();
+  const sheetAliases = accountsWithSheetAlias();
+  const dashLinks = dashboardLinks();
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -80,17 +81,34 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
       </button>
 
       {showMap && (
-        <div className="w-full border-t border-slate-700/60 pt-3">
-          <p className="text-xs text-slate-400 mb-2">الحسابات التي يختلف اسمها في البرنامج عن ورقة Excel:</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
-            {aliases.map((a) => (
-              <div key={a.id} className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2">
-                <span className="text-amber-400">{a.nameAr}</span>
-                <span className="text-slate-500 mx-1">→</span>
-                <span className="text-slate-200 font-mono">{a.sheetName}</span>
-              </div>
-            ))}
+        <div className="w-full border-t border-slate-700/60 pt-3 space-y-3">
+          <div>
+            <p className="text-xs text-slate-400 mb-2">ربط الملخص الرئيسي (مثل Excel):</p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+              {dashLinks.map((a) => (
+                <div key={a.id} className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+                  <span className="text-amber-400">{a.label}</span>
+                  <span className="text-slate-500 mx-1">←</span>
+                  <span className="text-slate-200">{a.sourceSheet}</span>
+                  <span className="text-slate-500"> ({a.side === 'usd' ? 'دولار' : 'ذهب'})</span>
+                </div>
+              ))}
+            </div>
           </div>
+          {sheetAliases.length > 0 && (
+            <div>
+              <p className="text-xs text-slate-400 mb-2">أوراق Excel بأسماء مختلفة:</p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+                {sheetAliases.map((a) => (
+                  <div key={a.id} className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2">
+                    <span className="text-amber-400">{a.nameAr}</span>
+                    <span className="text-slate-500 mx-1">→</span>
+                    <span className="text-slate-200 font-mono">{a.sheetName}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
