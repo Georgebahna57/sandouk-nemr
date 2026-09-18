@@ -1,4 +1,4 @@
-import { ACCOUNTS } from '../lib/accountsConfig';
+import { ACCOUNTS, getAccountNavLabel } from '../lib/accountsConfig';
 
 interface Props {
   selectedId: string | null;
@@ -45,7 +45,7 @@ export function AccountNav({ selectedId, onSelect, view, onViewChange }: Props) 
           className={`w-full text-right rounded-lg px-3 py-1.5 text-sm transition ${selectedId === a.id ? 'bg-amber-600/30 text-amber-300' : 'hover:bg-slate-800 text-slate-300'}`}
           onClick={() => { onSelect(a.id); onViewChange('account'); }}
         >
-          {a.nameAr}
+          {getAccountNavLabel(a)}
         </button>
       ))}
 
@@ -57,7 +57,7 @@ export function AccountNav({ selectedId, onSelect, view, onViewChange }: Props) 
           className={`w-full text-right rounded-lg px-3 py-1.5 text-sm transition ${selectedId === a.id ? 'bg-amber-600/30 text-amber-300' : 'hover:bg-slate-800 text-slate-400'}`}
           onClick={() => { onSelect(a.id); onViewChange('account'); }}
         >
-          {a.nameAr}
+          {getAccountNavLabel(a)}
         </button>
       ))}
     </nav>

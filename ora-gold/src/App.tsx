@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Gem } from 'lucide-react';
 import { useWorkshopStore } from './hooks/useWorkshopStore';
-import { getAccountDef } from './lib/accountsConfig';
+import { getAccountDef, getAccountPageTitle, getExcelSheetTitle } from './lib/accountsConfig';
 import { Dashboard } from './components/Dashboard';
 import { AccountNav } from './components/AccountNav';
 import { AccountLedger } from './components/AccountLedger';
@@ -79,9 +79,12 @@ export default function App() {
 
             {view === 'account' && selectedDef && selectedData && (
               <div className="space-y-3">
-                <h2 className="text-lg font-bold text-amber-400">{selectedDef.nameAr}</h2>
+                <div>
+                  <h2 className="text-lg font-bold text-amber-400">{getAccountPageTitle(selectedDef)}</h2>
+                  <p className="text-xs text-slate-500">ورقة Excel: {getExcelSheetTitle(selectedDef)}</p>
+                </div>
                 <AccountLedger
-                  accountName={selectedDef.nameAr}
+                  accountName={getExcelSheetTitle(selectedDef)}
                   entryKind={selectedDef.entryKind}
                   data={selectedData}
                   onAdd={(side, entry) => store.addLedgerEntry(selectedAccountId!, side, entry)}

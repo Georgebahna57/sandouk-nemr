@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Download, Upload, Save, FileSpreadsheet, RotateCcw } from 'lucide-react';
+import { Download, Upload, Save, FileSpreadsheet, RotateCcw, ChevronDown } from 'lucide-react';
+import { accountsWithSheetAlias } from '../lib/accountAudit';
 
 interface Props {
   periodLabel: string;
@@ -14,6 +15,8 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState('');
+  const [showMap, setShowMap] = useState(false);
+  const aliases = accountsWithSheetAlias();
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,6 +69,30 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
       </button>
 
       {msg && <span className="text-sm text-emerald-400">{msg}</span>}
+
+      <button
+        type="button"
+        className="btn-secondary flex items-center gap-1 text-xs ms-auto"
+        onClick={() => setShowMap((v) => !v)}
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition ${showMap ? 'rotate-180' : ''}`} />
+        دليل أوراق Excel
+      </button>
+
+      {showMap && (
+        <div className="w-full border-t border-slate-700/60 pt-3">
+          <p className="text-xs text-slate-400 mb-2">الحسابات التي يختلف اسمها في البرنامج عن ورقة Excel:</p>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
+            {aliases.map((a) => (
+              <div key={a.id} className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2">
+                <span className="text-amber-400">{a.nameAr}</span>
+                <span className="text-slate-500 mx-1">→</span>
+                <span className="text-slate-200 font-mono">{a.sheetName}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

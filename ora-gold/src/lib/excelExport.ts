@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { ACCOUNTS } from './accountsConfig';
+import { ACCOUNTS, getExcelSheetTitle } from './accountsConfig';
 import { buildDashboardSummary, getDashboardBalance } from './dashboard';
 import type { AccountData, EntryKind, LedgerEntry, WorkshopState } from '../types';
 import { calcLedgerTotals, entryToExcelRow } from './ledgerDisplay';
@@ -126,7 +126,7 @@ export function exportWorkbook(state: WorkshopState): void {
     if (!data) continue;
     const hasData = data.gold.length > 0 || data.usd.length > 0;
     if (!hasData && def.showOnDashboard === undefined) continue;
-    XLSX.utils.book_append_sheet(wb, buildAccountSheet(def.nameAr, data, def.entryKind), def.sheetName);
+    XLSX.utils.book_append_sheet(wb, buildAccountSheet(getExcelSheetTitle(def), data, def.entryKind), def.sheetName);
   }
 
   const filename = `ميزانية-${state.periodLabel}.xlsx`;
