@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { CurrencySide, EntryKind } from '../types';
 import { todayIso } from '../lib/format';
@@ -8,11 +8,13 @@ interface Props {
   entryKind: EntryKind;
   /** false = ذهب فقط (مثل تحت التصنيع) */
   allowUsd?: boolean;
+  defaultSide?: CurrencySide;
   onSubmit: (side: CurrencySide, data: { date: string; debit?: number; credit?: number; description: string }) => void;
 }
 
-export function EntryForm({ entryKind, allowUsd = true, onSubmit }: Props) {
-  const [side, setSide] = useState<CurrencySide>('gold');
+export function EntryForm({ entryKind, allowUsd = true, defaultSide = 'gold', onSubmit }: Props) {
+  const [side, setSide] = useState<CurrencySide>(defaultSide);
+  useEffect(() => { setSide(defaultSide); }, [defaultSide]);
   const [date, setDate] = useState(todayIso());
   const [col1, setCol1] = useState('');
   const [col2, setCol2] = useState('');

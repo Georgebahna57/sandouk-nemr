@@ -3,7 +3,7 @@ import { DEFAULT_PROFIT_RATE } from './invoiceCalc';
 import type { AccountData, WorkshopState } from '../types';
 import seededState from '../data/defaultState.json';
 
-const STORAGE_KEY = 'workshop-budget-v1';
+const STORAGE_KEY = 'workshop-budget-v2';
 
 function emptyAccount(): AccountData {
   return { gold: [], usd: [] };

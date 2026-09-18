@@ -1,12 +1,13 @@
 import { ArrowLeft, CheckCircle2, AlertTriangle, TrendingDown, TrendingUp, Scale } from 'lucide-react';
 import { formatNumber } from '../lib/format';
 import type { buildDashboardSummary } from '../lib/excelExport';
+import type { DashboardRow } from '../types';
 
 type Summary = ReturnType<typeof buildDashboardSummary>;
 
 interface Props {
   summary: Summary;
-  onSelectAccount: (id: string) => void;
+  onSelectRow: (row: DashboardRow) => void;
 }
 
 function BalanceBadge({ value, compact = false }: { value: number; compact?: boolean }) {
@@ -29,7 +30,7 @@ function AccountTable({
   rows,
   totalGold,
   totalUsd,
-  onSelect,
+  onSelectRow,
 }: {
   title: string;
   subtitle: string;
@@ -38,7 +39,7 @@ function AccountTable({
   rows: Summary['assets'];
   totalGold: number;
   totalUsd: number;
-  onSelect: (id: string) => void;
+  onSelectRow: (row: DashboardRow) => void;
 }) {
   const border = accent === 'emerald' ? 'border-emerald-500/30' : 'border-rose-500/30';
   const headerBg = accent === 'emerald' ? 'from-emerald-950/40 to-slate-900/60' : 'from-rose-950/40 to-slate-900/60';
@@ -72,7 +73,7 @@ function AccountTable({
                   <button
                     type="button"
                     className="account-link"
-                    onClick={() => onSelect(row.navigateAccountId)}
+                    onClick={() => onSelectRow(row)}
                   >
                     <ArrowLeft className="account-link-arrow h-3.5 w-3.5 shrink-0" />
                     <span>{row.label}</span>
@@ -126,7 +127,7 @@ function ReconcileCard({
   );
 }
 
-export function Dashboard({ summary, onSelectAccount }: Props) {
+export function Dashboard({ summary, onSelectRow }: Props) {
   const goldBalanced = Math.abs(summary.goldDiff) < 0.01;
   const usdBalanced = Math.abs(summary.usdDiff) < 0.01;
 
@@ -177,7 +178,7 @@ export function Dashboard({ summary, onSelectAccount }: Props) {
           rows={summary.assets}
           totalGold={summary.totalAssets.gold}
           totalUsd={summary.totalAssets.usd}
-          onSelect={onSelectAccount}
+          onSelectRow={onSelectRow}
         />
         <AccountTable
           title="الالتزامات"
@@ -187,7 +188,7 @@ export function Dashboard({ summary, onSelectAccount }: Props) {
           rows={summary.liabilities}
           totalGold={summary.totalLiab.gold}
           totalUsd={summary.totalLiab.usd}
-          onSelect={onSelectAccount}
+          onSelectRow={onSelectRow}
         />
       </div>
 
