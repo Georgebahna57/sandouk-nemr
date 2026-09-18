@@ -12,7 +12,7 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'wax', nameAr: 'شمع', sheetName: 'شمع', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'شمع' },
   { id: 'alloy', nameAr: 'ALLOY', sheetName: 'ALLOY', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'ALLOY' },
   { id: 'trading', nameAr: 'متاجرة', sheetName: 'Trading', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'متاجرة' },
-  { id: 'cash', nameAr: 'Cash', sheetName: 'CASH', entryKind: 'standard' },
+  { id: 'cash', nameAr: 'Cash', sheetName: 'CASH', entryKind: 'standard', dashboardUsd: 10000 },
   { id: 'pro', nameAr: 'أرباح الإنتاج', sheetName: 'Pro', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'profit' },
   { id: 'ahmad', nameAr: 'مدفوع من أحمد', sheetName: 'Ahmad', entryKind: 'partner', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'Paid from Ahmad' },
   { id: 'mzen', nameAr: 'مدفوع من مازن', sheetName: 'Mzen', entryKind: 'partner', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'Paid from Mazen' },
