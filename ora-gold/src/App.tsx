@@ -106,6 +106,7 @@ export default function App() {
                   </p>
                 </div>
                 <AccountLedger
+                  accountId={selectedAccountId!}
                   accountName={pageTitle || getExcelSheetTitle(selectedDef)}
                   entryKind={selectedDef.entryKind}
                   data={selectedData}
