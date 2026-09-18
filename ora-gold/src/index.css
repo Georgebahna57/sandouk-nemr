@@ -50,6 +50,10 @@ input, select, textarea, button {
   @apply bg-slate-800/40;
 }
 
+.table-ledger .ledger-total-row td {
+  @apply bg-slate-800/70 border-t-2 border-amber-500/30 sticky bottom-0;
+}
+
 .num { font-variant-numeric: tabular-nums; direction: ltr; text-align: left; }
 .num-neg { color: #f87171; }
 .num-pos { color: #4ade80; }

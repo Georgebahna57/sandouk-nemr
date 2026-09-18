@@ -1,37 +1,34 @@
 import { Trash2 } from 'lucide-react';
 import { formatDateAr, formatNumber } from '../lib/format';
-import type { AccountData, EntryKind } from '../types';
+import { calcLedgerTotals, getColumnHeaders, getDisplayValues } from '../lib/ledgerDisplay';
+import type { AccountData, CurrencySide, EntryKind } from '../types';
 import { EntryForm } from './EntryForm';
 
 interface Props {
   accountName: string;
   entryKind: EntryKind;
   data: AccountData;
-  onAdd: (side: 'gold' | 'usd', entry: { date: string; debit?: number; credit?: number; description: string }) => void;
-  onDelete: (side: 'gold' | 'usd', id: string) => void;
+  onAdd: (side: CurrencySide, entry: { date: string; debit?: number; credit?: number; description: string }) => void;
+  onDelete: (side: CurrencySide, id: string) => void;
 }
 
 function LedgerTable({
   title,
   entries,
   entryKind,
+  side,
   onDelete,
 }: {
   title: string;
   entries: AccountData['gold'];
   entryKind: EntryKind;
+  side: CurrencySide;
   onDelete: (id: string) => void;
 }) {
-  const headers =
-    entryKind === 'profit'
-      ? ['التاريخ', 'خسارة', 'ربح', 'الرصيد', 'البيان', '']
-      : entryKind === 'inout'
-        ? ['التاريخ', 'دخول', 'خروج', 'الرصيد', 'البيان', '']
-        : entryKind === 'expense'
-          ? ['التاريخ', 'مدفوع', 'مرتجع', 'الرصيد', 'البيان', '']
-          : entryKind === 'partner'
-            ? ['التاريخ', 'Debit', 'Credit', 'الرصيد', 'البيان', '']
-            : ['التاريخ', 'مدفوع له', 'مستلم منه', 'الرصيد', 'البيان', ''];
+  const [col1Label, col2Label] = getColumnHeaders(entryKind, side);
+  const headers = ['التاريخ', col1Label, col2Label, 'الرصيد', 'البيان', ''];
+  const decimals = side === 'gold' ? 4 : 2;
+  const totals = calcLedgerTotals(entries, entryKind, side);
 
   return (
     <div className="card overflow-hidden">
@@ -47,21 +44,39 @@ function LedgerTable({
             {entries.length === 0 && (
               <tr><td colSpan={6} className="text-center text-slate-500 py-6">لا توجد حركات</td></tr>
             )}
-            {entries.map((e) => (
-              <tr key={e.id}>
-                <td>{formatDateAr(e.date)}</td>
-                <td className="num">{e.debit ? formatNumber(e.debit) : ''}</td>
-                <td className="num">{e.credit ? formatNumber(e.credit) : ''}</td>
-                <td className={`num font-medium ${e.balance < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(e.balance)}</td>
-                <td className="max-w-[200px] truncate" title={e.description}>{e.description}</td>
-                <td>
-                  <button type="button" className="text-red-400 hover:text-red-300 p-1" onClick={() => onDelete(e.id)} title="حذف">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {entries.map((e) => {
+              const { col1: v1, col2: v2 } = getDisplayValues(e, entryKind, side);
+              return (
+                <tr key={e.id}>
+                  <td>{formatDateAr(e.date)}</td>
+                  <td className="num">{v1 ? formatNumber(v1, decimals) : ''}</td>
+                  <td className="num">{v2 ? formatNumber(v2, decimals) : ''}</td>
+                  <td className={`num font-medium ${e.balance < 0 ? 'num-neg' : 'num-pos'}`}>
+                    {formatNumber(e.balance, decimals)}
+                  </td>
+                  <td className="max-w-[200px] truncate" title={e.description}>{e.description}</td>
+                  <td>
+                    <button type="button" className="text-red-400 hover:text-red-300 p-1" onClick={() => onDelete(e.id)} title="حذف">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
+          {entries.length > 0 && (
+            <tfoot>
+              <tr className="ledger-total-row">
+                <td className="font-bold text-amber-400">المجموع</td>
+                <td className="num font-bold">{formatNumber(totals.sumCol1, decimals)}</td>
+                <td className="num font-bold">{formatNumber(totals.sumCol2, decimals)}</td>
+                <td className={`num font-bold ${totals.balance < 0 ? 'num-neg' : 'num-pos'}`}>
+                  {formatNumber(totals.balance, decimals)}
+                </td>
+                <td colSpan={2} />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
@@ -79,23 +94,37 @@ export function AccountLedger({ accountName, entryKind, data, onAdd, onDelete }:
           <span className="text-xs text-slate-400">رصيد ذهب</span>
           <div className={`text-xl font-bold num ${goldBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(goldBal, 4)}</div>
         </div>
-        <div className="card px-4 py-3">
-          <span className="text-xs text-slate-400">رصيد دولار</span>
-          <div className={`text-xl font-bold num ${usdBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(usdBal)}</div>
-        </div>
+        {entryKind !== 'manufacturing' && (
+          <div className="card px-4 py-3">
+            <span className="text-xs text-slate-400">رصيد دولار</span>
+            <div className={`text-xl font-bold num ${usdBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(usdBal)}</div>
+          </div>
+        )}
       </div>
 
-      <EntryForm entryKind={entryKind} onSubmit={(entry) => onAdd('gold', entry)} />
+      <EntryForm entryKind={entryKind} side="gold" onSubmit={(entry) => onAdd('gold', entry)} />
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <LedgerTable title={`${accountName} — ذهب 995`} entries={data.gold} entryKind={entryKind} onDelete={(id) => onDelete('gold', id)} />
+        <LedgerTable
+          title={`${accountName} — ذهب 995`}
+          entries={data.gold}
+          entryKind={entryKind}
+          side="gold"
+          onDelete={(id) => onDelete('gold', id)}
+        />
         {entryKind !== 'manufacturing' && (
-          <LedgerTable title={`${accountName} — دولار`} entries={data.usd} entryKind={entryKind} onDelete={(id) => onDelete('usd', id)} />
+          <LedgerTable
+            title={`${accountName} — دولار`}
+            entries={data.usd}
+            entryKind={entryKind}
+            side="usd"
+            onDelete={(id) => onDelete('usd', id)}
+          />
         )}
       </div>
 
       {entryKind !== 'manufacturing' && (
-        <EntryForm entryKind={entryKind} onSubmit={(entry) => onAdd('usd', entry)} />
+        <EntryForm entryKind={entryKind} side="usd" onSubmit={(entry) => onAdd('usd', entry)} />
       )}
     </div>
   );

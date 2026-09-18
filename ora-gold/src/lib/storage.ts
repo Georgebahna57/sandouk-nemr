@@ -47,6 +47,7 @@ function normalizeState(parsed: WorkshopState): WorkshopState {
   if (!parsed.treasury?.length) parsed.treasury = DEFAULT_TREASURY.map((t) => ({ ...t }));
   if (!parsed.invoices) parsed.invoices = [];
   if (!parsed.settings) parsed.settings = { profitRate: DEFAULT_PROFIT_RATE };
+  if (!parsed.dashboardOverrides) parsed.dashboardOverrides = {};
   return parsed;
 }
 

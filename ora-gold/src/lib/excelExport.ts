@@ -1,28 +1,23 @@
 import * as XLSX from 'xlsx';
 import { ACCOUNTS } from './accountsConfig';
-import type { AccountData, LedgerEntry, WorkshopState } from '../types';
-import { getAccountBalances } from './ledger';
+import { buildDashboardSummary, getDashboardBalance } from './dashboard';
+import type { AccountData, EntryKind, LedgerEntry, WorkshopState } from '../types';
+import { calcLedgerTotals, entryToExcelRow } from './ledgerDisplay';
 
-function entryRowGold(e: LedgerEntry, kind: string): (string | number)[] {
-  if (kind === 'profit') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'inout') return [e.date, e.credit ?? '', e.debit ?? '', e.balance, e.description];
-  return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
+export { buildDashboardSummary };
+
+function entryRow(e: LedgerEntry, kind: EntryKind, side: 'gold' | 'usd'): (string | number)[] {
+  return entryToExcelRow(e, kind, side);
 }
 
-function entryRowUsd(e: LedgerEntry, kind: string): (string | number)[] {
-  if (kind === 'profit') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'partner') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'expense') return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-  if (kind === 'inout') return [e.date, e.credit ?? '', e.debit ?? '', e.balance, e.description];
-  return [e.date, e.debit ?? '', e.credit ?? '', e.balance, e.description];
-}
-
-function buildAccountSheet(name: string, data: AccountData, entryKind: string): XLSX.WorkSheet {
+function buildAccountSheet(name: string, data: AccountData, entryKind: EntryKind): XLSX.WorkSheet {
   const goldHeaders = entryKind === 'profit'
     ? ['التاريخ', 'خسارة', 'ربح', 'الرصيد', 'البيان']
     : entryKind === 'inout'
       ? ['التاريخ', 'دخول ', 'خروج', 'الرصيد', 'البيان']
-      : ['التاريخ', 'مدفوع له', 'مستلم منه', 'الرصيد', 'البيان'];
+      : entryKind === 'expense'
+        ? ['التاريخ', 'مدفوع ', 'مرتجع مصروف', 'الرصيد', 'البيان']
+        : ['التاريخ', 'مدفوع له', 'مستلم منه', 'الرصيد', 'البيان'];
 
   const usdHeaders = entryKind === 'profit'
     ? ['التاريخ', 'مدفوع', 'مستلم', 'الرصيد', 'البيان']
@@ -46,9 +41,22 @@ function buildAccountSheet(name: string, data: AccountData, entryKind: string): 
   for (let i = 0; i < maxLen; i++) {
     const g = data.gold[i];
     const u = data.usd[i];
-    const goldPart = g ? entryRowGold(g, entryKind) : ['', '', '', '', ''];
-    const usdPart = u ? entryRowUsd(u, entryKind) : ['', '', '', '', ''];
+    const goldPart = g ? entryRow(g, entryKind, 'gold') : ['', '', '', '', ''];
+    const usdPart = u ? entryRow(u, entryKind, 'usd') : ['', '', '', '', ''];
     rows.push([...goldPart, '', ...usdPart]);
+  }
+
+  // صف المجموع
+  if (data.gold.length || data.usd.length) {
+    const gTot = calcLedgerTotals(data.gold, entryKind, 'gold');
+    const uTot = calcLedgerTotals(data.usd, entryKind, 'usd');
+    const goldTotal = data.gold.length
+      ? ['المجموع', gTot.sumCol1, gTot.sumCol2, gTot.balance, '']
+      : ['', '', '', '', ''];
+    const usdTotal = data.usd.length
+      ? ['المجموع', uTot.sumCol1, uTot.sumCol2, uTot.balance, '']
+      : ['', '', '', '', ''];
+    rows.push([...goldTotal, '', ...usdTotal]);
   }
 
   return XLSX.utils.aoa_to_sheet(rows);
@@ -65,7 +73,7 @@ function buildMainSheet(state: WorkshopState): XLSX.WorkSheet {
 
   for (const def of ACCOUNTS) {
     if (!def.showOnDashboard) continue;
-    const bal = getAccountBalances(state.accounts[def.id]);
+    const bal = getDashboardBalance(state, def.id);
     const label = def.dashboardLabel ?? def.nameAr;
     if (def.showOnDashboard === 'assets') {
       assetRows.push([label, bal.gold || '', bal.usd || '']);
@@ -125,52 +133,3 @@ export function exportWorkbook(state: WorkshopState): void {
   XLSX.writeFile(wb, filename);
 }
 
-function treasuryValue(state: WorkshopState, labelPart: string, field: 'usd' | 'gold995' | 'weight'): number {
-  const item = state.treasury.find((t) => t.label.includes(labelPart));
-  if (!item) return 0;
-  return item[field] ?? 0;
-}
-
-function dashboardBalances(state: WorkshopState, accountId: string): { gold: number; usd: number } {
-  const bal = getAccountBalances(state.accounts[accountId]);
-  if (accountId === 'mainTreasury') {
-    const goldTotal = state.treasury.reduce((s, t) => s + (t.gold995 ?? 0), 0);
-    const usdBox = treasuryValue(state, 'صندوق دولار', 'usd');
-    return { gold: goldTotal || bal.gold, usd: usdBox || bal.usd };
-  }
-  if (accountId === 'wages18') {
-    return { gold: 0, usd: treasuryValue(state, 'مشغول 18', 'usd') || bal.usd };
-  }
-  if (accountId === 'wages21') {
-    return { gold: 0, usd: treasuryValue(state, 'مشغول 21', 'usd') || bal.usd };
-  }
-  if (accountId === 'silver' || accountId === 'wax' || accountId === 'alloy') {
-    return { gold: 0, usd: bal.usd };
-  }
-  return bal;
-}
-
-export function buildDashboardSummary(state: WorkshopState) {
-  const assets: { label: string; gold: number; usd: number; accountId: string }[] = [];
-  const liabilities: { label: string; gold: number; usd: number; accountId: string }[] = [];
-
-  for (const def of ACCOUNTS) {
-    if (!def.showOnDashboard) continue;
-    const bal = dashboardBalances(state, def.id);
-    const row = { label: def.dashboardLabel ?? def.nameAr, gold: bal.gold, usd: bal.usd, accountId: def.id };
-    if (def.showOnDashboard === 'assets') assets.push(row);
-    else liabilities.push(row);
-  }
-
-  const totalAssets = { gold: assets.reduce((s, r) => s + r.gold, 0), usd: assets.reduce((s, r) => s + r.usd, 0) };
-  const totalLiab = { gold: liabilities.reduce((s, r) => s + r.gold, 0), usd: liabilities.reduce((s, r) => s + r.usd, 0) };
-
-  return {
-    assets,
-    liabilities,
-    totalAssets,
-    totalLiab,
-    goldDiff: totalAssets.gold + totalLiab.gold,
-    usdDiff: totalAssets.usd + totalLiab.usd,
-  };
-}

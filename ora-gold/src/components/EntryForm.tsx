@@ -1,37 +1,32 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { EntryKind } from '../types';
+import type { CurrencySide, EntryKind } from '../types';
 import { todayIso } from '../lib/format';
+import { formValuesToLedger, getFormLabels } from '../lib/ledgerDisplay';
 
 interface Props {
   entryKind: EntryKind;
+  side?: CurrencySide;
   onSubmit: (data: { date: string; debit?: number; credit?: number; description: string }) => void;
 }
 
-function labelsForKind(kind: EntryKind, side: 'gold' | 'usd') {
-  if (kind === 'profit') return { out: 'خسارة', in: 'ربح' };
-  if (kind === 'expense') return { out: 'مدفوع', in: 'مرتجع مصروف' };
-  if (kind === 'partner') return { out: 'Debit', in: 'Credit' };
-  if (kind === 'inout') return { out: side === 'gold' ? 'خروج' : 'خروج', in: side === 'gold' ? 'دخول' : 'دخول' };
-  return { out: 'مدفوع له', in: 'مستلم منه' };
-}
-
-export function EntryForm({ entryKind, onSubmit }: Props) {
+export function EntryForm({ entryKind, side = 'gold', onSubmit }: Props) {
   const [date, setDate] = useState(todayIso());
-  const [debit, setDebit] = useState('');
-  const [credit, setCredit] = useState('');
+  const [col1, setCol1] = useState('');
+  const [col2, setCol2] = useState('');
   const [description, setDescription] = useState('');
 
-  const goldLabels = labelsForKind(entryKind, 'gold');
+  const labels = getFormLabels(entryKind, side);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const d = debit ? parseFloat(debit) : undefined;
-    const c = credit ? parseFloat(credit) : undefined;
-    if (!d && !c) return;
-    onSubmit({ date, debit: d, credit: c, description });
-    setDebit('');
-    setCredit('');
+    const v1 = col1 ? parseFloat(col1) : undefined;
+    const v2 = col2 ? parseFloat(col2) : undefined;
+    if (!v1 && !v2) return;
+    const { debit, credit } = formValuesToLedger(entryKind, v1, v2, side);
+    onSubmit({ date, debit, credit, description });
+    setCol1('');
+    setCol2('');
     setDescription('');
   };
 
@@ -46,12 +41,12 @@ export function EntryForm({ entryKind, onSubmit }: Props) {
           <input type="date" className="input-field" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
         <div>
-          <label className="text-xs text-slate-400">{goldLabels.out}</label>
-          <input type="number" step="any" className="input-field num" value={debit} onChange={(e) => setDebit(e.target.value)} placeholder="0" />
+          <label className="text-xs text-slate-400">{labels.col1}</label>
+          <input type="number" step="any" className="input-field num" value={col1} onChange={(e) => setCol1(e.target.value)} placeholder="0" />
         </div>
         <div>
-          <label className="text-xs text-slate-400">{goldLabels.in}</label>
-          <input type="number" step="any" className="input-field num" value={credit} onChange={(e) => setCredit(e.target.value)} placeholder="0" />
+          <label className="text-xs text-slate-400">{labels.col2}</label>
+          <input type="number" step="any" className="input-field num" value={col2} onChange={(e) => setCol2(e.target.value)} placeholder="0" />
         </div>
         <div>
           <label className="text-xs text-slate-400">البيان</label>
