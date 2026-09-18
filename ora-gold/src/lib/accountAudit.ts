@@ -36,7 +36,7 @@ export function accountsWithSheetAlias() {
   return ACCOUNTS.filter((a) => normalizeSheetKey(a.nameAr) !== normalizeSheetKey(a.sheetName));
 }
 
-/** روابط الملخص الرئيسي — مثل بورصة ← Trading */
+/** روابط الملخص الرئيسي — مثل بورصة ← CASH */
 export function dashboardLinks(): DashboardLinkRow[] {
   return DASHBOARD_ALIASES.map((a) => {
     const source = ACCOUNTS.find((d) => d.id === a.sourceAccountId);

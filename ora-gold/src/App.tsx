@@ -15,7 +15,6 @@ type View = 'dashboard' | 'treasury' | 'account' | 'invoice';
 
 function focusForRow(row: DashboardRow): LedgerFocus {
   if (row.accountId === 'bourse') return 'usd';
-  if (row.accountId === 'trading') return 'gold';
   return 'both';
 }
 
@@ -101,8 +100,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-amber-400">{pageTitle || selectedDef.nameAr}</h2>
                   <p className="text-xs text-slate-500">
                     ورقة Excel: {getExcelSheetTitle(selectedDef)}
-                    {ledgerFocus === 'usd' && bourseAlias ? ' — مدفوعات (دولار)' : ''}
-                    {ledgerFocus === 'gold' && selectedAccountId === 'trading' ? ' — ذهب 995' : ''}
+                    {ledgerFocus === 'usd' && bourseAlias && selectedAccountId === 'cash' ? ' — بورصة (دولار)' : ''}
                   </p>
                 </div>
                 <AccountLedger

@@ -15,7 +15,7 @@ export function AccountNav({ selectedId, ledgerFocus, onSelect, view, onViewChan
     detail: ACCOUNTS.filter((a) => !a.showOnDashboard),
   };
 
-  const isBourseActive = selectedId === 'trading' && ledgerFocus === 'usd';
+  const isBourseActive = selectedId === 'cash' && ledgerFocus === 'usd';
 
   return (
     <nav className="card p-3 space-y-3 max-h-[calc(100dvh-8rem)] overflow-y-auto">
@@ -50,8 +50,7 @@ export function AccountNav({ selectedId, ledgerFocus, onSelect, view, onViewChan
             selectedId === a.id && ledgerFocus !== 'usd' ? 'bg-amber-600/30 text-amber-300' : 'hover:bg-slate-800 text-slate-300'
           }`}
           onClick={() => {
-            const focus = a.id === 'trading' ? 'gold' : 'both';
-            onSelect(a.id, a.dashboardLabel ?? a.nameAr, focus);
+            onSelect(a.id, a.dashboardLabel ?? a.nameAr, 'both');
           }}
         >
           {getAccountNavLabel(a)}
@@ -67,7 +66,7 @@ export function AccountNav({ selectedId, ledgerFocus, onSelect, view, onViewChan
           }`}
           onClick={() => onSelect(alias.sourceAccountId, alias.label, alias.side === 'usd' ? 'usd' : 'both')}
         >
-          {alias.label} (Trading)
+          {alias.label} (CASH)
         </button>
       ))}
 
