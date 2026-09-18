@@ -43,7 +43,7 @@ export function createEmptyState(periodLabel = '05-2026'): WorkshopState {
 }
 
 function migrateLegacyAccounts(accounts: Record<string, AccountData>): void {
-  // بورصة في الملخص = Trading دولار؛ ورقة CASH حساب منفصل
+  // ترحيل بيانات قديمة: حساب bourse → cash
   if (accounts.bourse && !accounts.cash) {
     accounts.cash = accounts.bourse;
     delete accounts.bourse;

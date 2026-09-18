@@ -11,7 +11,7 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'silver', nameAr: 'فضة', sheetName: 'فضة', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'SILVER $' },
   { id: 'wax', nameAr: 'شمع', sheetName: 'شمع', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'شمع' },
   { id: 'alloy', nameAr: 'ALLOY', sheetName: 'ALLOY', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'ALLOY' },
-  { id: 'trading', nameAr: 'متاجرة', sheetName: 'Trading', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'متاجرة', dashboardSide: 'gold' },
+  { id: 'trading', nameAr: 'متاجرة', sheetName: 'Trading', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'متاجرة' },
   { id: 'cash', nameAr: 'Cash', sheetName: 'CASH', entryKind: 'standard' },
   { id: 'pro', nameAr: 'أرباح الإنتاج', sheetName: 'Pro', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'profit' },
   { id: 'ahmad', nameAr: 'مدفوع من أحمد', sheetName: 'Ahmad', entryKind: 'partner', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'Paid from Ahmad' },
@@ -33,7 +33,7 @@ export const ACCOUNTS: AccountDef[] = [
 
 /** صفوف الملخص المرتبطة بورقة أخرى — مطابق لـ Excel */
 export const DASHBOARD_ALIASES: DashboardAlias[] = [
-  { id: 'bourse', label: 'بورصة', sourceAccountId: 'trading', side: 'usd', showOnDashboard: 'assets' },
+  { id: 'bourse', label: 'بورصة', sourceAccountId: 'cash', side: 'usd', showOnDashboard: 'assets' },
 ];
 
 export const DEFAULT_TREASURY: TreasuryItem[] = [
