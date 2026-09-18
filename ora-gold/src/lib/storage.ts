@@ -1,7 +1,10 @@
 import { ACCOUNTS, DEFAULT_TREASURY } from './accountsConfig';
+import { getAccountBalances } from './ledger';
 import { DEFAULT_PROFIT_RATE } from './invoiceCalc';
 import type { AccountData, WorkshopState } from '../types';
 import seededState from '../data/defaultState.json';
+
+const BOURSE_DASHBOARD_USD = 10000;
 
 const STORAGE_KEY = 'workshop-budget-v2';
 
@@ -50,6 +53,30 @@ function migrateLegacyAccounts(accounts: Record<string, AccountData>): void {
   }
 }
 
+/** بورصة في Excel = 10,000$ — تصحيح استيراد خاطئ أفرغ رصيد CASH */
+function migrateCashBourse(state: WorkshopState): void {
+  const cash = state.accounts.cash;
+  if (!cash?.usd?.length) return;
+
+  const { usd } = getAccountBalances(cash);
+  if (usd !== 0) return;
+
+  const first = cash.usd[0];
+  const looksLikeBrokenImport =
+    cash.usd.length > 1 &&
+    first?.credit === BOURSE_DASHBOARD_USD &&
+    first?.balance === BOURSE_DASHBOARD_USD;
+
+  if (looksLikeBrokenImport) {
+    state.accounts.cash = { gold: cash.gold, usd: [first] };
+  }
+
+  state.dashboardOverrides = state.dashboardOverrides ?? {};
+  if (state.dashboardOverrides.cash?.usd == null) {
+    state.dashboardOverrides.cash = { ...state.dashboardOverrides.cash, usd: BOURSE_DASHBOARD_USD };
+  }
+}
+
 function normalizeState(parsed: WorkshopState): WorkshopState {
   migrateLegacyAccounts(parsed.accounts);
   for (const a of ACCOUNTS) {
@@ -59,6 +86,7 @@ function normalizeState(parsed: WorkshopState): WorkshopState {
   if (!parsed.invoices) parsed.invoices = [];
   if (!parsed.settings) parsed.settings = { profitRate: DEFAULT_PROFIT_RATE };
   if (!parsed.dashboardOverrides) parsed.dashboardOverrides = {};
+  migrateCashBourse(parsed);
   return parsed;
 }
 

@@ -34,6 +34,14 @@ export function getDashboardBalance(state: WorkshopState, accountId: string): { 
     return { gold: 0, usd: bal.usd };
   }
 
+  // بورصة — CASH: رصيد الدفتر، أو 10,000$ الافتراضية من Excel إن كان الدفتر صفراً
+  if (accountId === 'cash') {
+    const fallbackUsd = override?.usd ?? def?.dashboardUsd;
+    if (bal.usd !== 0) return bal;
+    if (fallbackUsd != null) return { gold: bal.gold, usd: fallbackUsd };
+    return bal;
+  }
+
   if (def?.dashboardGold != null || def?.dashboardUsd != null || override) {
     return {
       gold: override?.gold ?? def?.dashboardGold ?? bal.gold,
