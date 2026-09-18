@@ -211,11 +211,6 @@ export function Dashboard({ summary, onSelectAccount }: Props) {
             balanced={usdBalanced}
           />
         </div>
-        {!usdBalanced && (
-          <p className="mt-3 text-xs text-slate-500 border-t border-slate-700/60 pt-3">
-            ملاحظة: فرق الدولار قد يكون بسبب قيمة «بورصة» المسجّلة يدوياً في Excel (10,000$)
-          </p>
-        )}
       </div>
     </div>
   );

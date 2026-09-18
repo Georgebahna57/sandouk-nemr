@@ -36,6 +36,14 @@ export interface AccountDef {
   /** يظهر في لوحة الملخص الرئيسية */
   showOnDashboard?: 'assets' | 'liabilities' | 'none';
   dashboardLabel?: string;
+  /** قيمة ثابتة في ورقة «رئيسي» — قد تختلف عن رصيد الدفتر */
+  dashboardGold?: number;
+  dashboardUsd?: number;
+}
+
+export interface DashboardOverride {
+  gold?: number;
+  usd?: number;
 }
 
 export interface AccountData {
@@ -131,6 +139,8 @@ export interface WorkshopState {
   treasury: TreasuryItem[];
   invoices?: WorkshopInvoice[];
   settings?: WorkshopSettings;
+  /** تعديلات يدوية لقيم الملخص الرئيسي */
+  dashboardOverrides?: Record<string, DashboardOverride>;
   updatedAt: string;
 }
 
