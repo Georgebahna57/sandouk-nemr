@@ -103,6 +103,16 @@ export function buildDashboardSummary(state: WorkshopState) {
     else pushAccountRows(liabilities, def, state);
   }
 
+  // صفوف مرتبطة بحسابات ليست في الملخص (مثل بورصة ← CASH)
+  for (const alias of DASHBOARD_ALIASES) {
+    const sourceDef = getAccountDef(alias.sourceAccountId);
+    if (sourceDef?.showOnDashboard) continue;
+    const sourceBal = getDashboardBalance(state, alias.sourceAccountId);
+    const row = buildRow(alias.label, alias.id, alias.sourceAccountId, sourceBal, alias.side);
+    if (alias.showOnDashboard === 'assets') assets.push(row);
+    else liabilities.push(row);
+  }
+
   const totalAssets = { gold: assets.reduce((s, r) => s + r.gold, 0), usd: assets.reduce((s, r) => s + r.usd, 0) };
   const totalLiab = { gold: liabilities.reduce((s, r) => s + r.gold, 0), usd: liabilities.reduce((s, r) => s + r.usd, 0) };
 
