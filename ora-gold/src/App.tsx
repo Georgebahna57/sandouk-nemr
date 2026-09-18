@@ -110,7 +110,7 @@ export default function App() {
                   entryKind={selectedDef.entryKind}
                   data={selectedData}
                   focus={ledgerFocus}
-                  onAdd={(side, entry) => store.addLedgerEntry(selectedAccountId!, side, entry)}
+                  onAddVoucher={(voucher) => store.addLedgerVoucher(selectedAccountId!, selectedDef.entryKind, voucher)}
                   onDelete={(side, id) => store.removeLedgerEntry(selectedAccountId!, side, id)}
                 />
               </div>

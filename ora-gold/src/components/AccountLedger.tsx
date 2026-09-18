@@ -2,7 +2,8 @@ import { Trash2 } from 'lucide-react';
 import { formatDateAr, formatNumber } from '../lib/format';
 import { calcLedgerTotals, getColumnHeaders, getDisplayValues } from '../lib/ledgerDisplay';
 import type { AccountData, CurrencySide, EntryKind } from '../types';
-import { EntryForm } from './EntryForm';
+import { extractInvoiceNumbers, type LedgerVoucherInput } from '../lib/ledgerVoucher';
+import { LedgerVoucherForm } from './LedgerVoucherForm';
 
 export type LedgerFocus = 'both' | 'gold' | 'usd';
 
@@ -11,7 +12,7 @@ interface Props {
   entryKind: EntryKind;
   data: AccountData;
   focus?: LedgerFocus;
-  onAdd: (side: CurrencySide, entry: { date: string; debit?: number; credit?: number; description: string }) => void;
+  onAddVoucher: (voucher: LedgerVoucherInput) => void;
   onDelete: (side: CurrencySide, id: string) => void;
 }
 
@@ -86,7 +87,7 @@ function LedgerTable({
   );
 }
 
-export function AccountLedger({ accountName, entryKind, data, focus = 'both', onAdd, onDelete }: Props) {
+export function AccountLedger({ accountName, entryKind, data, focus = 'both', onAddVoucher, onDelete }: Props) {
   const showGold = focus === 'both' || focus === 'gold';
   const showUsd = (focus === 'both' || focus === 'usd') && entryKind !== 'manufacturing';
 
@@ -94,6 +95,7 @@ export function AccountLedger({ accountName, entryKind, data, focus = 'both', on
   const usdBal = data.usd.length ? data.usd[data.usd.length - 1].balance : 0;
 
   const defaultSide: CurrencySide = focus === 'usd' ? 'usd' : 'gold';
+  const existingNumbers = extractInvoiceNumbers([...data.gold, ...data.usd]);
 
   return (
     <div className="space-y-4">
@@ -112,11 +114,12 @@ export function AccountLedger({ accountName, entryKind, data, focus = 'both', on
         )}
       </div>
 
-      <EntryForm
+      <LedgerVoucherForm
         entryKind={entryKind}
         allowUsd={showUsd}
         defaultSide={defaultSide}
-        onSubmit={(side, entry) => onAdd(side, entry)}
+        existingNumbers={existingNumbers}
+        onSubmit={onAddVoucher}
       />
 
       <div className={`grid gap-4 ${showGold && showUsd ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
