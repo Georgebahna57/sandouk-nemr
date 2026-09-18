@@ -68,3 +68,12 @@ export function sortEntriesByDate(entries: LedgerEntry[], mode: BalanceMode = 'c
     mode,
   );
 }
+
+/** للعرض — الأحدث أولاً (التاريخ ثم ترتيب الإضافة) */
+export function sortEntriesNewestFirst(entries: LedgerEntry[]): LedgerEntry[] {
+  return [...entries].sort((a, b) => {
+    const byDate = (b.date || '').localeCompare(a.date || '');
+    if (byDate !== 0) return byDate;
+    return b.id.localeCompare(a.id);
+  });
+}
