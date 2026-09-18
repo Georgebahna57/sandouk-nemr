@@ -7,8 +7,10 @@ import { AccountNav } from './components/AccountNav';
 import { AccountLedger } from './components/AccountLedger';
 import { TreasuryPanel } from './components/TreasuryPanel';
 import { ImportExportBar } from './components/ImportExportBar';
+import { InvoiceForm } from './components/InvoiceForm';
+import { InvoiceList } from './components/InvoiceList';
 
-type View = 'dashboard' | 'treasury' | 'account';
+type View = 'dashboard' | 'treasury' | 'account' | 'invoice';
 
 export default function App() {
   const store = useWorkshopStore();
@@ -57,6 +59,18 @@ export default function App() {
                   setView('account');
                 }}
               />
+            )}
+
+            {view === 'invoice' && (
+              <div className="space-y-4">
+                <InvoiceForm
+                  profitRate={store.profitRate}
+                  existingNumbers={store.invoices.map((i) => i.number)}
+                  onSubmit={store.postInvoice}
+                  onProfitRateChange={store.updateProfitRate}
+                />
+                <InvoiceList invoices={store.invoices} onDelete={store.deleteInvoice} />
+              </div>
             )}
 
             {view === 'treasury' && (

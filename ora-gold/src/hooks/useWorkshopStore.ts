@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { CurrencySide, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
+import type { CurrencySide, InvoiceInput, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
 import { getAccountDef, getBalanceMode } from '../lib/accountsConfig';
 import { addEntry, deleteEntry, getAccountBalances, updateEntry } from '../lib/ledger';
 import { buildDashboardSummary } from '../lib/excelExport';
 import { exportStateJson, getDefaultState, loadState, saveState } from '../lib/storage';
 import { importExcelFile } from '../lib/excelImport';
 import { exportWorkbook } from '../lib/excelExport';
+import { calculateInvoice } from '../lib/invoiceCalc';
+import { applyInvoicePostings, createInvoiceRecord, removeInvoiceFromState } from '../lib/invoicePost';
 
 export function useWorkshopStore() {
   const [state, setState] = useState<WorkshopState>(() => loadState());
@@ -86,9 +88,53 @@ export function useWorkshopStore() {
     setState(getDefaultState());
   }, []);
 
+  const updateProfitRate = useCallback((rate: number) => {
+    setState((s) => ({
+      ...s,
+      settings: { ...s.settings!, profitRate: rate },
+    }));
+  }, []);
+
+  const postInvoice = useCallback((input: InvoiceInput) => {
+    const profitRate = state.settings?.profitRate ?? 0.002;
+    const calc = calculateInvoice(input, profitRate);
+    const { state: nextState, refs } = applyInvoicePostings(state, calc.description, input.date, calc.postings);
+    const invoice = createInvoiceRecord({
+      number: input.number,
+      date: input.date,
+      customer: input.customer,
+      type: input.type,
+      description: calc.description,
+      postings: calc.postings,
+      entryRefs: refs,
+      workedWeight: input.workedWeight,
+      usdAmount: input.usdAmount,
+      wageUsd: input.wageUsd,
+      rawGoldGiven: input.rawGoldGiven,
+      profitRate,
+    });
+    setState({
+      ...nextState,
+      invoices: [...(nextState.invoices ?? []), invoice],
+    });
+    return invoice;
+  }, [state]);
+
+  const deleteInvoice = useCallback((invoiceId: string) => {
+    const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId);
+    if (!invoice) return;
+    if (!confirm(`حذف الفاتورة ${invoice.description}؟ سيتم عكس كل الحركات المرتبطة.`)) return;
+    setState(removeInvoiceFromState(state, invoice));
+  }, [state]);
+
+  const invoices = useMemo(() => state.invoices ?? [], [state.invoices]);
+  const profitRate = state.settings?.profitRate ?? 0.002;
+
   return {
     state,
     dashboard,
+    invoices,
+    profitRate,
     updatePeriod,
     addLedgerEntry,
     editLedgerEntry,
@@ -99,5 +145,8 @@ export function useWorkshopStore() {
     backupJson,
     getBalances,
     restoreExcelDefaults,
+    updateProfitRate,
+    postInvoice,
+    deleteInvoice,
   };
 }

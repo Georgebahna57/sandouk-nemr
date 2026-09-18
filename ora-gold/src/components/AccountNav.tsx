@@ -3,8 +3,8 @@ import { ACCOUNTS } from '../lib/accountsConfig';
 interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  view: 'dashboard' | 'treasury' | 'account';
-  onViewChange: (v: 'dashboard' | 'treasury' | 'account') => void;
+  view: 'dashboard' | 'treasury' | 'account' | 'invoice';
+  onViewChange: (v: 'dashboard' | 'treasury' | 'account' | 'invoice') => void;
 }
 
 export function AccountNav({ selectedId, onSelect, view, onViewChange }: Props) {
@@ -21,6 +21,13 @@ export function AccountNav({ selectedId, onSelect, view, onViewChange }: Props) 
         onClick={() => { onViewChange('dashboard'); onSelect(null); }}
       >
         📊 لوحة الملخص
+      </button>
+      <button
+        type="button"
+        className={`w-full text-right rounded-lg px-3 py-2 text-sm transition ${view === 'invoice' ? 'bg-amber-600/30 text-amber-300' : 'hover:bg-slate-800'}`}
+        onClick={() => { onViewChange('invoice'); onSelect(null); }}
+      >
+        🧾 فاتورة جديدة
       </button>
       <button
         type="button"

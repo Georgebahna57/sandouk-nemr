@@ -51,11 +51,86 @@ export interface TreasuryItem {
   gold995?: number;
 }
 
+export type InvoiceType = 'sale18' | 'sale21' | 'workshop' | 'purchase';
+
+export type MaterialType =
+  | 'usd'
+  | 'gold995'
+  | 'worked18'
+  | 'worked21'
+  | 'scrap18_cast'
+  | 'scrap18_pull'
+  | 'scrap21_cast'
+  | 'scrap21_pull'
+  | 'k18'
+  | 'k21'
+  | 'raw_gold';
+
+export type LineDirection = 'receive' | 'give';
+
+export interface InvoiceLineInput {
+  material: MaterialType;
+  direction: LineDirection;
+  amount: number;
+}
+
+export interface InvoiceInput {
+  number: string;
+  date: string;
+  customer: string;
+  type: InvoiceType;
+  workedWeight?: number;
+  karat?: 18 | 21;
+  usdAmount?: number;
+  wageUsd?: number;
+  rawGoldGiven?: number;
+  lines?: InvoiceLineInput[];
+  profitRateOverride?: number;
+}
+
+export interface InvoicePosting {
+  accountId: string;
+  accountName: string;
+  side: CurrencySide;
+  debit?: number;
+  credit?: number;
+  note?: string;
+}
+
+export interface InvoiceEntryRef {
+  accountId: string;
+  side: CurrencySide;
+  entryId: string;
+}
+
+export interface WorkshopInvoice {
+  id: string;
+  number: string;
+  date: string;
+  customer: string;
+  type: InvoiceType;
+  description: string;
+  postings: InvoicePosting[];
+  entryRefs: InvoiceEntryRef[];
+  workedWeight?: number;
+  usdAmount?: number;
+  wageUsd?: number;
+  rawGoldGiven?: number;
+  profitRate: number;
+  createdAt: string;
+}
+
+export interface WorkshopSettings {
+  profitRate: number;
+}
+
 export interface WorkshopState {
   version: 1;
   periodLabel: string;
   accounts: Record<string, AccountData>;
   treasury: TreasuryItem[];
+  invoices?: WorkshopInvoice[];
+  settings?: WorkshopSettings;
   updatedAt: string;
 }
 

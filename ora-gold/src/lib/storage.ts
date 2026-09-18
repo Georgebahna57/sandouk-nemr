@@ -1,4 +1,5 @@
 import { ACCOUNTS, DEFAULT_TREASURY } from './accountsConfig';
+import { DEFAULT_PROFIT_RATE } from './invoiceCalc';
 import type { AccountData, WorkshopState } from '../types';
 import seededState from '../data/defaultState.json';
 
@@ -33,6 +34,8 @@ export function createEmptyState(periodLabel = '05-2026'): WorkshopState {
     periodLabel,
     accounts,
     treasury: DEFAULT_TREASURY.map((t) => ({ ...t })),
+    invoices: [],
+    settings: { profitRate: DEFAULT_PROFIT_RATE },
     updatedAt: new Date().toISOString(),
   };
 }
@@ -42,6 +45,8 @@ function normalizeState(parsed: WorkshopState): WorkshopState {
     if (!parsed.accounts[a.id]) parsed.accounts[a.id] = emptyAccount();
   }
   if (!parsed.treasury?.length) parsed.treasury = DEFAULT_TREASURY.map((t) => ({ ...t }));
+  if (!parsed.invoices) parsed.invoices = [];
+  if (!parsed.settings) parsed.settings = { profitRate: DEFAULT_PROFIT_RATE };
   return parsed;
 }
 
