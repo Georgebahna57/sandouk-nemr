@@ -3,7 +3,7 @@ import { DEFAULT_PROFIT_RATE } from './invoiceCalc';
 import type { AccountData, WorkshopState } from '../types';
 import seededState from '../data/defaultState.json';
 
-const STORAGE_KEY = 'workshop-budget-v1';
+const STORAGE_KEY = 'workshop-budget-v2';
 
 function emptyAccount(): AccountData {
   return { gold: [], usd: [] };
@@ -16,9 +16,11 @@ function countEntries(state: WorkshopState): number {
 /** البيانات الافتراضية من ملف Excel ميزانية-05-2026 */
 export function getDefaultState(): WorkshopState {
   const base = seededState as WorkshopState;
+  const accounts = { ...base.accounts };
+  migrateLegacyAccounts(accounts);
   return {
     ...base,
-    accounts: { ...base.accounts },
+    accounts,
     treasury: base.treasury.map((t) => ({ ...t })),
     updatedAt: new Date().toISOString(),
   };
@@ -40,7 +42,16 @@ export function createEmptyState(periodLabel = '05-2026'): WorkshopState {
   };
 }
 
+function migrateLegacyAccounts(accounts: Record<string, AccountData>): void {
+  // بورصة في الملخص = Trading دولار؛ ورقة CASH حساب منفصل
+  if (accounts.bourse && !accounts.cash) {
+    accounts.cash = accounts.bourse;
+    delete accounts.bourse;
+  }
+}
+
 function normalizeState(parsed: WorkshopState): WorkshopState {
+  migrateLegacyAccounts(parsed.accounts);
   for (const a of ACCOUNTS) {
     if (!parsed.accounts[a.id]) parsed.accounts[a.id] = emptyAccount();
   }

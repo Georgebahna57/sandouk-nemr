@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
-import { ACCOUNTS } from './accountsConfig';
-import { buildDashboardSummary, getDashboardBalance } from './dashboard';
+import { ACCOUNTS, getExcelSheetTitle } from './accountsConfig';
+import { buildDashboardSummary } from './dashboard';
 import type { AccountData, EntryKind, LedgerEntry, WorkshopState } from '../types';
 import { calcLedgerTotals, entryToExcelRow } from './ledgerDisplay';
 
@@ -63,28 +63,11 @@ function buildAccountSheet(name: string, data: AccountData, entryKind: EntryKind
 }
 
 function buildMainSheet(state: WorkshopState): XLSX.WorkSheet {
-  const assetRows: (string | number)[][] = [];
-  const liabilityRows: (string | number)[][] = [];
-
-  let goldAssets = 0;
-  let usdAssets = 0;
-  let goldLiab = 0;
-  let usdLiab = 0;
-
-  for (const def of ACCOUNTS) {
-    if (!def.showOnDashboard) continue;
-    const bal = getDashboardBalance(state, def.id);
-    const label = def.dashboardLabel ?? def.nameAr;
-    if (def.showOnDashboard === 'assets') {
-      assetRows.push([label, bal.gold || '', bal.usd || '']);
-      goldAssets += bal.gold;
-      usdAssets += bal.usd;
-    } else {
-      liabilityRows.push([label, bal.gold || '', bal.usd || '']);
-      goldLiab += bal.gold;
-      usdLiab += bal.usd;
-    }
-  }
+  const summary = buildDashboardSummary(state);
+  const assetRows = summary.assets.map((r) => [r.label, r.gold || '', r.usd || '']);
+  const liabilityRows = summary.liabilities.map((r) => [r.label, r.gold || '', r.usd || '']);
+  const { gold: goldAssets, usd: usdAssets } = summary.totalAssets;
+  const { gold: goldLiab, usd: usdLiab } = summary.totalLiab;
 
   const rows: (string | number)[][] = [
     ['', 'حسابات الورشة - معمل'],
@@ -126,7 +109,7 @@ export function exportWorkbook(state: WorkshopState): void {
     if (!data) continue;
     const hasData = data.gold.length > 0 || data.usd.length > 0;
     if (!hasData && def.showOnDashboard === undefined) continue;
-    XLSX.utils.book_append_sheet(wb, buildAccountSheet(def.nameAr, data, def.entryKind), def.sheetName);
+    XLSX.utils.book_append_sheet(wb, buildAccountSheet(getExcelSheetTitle(def), data, def.entryKind), def.sheetName);
   }
 
   const filename = `ميزانية-${state.periodLabel}.xlsx`;

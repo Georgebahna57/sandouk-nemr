@@ -64,7 +64,7 @@ function posting(
       side,
       debit: rd,
       credit: rc,
-      accountName: def?.nameAr ?? accountId,
+      accountName: def ? `${def.nameAr} (${def.sheetName})` : accountId,
       note,
     };
   }
@@ -75,7 +75,7 @@ function posting(
     side,
     debit: d,
     credit: c,
-    accountName: def?.nameAr ?? accountId,
+    accountName: def ? `${def.nameAr} (${def.sheetName})` : accountId,
     note,
   };
 }

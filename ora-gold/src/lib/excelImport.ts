@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { ACCOUNTS, DEFAULT_TREASURY, getAccountBySheet, getBalanceMode } from './accountsConfig';
+import { DEFAULT_TREASURY, getAccountBySheet, getBalanceMode } from './accountsConfig';
 import { excelDateToIso, parseNum } from './format';
 import { newEntryId, recalcBalances } from './ledger';
 import type { AccountData, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
@@ -93,10 +93,7 @@ function parseManufacturingGold(rows: unknown[][]): LedgerEntry[] {
   return recalcBalances(entries, 'debit-minus-credit');
 }
 
-function parseAccountSheet(rows: unknown[][]): AccountData {
-  const sheetName = String(rows[0]?.[0] ?? '');
-  const accountDef = getAccountBySheet(sheetName) ?? ACCOUNTS[0];
-
+function parseAccountSheet(rows: unknown[][], accountDef: import('../types').AccountDef): AccountData {
   let gold: LedgerEntry[];
   let usd: LedgerEntry[];
 
@@ -145,7 +142,7 @@ export function importWorkbookFromArrayBuffer(buffer: ArrayBuffer, periodLabel?:
     const accountDef = getAccountBySheet(sheetName);
     if (!accountDef) continue;
 
-    state.accounts[accountDef.id] = parseAccountSheet(rows);
+    state.accounts[accountDef.id] = parseAccountSheet(rows, accountDef);
   }
 
   return state;

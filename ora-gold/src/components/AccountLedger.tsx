@@ -4,10 +4,13 @@ import { calcLedgerTotals, getColumnHeaders, getDisplayValues } from '../lib/led
 import type { AccountData, CurrencySide, EntryKind } from '../types';
 import { EntryForm } from './EntryForm';
 
+export type LedgerFocus = 'both' | 'gold' | 'usd';
+
 interface Props {
   accountName: string;
   entryKind: EntryKind;
   data: AccountData;
+  focus?: LedgerFocus;
   onAdd: (side: CurrencySide, entry: { date: string; debit?: number; credit?: number; description: string }) => void;
   onDelete: (side: CurrencySide, id: string) => void;
 }
@@ -83,18 +86,25 @@ function LedgerTable({
   );
 }
 
-export function AccountLedger({ accountName, entryKind, data, onAdd, onDelete }: Props) {
+export function AccountLedger({ accountName, entryKind, data, focus = 'both', onAdd, onDelete }: Props) {
+  const showGold = focus === 'both' || focus === 'gold';
+  const showUsd = (focus === 'both' || focus === 'usd') && entryKind !== 'manufacturing';
+
   const goldBal = data.gold.length ? data.gold[data.gold.length - 1].balance : 0;
   const usdBal = data.usd.length ? data.usd[data.usd.length - 1].balance : 0;
+
+  const defaultSide: CurrencySide = focus === 'usd' ? 'usd' : 'gold';
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
-        <div className="card px-4 py-3">
-          <span className="text-xs text-slate-400">رصيد ذهب</span>
-          <div className={`text-xl font-bold num ${goldBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(goldBal, 4)}</div>
-        </div>
-        {entryKind !== 'manufacturing' && (
+        {showGold && (
+          <div className="card px-4 py-3">
+            <span className="text-xs text-slate-400">رصيد ذهب</span>
+            <div className={`text-xl font-bold num ${goldBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(goldBal, 4)}</div>
+          </div>
+        )}
+        {showUsd && (
           <div className="card px-4 py-3">
             <span className="text-xs text-slate-400">رصيد دولار</span>
             <div className={`text-xl font-bold num ${usdBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(usdBal)}</div>
@@ -102,17 +112,24 @@ export function AccountLedger({ accountName, entryKind, data, onAdd, onDelete }:
         )}
       </div>
 
-      <EntryForm entryKind={entryKind} side="gold" onSubmit={(entry) => onAdd('gold', entry)} />
+      <EntryForm
+        entryKind={entryKind}
+        allowUsd={showUsd}
+        defaultSide={defaultSide}
+        onSubmit={(side, entry) => onAdd(side, entry)}
+      />
 
-      <div className="grid lg:grid-cols-2 gap-4">
-        <LedgerTable
-          title={`${accountName} — ذهب 995`}
-          entries={data.gold}
-          entryKind={entryKind}
-          side="gold"
-          onDelete={(id) => onDelete('gold', id)}
-        />
-        {entryKind !== 'manufacturing' && (
+      <div className={`grid gap-4 ${showGold && showUsd ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+        {showGold && (
+          <LedgerTable
+            title={`${accountName} — ذهب 995`}
+            entries={data.gold}
+            entryKind={entryKind}
+            side="gold"
+            onDelete={(id) => onDelete('gold', id)}
+          />
+        )}
+        {showUsd && (
           <LedgerTable
             title={`${accountName} — دولار`}
             entries={data.usd}
@@ -122,10 +139,6 @@ export function AccountLedger({ accountName, entryKind, data, onAdd, onDelete }:
           />
         )}
       </div>
-
-      {entryKind !== 'manufacturing' && (
-        <EntryForm entryKind={entryKind} side="usd" onSubmit={(entry) => onAdd('usd', entry)} />
-      )}
     </div>
   );
 }

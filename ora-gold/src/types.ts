@@ -39,6 +39,17 @@ export interface AccountDef {
   /** قيمة ثابتة في ورقة «رئيسي» — قد تختلف عن رصيد الدفتر */
   dashboardGold?: number;
   dashboardUsd?: number;
+  /** في الملخص: عرض الذهب فقط أو الدولار فقط (مثل متاجرة=ذهب من Trading) */
+  dashboardSide?: 'gold' | 'usd';
+}
+
+/** صف ملخص مرتبط بحساب آخر — مثل بورصة ← دولار Trading */
+export interface DashboardAlias {
+  id: string;
+  label: string;
+  sourceAccountId: string;
+  side: 'gold' | 'usd';
+  showOnDashboard: 'assets' | 'liabilities';
 }
 
 export interface DashboardOverride {
@@ -148,7 +159,9 @@ export interface DashboardRow {
   label: string;
   gold: number;
   usd: number;
-  accountId?: string;
+  accountId: string;
+  /** الحساب الذي يُفتح عند النقر (قد يختلف عن accountId للأسماء المستعارة) */
+  navigateAccountId: string;
 }
 
 export interface AccountSummary {
