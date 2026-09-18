@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import { formatDateAr, formatNumber } from '../lib/format';
+import { sortEntriesNewestFirst } from '../lib/ledger';
 import { calcLedgerTotals, getColumnHeaders, getDisplayValues } from '../lib/ledgerDisplay';
 import type { AccountData, CurrencySide, EntryKind } from '../types';
 import { extractInvoiceNumbers, getOffsetAccountOptions, type LedgerVoucherInput } from '../lib/ledgerVoucher';
@@ -34,6 +35,7 @@ function LedgerTable({
   const headers = ['التاريخ', col1Label, col2Label, 'الرصيد', 'البيان', ''];
   const decimals = side === 'gold' ? 4 : 2;
   const totals = calcLedgerTotals(entries, entryKind, side);
+  const displayEntries = sortEntriesNewestFirst(entries);
 
   return (
     <div className="card overflow-hidden">
@@ -49,7 +51,7 @@ function LedgerTable({
             {entries.length === 0 && (
               <tr><td colSpan={6} className="text-center text-slate-500 py-6">لا توجد حركات</td></tr>
             )}
-            {entries.map((e) => {
+            {displayEntries.map((e) => {
               const { col1: v1, col2: v2 } = getDisplayValues(e, entryKind, side);
               return (
                 <tr key={e.id}>
