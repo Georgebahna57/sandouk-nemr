@@ -102,7 +102,11 @@ export function AccountLedger({ accountName, entryKind, data, onAdd, onDelete }:
         )}
       </div>
 
-      <EntryForm entryKind={entryKind} side="gold" onSubmit={(entry) => onAdd('gold', entry)} />
+      <EntryForm
+        entryKind={entryKind}
+        allowUsd={entryKind !== 'manufacturing'}
+        onSubmit={(side, entry) => onAdd(side, entry)}
+      />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <LedgerTable
@@ -122,10 +126,6 @@ export function AccountLedger({ accountName, entryKind, data, onAdd, onDelete }:
           />
         )}
       </div>
-
-      {entryKind !== 'manufacturing' && (
-        <EntryForm entryKind={entryKind} side="usd" onSubmit={(entry) => onAdd('usd', entry)} />
-      )}
     </div>
   );
 }
