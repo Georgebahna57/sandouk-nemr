@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CurrencySide, EntryKind, InvoiceInput, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
 import type { LedgerVoucherInput } from '../lib/ledgerVoucher';
-import { voucherToLedgerEntries } from '../lib/ledgerVoucher';
+import { voucherToLedgerPostings } from '../lib/ledgerVoucher';
 import { getAccountDef, getBalanceMode } from '../lib/accountsConfig';
 import { addEntry, deleteEntry, getAccountBalances, updateEntry } from '../lib/ledger';
 import { buildDashboardSummary } from '../lib/excelExport';
@@ -41,19 +41,16 @@ export function useWorkshopStore() {
 
   const addLedgerVoucher = useCallback(
     (accountId: string, entryKind: EntryKind, voucher: LedgerVoucherInput) => {
-      const entries = voucherToLedgerEntries(entryKind, voucher);
-      if (!entries.length) return;
-      const def = getAccountDef(accountId);
+      const postings = voucherToLedgerPostings(accountId, entryKind, voucher);
+      if (!postings.length) return;
       setState((s) => {
-        let accountData = s.accounts[accountId];
-        for (const { side, entry } of entries) {
-          const mode = def ? getBalanceMode(def, side) : 'credit-minus-debit';
-          accountData = addEntry(accountData, side, entry, mode);
+        const accounts = { ...s.accounts };
+        for (const posting of postings) {
+          const def = getAccountDef(posting.accountId);
+          const mode = def ? getBalanceMode(def, posting.side) : 'credit-minus-debit';
+          accounts[posting.accountId] = addEntry(accounts[posting.accountId], posting.side, posting.entry, mode);
         }
-        return {
-          ...s,
-          accounts: { ...s.accounts, [accountId]: accountData },
-        };
+        return { ...s, accounts };
       });
     },
     [],

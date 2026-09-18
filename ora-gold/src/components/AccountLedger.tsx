@@ -2,12 +2,13 @@ import { Trash2 } from 'lucide-react';
 import { formatDateAr, formatNumber } from '../lib/format';
 import { calcLedgerTotals, getColumnHeaders, getDisplayValues } from '../lib/ledgerDisplay';
 import type { AccountData, CurrencySide, EntryKind } from '../types';
-import { extractInvoiceNumbers, type LedgerVoucherInput } from '../lib/ledgerVoucher';
+import { extractInvoiceNumbers, getOffsetAccountOptions, type LedgerVoucherInput } from '../lib/ledgerVoucher';
 import { LedgerVoucherForm } from './LedgerVoucherForm';
 
 export type LedgerFocus = 'both' | 'gold' | 'usd';
 
 interface Props {
+  accountId: string;
   accountName: string;
   entryKind: EntryKind;
   data: AccountData;
@@ -87,7 +88,7 @@ function LedgerTable({
   );
 }
 
-export function AccountLedger({ accountName, entryKind, data, focus = 'both', onAddVoucher, onDelete }: Props) {
+export function AccountLedger({ accountId, accountName, entryKind, data, focus = 'both', onAddVoucher, onDelete }: Props) {
   const showGold = focus === 'both' || focus === 'gold';
   const showUsd = (focus === 'both' || focus === 'usd') && entryKind !== 'manufacturing';
 
@@ -96,6 +97,7 @@ export function AccountLedger({ accountName, entryKind, data, focus = 'both', on
 
   const defaultSide: CurrencySide = focus === 'usd' ? 'usd' : 'gold';
   const existingNumbers = extractInvoiceNumbers([...data.gold, ...data.usd]);
+  const offsetAccounts = getOffsetAccountOptions(accountId, showUsd);
 
   return (
     <div className="space-y-4">
@@ -115,10 +117,12 @@ export function AccountLedger({ accountName, entryKind, data, focus = 'both', on
       </div>
 
       <LedgerVoucherForm
+        accountId={accountId}
         entryKind={entryKind}
         allowUsd={showUsd}
         defaultSide={defaultSide}
         existingNumbers={existingNumbers}
+        offsetAccounts={offsetAccounts}
         onSubmit={onAddVoucher}
       />
 
