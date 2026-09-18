@@ -2,12 +2,12 @@ import * as XLSX from 'xlsx';
 import { ACCOUNTS } from './accountsConfig';
 import { buildDashboardSummary, getDashboardBalance } from './dashboard';
 import type { AccountData, EntryKind, LedgerEntry, WorkshopState } from '../types';
-import { entryToExcelRow } from './ledgerDisplay';
+import { calcLedgerTotals, entryToExcelRow } from './ledgerDisplay';
 
 export { buildDashboardSummary };
 
-function entryRow(e: LedgerEntry, kind: EntryKind): (string | number)[] {
-  return entryToExcelRow(e, kind);
+function entryRow(e: LedgerEntry, kind: EntryKind, side: 'gold' | 'usd'): (string | number)[] {
+  return entryToExcelRow(e, kind, side);
 }
 
 function buildAccountSheet(name: string, data: AccountData, entryKind: EntryKind): XLSX.WorkSheet {
@@ -41,9 +41,22 @@ function buildAccountSheet(name: string, data: AccountData, entryKind: EntryKind
   for (let i = 0; i < maxLen; i++) {
     const g = data.gold[i];
     const u = data.usd[i];
-    const goldPart = g ? entryRow(g, entryKind) : ['', '', '', '', ''];
-    const usdPart = u ? entryRow(u, entryKind) : ['', '', '', '', ''];
+    const goldPart = g ? entryRow(g, entryKind, 'gold') : ['', '', '', '', ''];
+    const usdPart = u ? entryRow(u, entryKind, 'usd') : ['', '', '', '', ''];
     rows.push([...goldPart, '', ...usdPart]);
+  }
+
+  // صف المجموع
+  if (data.gold.length || data.usd.length) {
+    const gTot = calcLedgerTotals(data.gold, entryKind, 'gold');
+    const uTot = calcLedgerTotals(data.usd, entryKind, 'usd');
+    const goldTotal = data.gold.length
+      ? ['المجموع', gTot.sumCol1, gTot.sumCol2, gTot.balance, '']
+      : ['', '', '', '', ''];
+    const usdTotal = data.usd.length
+      ? ['المجموع', uTot.sumCol1, uTot.sumCol2, uTot.balance, '']
+      : ['', '', '', '', ''];
+    rows.push([...goldTotal, '', ...usdTotal]);
   }
 
   return XLSX.utils.aoa_to_sheet(rows);

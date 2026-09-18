@@ -12,7 +12,8 @@ export function TreasuryPanel({ items, onChange }: Props) {
     onChange(items.map((t) => (t.id === id ? { ...t, [field]: num } : t)));
   };
 
-  const totalGold995 = items.reduce((s, t) => s + (t.gold995 ?? t.weight ?? 0), 0);
+  const totalWeight = items.reduce((s, t) => s + (t.weight ?? 0), 0);
+  const totalGold995 = items.reduce((s, t) => s + (t.gold995 ?? 0), 0);
   const totalUsd = items.reduce((s, t) => s + (t.usd ?? 0), 0);
 
   return (
@@ -47,10 +48,10 @@ export function TreasuryPanel({ items, onChange }: Props) {
                 </td>
               </tr>
             ))}
-            <tr className="bg-slate-800/60 font-bold">
-              <td>المجموع</td>
+            <tr className="ledger-total-row font-bold">
+              <td className="text-amber-400">المجموع</td>
               <td className="num">{formatNumber(totalUsd)}</td>
-              <td />
+              <td className="num">{formatNumber(totalWeight, 4)}</td>
               <td className="num">{formatNumber(totalGold995, 4)}</td>
             </tr>
           </tbody>

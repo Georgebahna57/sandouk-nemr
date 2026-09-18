@@ -1,28 +1,29 @@
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import type { EntryKind } from '../types';
+import type { CurrencySide, EntryKind } from '../types';
 import { todayIso } from '../lib/format';
 import { formValuesToLedger, getFormLabels } from '../lib/ledgerDisplay';
 
 interface Props {
   entryKind: EntryKind;
+  side?: CurrencySide;
   onSubmit: (data: { date: string; debit?: number; credit?: number; description: string }) => void;
 }
 
-export function EntryForm({ entryKind, onSubmit }: Props) {
+export function EntryForm({ entryKind, side = 'gold', onSubmit }: Props) {
   const [date, setDate] = useState(todayIso());
   const [col1, setCol1] = useState('');
   const [col2, setCol2] = useState('');
   const [description, setDescription] = useState('');
 
-  const labels = getFormLabels(entryKind);
+  const labels = getFormLabels(entryKind, side);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const v1 = col1 ? parseFloat(col1) : undefined;
     const v2 = col2 ? parseFloat(col2) : undefined;
     if (!v1 && !v2) return;
-    const { debit, credit } = formValuesToLedger(entryKind, v1, v2);
+    const { debit, credit } = formValuesToLedger(entryKind, v1, v2, side);
     onSubmit({ date, debit, credit, description });
     setCol1('');
     setCol2('');
