@@ -104,7 +104,10 @@ function profitGold(weight: number, rate: number): number {
   return roundGold(weight * rate);
 }
 
-/** قالب مبيع مشغول — حسب نمط Excel (متاجرة + أجور + ربح + دولار + K) */
+/**
+ * مبيع مشغول (متاجرة) — مطابق لـ Excel: Trading + مشغول + دولار + Pro
+ * (بدون زبائن وبدون K18 تلقائياً — أضف K18/كسر من السطور الإضافية)
+ */
 function calcSale18(input: InvoiceInput, profitRate: number): InvoicePosting[] {
   const W = input.workedWeight ?? 0;
   const usd = input.usdAmount ?? 0;
@@ -112,17 +115,16 @@ function calcSale18(input: InvoiceInput, profitRate: number): InvoicePosting[] {
   const karat = input.karat ?? 18;
   const pro = profitGold(W, profitRate);
   const tradingGold = toGold995(W, karat);
-  const kAccount = karat === 21 ? 'k21' : 'k18';
   const wagesAccount = karat === 21 ? 'wages21' : 'wages18';
+  const cashIn = roundUsd(usd + wageUsd);
 
   const lines: (InvoicePosting | null)[] = [
     posting('trading', 'gold', tradingGold, undefined, 'مبيع'),
     posting('trading', 'usd', undefined, usd, 'مبيع'),
     posting('pro', 'gold', undefined, pro, 'ربح إنتاج'),
-    posting(wagesAccount, 'gold', undefined, W, 'أجور'),
-    posting(wagesAccount, 'usd', wageUsd, undefined, 'أجور $'),
-    posting('dollar', 'usd', usd + wageUsd, undefined, 'صندوق'),
-    posting(kAccount, 'gold', W, undefined, 'مخزون مشغول'),
+    posting(wagesAccount, 'gold', undefined, W, 'تسليم زبائن'),
+    posting(wagesAccount, 'usd', wageUsd, undefined, 'استلام أجور $'),
+    cashIn > 0 ? posting('dollar', 'usd', undefined, cashIn, 'صندوق — دخول') : null,
   ];
   return mergePostings(lines.filter(Boolean) as InvoicePosting[]);
 }
@@ -144,8 +146,8 @@ function calcWorkshop(input: InvoiceInput, profitRate: number): InvoicePosting[]
   const lines: (InvoicePosting | null)[] = [
     posting('customers', 'gold', customerGold, undefined, 'زبون'),
     posting('customers', 'usd', undefined, usd, 'زبون'),
-    posting(wagesAccount, 'gold', undefined, W, 'أجور'),
-    posting(wagesAccount, 'usd', usd, undefined, 'أجور $'),
+    posting(wagesAccount, 'gold', undefined, W, 'تسليم زبائن'),
+    posting(wagesAccount, 'usd', usd, undefined, 'استلام أجور $'),
     posting('pro', 'gold', undefined, pro, 'ربح إنتاج'),
   ];
   if (rawGold > 0) {
@@ -164,7 +166,7 @@ function calcPurchase(input: InvoiceInput): InvoicePosting[] {
   const lines: (InvoicePosting | null)[] = [
     posting('trading', 'gold', undefined, gold995, 'شراء'),
     posting('trading', 'usd', usd, undefined, 'شراء'),
-    posting('dollar', 'usd', undefined, usd, 'صندوق'),
+    usd > 0 ? posting('dollar', 'usd', usd, undefined, 'صندوق — خروج') : null,
   ];
   return mergePostings(lines.filter(Boolean) as InvoicePosting[]);
 }

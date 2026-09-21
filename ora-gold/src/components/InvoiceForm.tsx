@@ -10,6 +10,7 @@ import {
 import { formatNumber, todayIso } from '../lib/format';
 import type { InvoiceInput, InvoiceLineInput, InvoiceType, MaterialType, LineDirection } from '../types';
 import { InvoicePreview } from './InvoicePreview';
+import { InvoiceOperationFlow } from './InvoiceOperationFlow';
 
 const MATERIAL_OPTIONS: MaterialType[] = [
   'usd',
@@ -246,6 +247,8 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
           </div>
         ))}
       </div>
+
+      <InvoiceOperationFlow type={type} />
 
       <InvoicePreview postings={calc.postings} description={calc.description} />
 

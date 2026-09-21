@@ -1,6 +1,6 @@
 import type { CurrencySide, EntryKind, LedgerEntry } from '../types';
 import { ACCOUNTS, getAccountDef, getAccountNavLabel } from './accountsConfig';
-import { formValuesToLedger, getColumnHeaders } from './ledgerDisplay';
+import { formValuesToLedger, getColumnHeaders, resolveLedgerKind } from './ledgerDisplay';
 
 export type VoucherLineDirection = 'col1' | 'col2';
 
@@ -106,12 +106,15 @@ export function voucherToLedgerPostings(
     const offsetId = line.offsetAccountId?.trim();
     const offsetDef = offsetId && offsetId !== accountId ? getAccountDef(offsetId) : undefined;
     const offsetName = offsetDef?.nameAr;
-    const offsetKind = offsetDef?.entryKind ?? entryKind;
-    const mainDirLabel = directionLabel(entryKind, line.side, line.direction);
+    const mainKind = resolveLedgerKind(accountId, line.side, entryKind);
+    const offsetKind = offsetDef && offsetId
+      ? resolveLedgerKind(offsetId, line.side, offsetDef.entryKind)
+      : mainKind;
+    const mainDirLabel = directionLabel(mainKind, line.side, line.direction);
     const offsetDirLabel = offsetDef ? directionLabel(offsetKind, line.side, oppositeDirection(line.direction)) : undefined;
 
     postings.push(
-      lineToPosting(accountId, entryKind, line, voucher, line.direction, mainName, offsetName, offsetDirLabel),
+      lineToPosting(accountId, mainKind, line, voucher, line.direction, mainName, offsetName, offsetDirLabel),
     );
 
     if (offsetDef && offsetId) {

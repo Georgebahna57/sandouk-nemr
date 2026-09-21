@@ -11,13 +11,13 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'silver', nameAr: 'فضة', sheetName: 'فضة', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'SILVER $' },
   { id: 'wax', nameAr: 'شمع', sheetName: 'شمع', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'شمع' },
   { id: 'alloy', nameAr: 'ALLOY', sheetName: 'ALLOY', entryKind: 'inout', showOnDashboard: 'assets', dashboardLabel: 'ALLOY' },
-  { id: 'trading', nameAr: 'متاجرة', sheetName: 'Trading', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'متاجرة' },
+  { id: 'trading', nameAr: 'متاجرة', sheetName: 'Trading', entryKind: 'trading', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'assets', dashboardLabel: 'متاجرة' },
   { id: 'cash', nameAr: 'Cash', sheetName: 'CASH', entryKind: 'standard', dashboardUsd: 10000 },
   { id: 'pro', nameAr: 'أرباح الإنتاج', sheetName: 'Pro', entryKind: 'profit', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'profit' },
   { id: 'ahmad', nameAr: 'مدفوع من أحمد', sheetName: 'Ahmad', entryKind: 'partner', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'Paid from Ahmad' },
   { id: 'mzen', nameAr: 'مدفوع من مازن', sheetName: 'Mzen', entryKind: 'partner', goldBalanceMode: 'debit-minus-credit', usdBalanceMode: 'debit-minus-credit', showOnDashboard: 'liabilities', dashboardLabel: 'Paid from Mazen' },
-  { id: 'wages18', nameAr: 'أجور عيار 18', sheetName: 'مشغول 18', entryKind: 'standard', showOnDashboard: 'liabilities', dashboardLabel: 'اجور مستلمة عن 18' },
-  { id: 'wages21', nameAr: 'أجور عيار 21', sheetName: 'مشغول 21', entryKind: 'standard', showOnDashboard: 'liabilities', dashboardLabel: 'اجور مستلمة عن 21' },
+  { id: 'wages18', nameAr: 'أجور عيار 18', sheetName: 'مشغول 18', entryKind: 'worked', showOnDashboard: 'liabilities', dashboardLabel: 'اجور مستلمة عن 18' },
+  { id: 'wages21', nameAr: 'أجور عيار 21', sheetName: 'مشغول 21', entryKind: 'worked', showOnDashboard: 'liabilities', dashboardLabel: 'اجور مستلمة عن 21' },
   { id: 'gold', nameAr: 'دهب', sheetName: 'دهب', entryKind: 'inout' },
   { id: 'dollar', nameAr: 'دولار', sheetName: 'دولار', entryKind: 'inout' },
   { id: 'alloyCast', nameAr: 'Alloy Cast', sheetName: 'Alloy Cast', entryKind: 'inout' },
@@ -94,7 +94,8 @@ export function getBalanceMode(def: AccountDef, side: 'gold' | 'usd'): import('.
   const mode = side === 'gold' ? def.goldBalanceMode : def.usdBalanceMode;
   if (mode) return mode;
   if (def.entryKind === 'expense') return 'credit-minus-debit';
-  if (def.entryKind === 'profit' || def.entryKind === 'partner') return 'debit-minus-credit';
+  if (def.entryKind === 'profit' || def.entryKind === 'trading' || def.entryKind === 'partner') return 'debit-minus-credit';
+  if (def.entryKind === 'worked') return side === 'usd' ? 'credit-minus-debit' : 'debit-minus-credit';
   if (def.entryKind === 'inout') return 'credit-minus-debit';
   if (side === 'usd') return 'credit-minus-debit';
   return 'debit-minus-credit';

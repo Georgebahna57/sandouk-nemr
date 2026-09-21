@@ -1,7 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { formatDateAr, formatNumber } from '../lib/format';
 import { sortEntriesNewestFirst } from '../lib/ledger';
-import { calcLedgerTotals, getColumnHeaders, getDisplayValues } from '../lib/ledgerDisplay';
+import { calcLedgerTotals, getColumnHeaders, getDisplayValues, resolveLedgerKind } from '../lib/ledgerDisplay';
 import type { AccountData, CurrencySide, EntryKind } from '../types';
 import { extractInvoiceNumbers, getOffsetAccountOptions, type LedgerVoucherInput } from '../lib/ledgerVoucher';
 import { LedgerVoucherForm } from './LedgerVoucherForm';
@@ -21,20 +21,20 @@ interface Props {
 function LedgerTable({
   title,
   entries,
-  entryKind,
+  ledgerKind,
   side,
   onDelete,
 }: {
   title: string;
   entries: AccountData['gold'];
-  entryKind: EntryKind;
+  ledgerKind: EntryKind;
   side: CurrencySide;
   onDelete: (id: string) => void;
 }) {
-  const [col1Label, col2Label] = getColumnHeaders(entryKind, side);
+  const [col1Label, col2Label] = getColumnHeaders(ledgerKind, side);
   const headers = ['التاريخ', col1Label, col2Label, 'الرصيد', 'البيان', ''];
   const decimals = side === 'gold' ? 4 : 2;
-  const totals = calcLedgerTotals(entries, entryKind, side);
+  const totals = calcLedgerTotals(entries, ledgerKind, side);
   const displayEntries = sortEntriesNewestFirst(entries);
 
   return (
@@ -52,7 +52,7 @@ function LedgerTable({
               <tr><td colSpan={6} className="text-center text-slate-500 py-6">لا توجد حركات</td></tr>
             )}
             {displayEntries.map((e) => {
-              const { col1: v1, col2: v2 } = getDisplayValues(e, entryKind, side);
+              const { col1: v1, col2: v2 } = getDisplayValues(e, ledgerKind, side);
               return (
                 <tr key={e.id}>
                   <td>{formatDateAr(e.date)}</td>
@@ -133,7 +133,7 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
           <LedgerTable
             title={`${accountName} — ذهب 995`}
             entries={data.gold}
-            entryKind={entryKind}
+            ledgerKind={resolveLedgerKind(accountId, 'gold', entryKind)}
             side="gold"
             onDelete={(id) => onDelete('gold', id)}
           />
@@ -142,7 +142,7 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
           <LedgerTable
             title={`${accountName} — دولار`}
             entries={data.usd}
-            entryKind={entryKind}
+            ledgerKind={resolveLedgerKind(accountId, 'usd', entryKind)}
             side="usd"
             onDelete={(id) => onDelete('usd', id)}
           />

@@ -1,8 +1,20 @@
 import type { CurrencySide, EntryKind, LedgerEntry } from '../types';
 
+/** نوع العرض الفعلي حسب الحساب — بعض الأوراق هجينة (زبائن) */
+export function resolveLedgerKind(accountId: string, side: CurrencySide, accountEntryKind: EntryKind): EntryKind {
+  if (accountId === 'trading') return 'trading';
+  if (accountId === 'wages18' || accountId === 'wages21') return 'worked';
+  if (accountId === 'customers') return side === 'gold' ? 'standard' : 'inout';
+  return accountEntryKind;
+}
+
 /** عناوين العمودين المعروضين (col1, col2) — مطابقة لـ Excel */
 export function getColumnHeaders(entryKind: EntryKind, side: CurrencySide = 'gold'): [string, string] {
   switch (entryKind) {
+    case 'trading':
+      return side === 'usd' ? ['شراء', 'بيع'] : ['بيع', 'شراء'];
+    case 'worked':
+      return side === 'usd' ? ['تسليم', 'استلام'] : ['مستلم من تصنيع', 'تسليم زبائن'];
     case 'profit':
       return side === 'usd' ? ['مدفوع', 'مستلم'] : ['خسارة', 'ربح'];
     case 'inout':

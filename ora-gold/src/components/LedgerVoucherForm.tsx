@@ -3,7 +3,7 @@ import { ArrowLeftRight, FileText, Plus, Trash2 } from 'lucide-react';
 import type { CurrencySide, EntryKind } from '../types';
 import { getAccountDef } from '../lib/accountsConfig';
 import { todayIso } from '../lib/format';
-import { getColumnHeaders } from '../lib/ledgerDisplay';
+import { getColumnHeaders, resolveLedgerKind } from '../lib/ledgerDisplay';
 import { suggestNextInvoiceNumber } from '../lib/invoiceCalc';
 import type { LedgerVoucherInput, OffsetAccountOption, VoucherLineDirection, VoucherLineInput } from '../lib/ledgerVoucher';
 
@@ -118,8 +118,12 @@ export function LedgerVoucherForm({
         )}
 
         {lines.map((line, idx) => {
-          const [col1Label, col2Label] = getColumnHeaders(entryKind, line.side);
-          const offsetKind = line.offsetAccountId ? (getAccountDef(line.offsetAccountId)?.entryKind ?? entryKind) : entryKind;
+          const lineKind = resolveLedgerKind(accountId, line.side, entryKind);
+          const [col1Label, col2Label] = getColumnHeaders(lineKind, line.side);
+          const offsetDef = line.offsetAccountId ? getAccountDef(line.offsetAccountId) : undefined;
+          const offsetKind = offsetDef
+            ? resolveLedgerKind(line.offsetAccountId!, line.side, offsetDef.entryKind)
+            : lineKind;
           const [offsetCol1, offsetCol2] = getColumnHeaders(offsetKind, line.side);
           const offsetDir = line.direction === 'col1' ? offsetCol2 : offsetCol1;
           const offsetSelected = line.offsetAccountId && line.offsetAccountId !== accountId;
