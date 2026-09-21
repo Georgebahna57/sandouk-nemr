@@ -7,10 +7,20 @@
 ```bash
 cd ora-gold
 npm install
+cp .env.example .env.local   # اختياري — للمساعد الذكي
 npm run dev
 ```
 
 يفتح على `http://localhost:3002`
+
+### مساعد الذكاء الاصطناعي (اختياري)
+
+1. انسخ `cp .env.example .env.local`
+2. عيّن `VITE_AI_API_KEY` (ومن ثم أعد `npm run dev`)
+3. أو أدخل المفتاح من التطبيق: زر المساعد أسفل الشاشة → **إعدادات**
+
+على **Vercel**: أضف `VITE_AI_API_BASE`, `VITE_AI_API_KEY`, `VITE_AI_MODEL` في Environment Variables.  
+التفاصيل والمزودون البديلون: راجع التعليقات داخل `.env.example`.
 
 ## النشر على Vercel
 

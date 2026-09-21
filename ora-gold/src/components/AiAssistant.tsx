@@ -95,9 +95,14 @@ export function AiAssistant() {
                     className="input-field mt-1"
                     value={settings.apiKey}
                     onChange={(e) => persistSettings({ apiKey: e.target.value })}
-                    placeholder="sk-..."
+                    placeholder="sk-proj-… أو مفتاح المزود"
                   />
                 </label>
+                <p className="text-[10px] text-slate-500 leading-relaxed">
+                  أو عيّن المتغيرات في <code className="text-amber-500/80">.env.local</code> من{' '}
+                  <code className="text-amber-500/80">.env.example</code> ثم أعد تشغيل{' '}
+                  <code className="text-amber-500/80">npm run dev</code>.
+                </p>
                 <label className="block">
                   <span className="text-slate-400">الموديل</span>
                   <input
