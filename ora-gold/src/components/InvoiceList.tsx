@@ -1,14 +1,33 @@
-import { Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Printer, Trash2 } from 'lucide-react';
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceCalc';
 import { formatDateAr, formatNumber } from '../lib/format';
 import type { WorkshopInvoice } from '../types';
+import { InvoicePrintDialog } from './InvoicePrintDialog';
+import type { InvoicePrintData } from '../lib/invoicePrint';
 
 interface Props {
   invoices: WorkshopInvoice[];
   onDelete: (id: string) => void;
 }
 
+function toPrintData(inv: WorkshopInvoice): InvoicePrintData {
+  return {
+    number: inv.number,
+    date: inv.date,
+    customer: inv.customer,
+    type: inv.type,
+    description: inv.description,
+    postings: inv.postings,
+    workedWeight: inv.workedWeight,
+    usdAmount: inv.usdAmount,
+    wageUsd: inv.wageUsd,
+    profitRate: inv.profitRate,
+  };
+}
+
 export function InvoiceList({ invoices, onDelete }: Props) {
+  const [printData, setPrintData] = useState<InvoicePrintData | null>(null);
   const sorted = [...invoices].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
   if (!sorted.length) {
@@ -44,7 +63,15 @@ export function InvoiceList({ invoices, onDelete }: Props) {
                 <td className="text-xs text-slate-400">{INVOICE_TYPE_LABELS[inv.type]}</td>
                 <td className="num">{inv.workedWeight ? formatNumber(inv.workedWeight, 2) : '—'}</td>
                 <td className="num">{inv.usdAmount ? formatNumber(inv.usdAmount) : '—'}</td>
-                <td>
+                <td className="flex gap-1 justify-end">
+                  <button
+                    type="button"
+                    className="text-amber-400 hover:text-amber-300 p-1"
+                    onClick={() => setPrintData(toPrintData(inv))}
+                    title="طباعة الفاتورة"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     className="text-red-400 hover:text-red-300 p-1"
@@ -59,6 +86,7 @@ export function InvoiceList({ invoices, onDelete }: Props) {
           </tbody>
         </table>
       </div>
+      {printData && <InvoicePrintDialog data={printData} onClose={() => setPrintData(null)} />}
     </div>
   );
 }
