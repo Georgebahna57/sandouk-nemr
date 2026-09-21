@@ -211,20 +211,76 @@ export function buildInvoicePrintHtml(
     <body>${parts.join('')}</body></html>`;
 }
 
+/** طباعة HTML — iframe يتجنب حظر النوافذ المنبثقة و bug `noopener` الذي يُرجع null */
 export function openPrintWindow(html: string, title: string): void {
-  const w = window.open('', '_blank', 'noopener,noreferrer');
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('title', title);
+  Object.assign(iframe.style, {
+    position: 'fixed',
+    right: '0',
+    bottom: '0',
+    width: '0',
+    height: '0',
+    border: '0',
+    opacity: '0',
+    pointerEvents: 'none',
+  });
+  document.body.appendChild(iframe);
+
+  const win = iframe.contentWindow;
+  if (!win) {
+    iframe.remove();
+    openPrintWindowPopupFallback(html, title);
+    return;
+  }
+
+  const doc = win.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  const cleanup = () => {
+    window.setTimeout(() => iframe.remove(), 2000);
+  };
+
+  const runPrint = () => {
+    try {
+      win.focus();
+      win.print();
+    } catch {
+      openPrintWindowPopupFallback(html, title);
+    } finally {
+      cleanup();
+    }
+  };
+
+  if (doc.readyState === 'complete') {
+    window.setTimeout(runPrint, 100);
+  } else {
+    win.addEventListener('load', () => window.setTimeout(runPrint, 100), { once: true });
+  }
+}
+
+function openPrintWindowPopupFallback(html: string, title: string): void {
+  // بدون noopener — وإلا window.open يعيد null في Chrome ولا تُكتب الصفحة
+  const w = window.open('', '_blank');
   if (!w) {
-    alert('تعذّر فتح نافذة الطباعة — تحقق من حاصر النوافذ المنبثقة.');
+    alert('تعذّر الطباعة. اسمح بالنوافذ المنبثقة لهذا الموقع ثم أعد المحاولة.');
     return;
   }
   w.document.open();
   w.document.write(html);
   w.document.close();
   w.document.title = title;
-  requestAnimationFrame(() => {
+  w.addEventListener('load', () => {
     w.focus();
     w.print();
   });
+  try {
+    w.opener = null;
+  } catch {
+    /* ignore */
+  }
 }
 
 export { SECTION_TITLES };
