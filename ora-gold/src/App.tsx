@@ -10,7 +10,6 @@ import { ImportExportBar } from './components/ImportExportBar';
 import { InvoiceForm } from './components/InvoiceForm';
 import { InvoiceList } from './components/InvoiceList';
 import { DisbursementOrdersPanel } from './components/DisbursementOrdersPanel';
-import { AiAssistant } from './components/AiAssistant';
 import type { DashboardRow } from './types';
 
 type View = 'dashboard' | 'treasury' | 'account' | 'invoice' | 'disbursements';
@@ -121,7 +120,6 @@ export default function App() {
           </div>
         </div>
       </main>
-      <AiAssistant />
     </div>
   );
 }
