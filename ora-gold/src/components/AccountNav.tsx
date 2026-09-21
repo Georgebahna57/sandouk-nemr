@@ -5,8 +5,8 @@ interface Props {
   selectedId: string | null;
   ledgerFocus?: LedgerFocus;
   onSelect: (accountId: string, title: string, focus: LedgerFocus) => void;
-  view: 'dashboard' | 'treasury' | 'account' | 'invoice';
-  onViewChange: (v: 'dashboard' | 'treasury' | 'account' | 'invoice') => void;
+  view: 'dashboard' | 'treasury' | 'account' | 'invoice' | 'disbursements';
+  onViewChange: (v: 'dashboard' | 'treasury' | 'account' | 'invoice' | 'disbursements') => void;
 }
 
 export function AccountNav({ selectedId, ledgerFocus, onSelect, view, onViewChange }: Props) {
@@ -32,6 +32,13 @@ export function AccountNav({ selectedId, ledgerFocus, onSelect, view, onViewChan
         onClick={() => { onViewChange('invoice'); }}
       >
         🧾 فاتورة جديدة
+      </button>
+      <button
+        type="button"
+        className={`w-full text-right rounded-lg px-3 py-2 text-sm transition ${view === 'disbursements' ? 'bg-amber-600/30 text-amber-300' : 'hover:bg-slate-800'}`}
+        onClick={() => { onViewChange('disbursements'); }}
+      >
+        💵 أوامر الصرف
       </button>
       <button
         type="button"

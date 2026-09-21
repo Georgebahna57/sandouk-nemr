@@ -131,3 +131,9 @@ input, select, textarea, button {
 .reconcile-icon {
   @apply shrink-0 opacity-80;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

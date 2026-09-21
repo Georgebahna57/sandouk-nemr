@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Calculator, Plus, Save, Trash2 } from 'lucide-react';
+import { Calculator, Plus, Printer, Save, Trash2 } from 'lucide-react';
 import {
   calculateInvoice,
   INVOICE_TYPE_LABELS,
@@ -11,6 +11,8 @@ import { formatNumber, todayIso } from '../lib/format';
 import type { InvoiceInput, InvoiceLineInput, InvoiceType, MaterialType, LineDirection } from '../types';
 import { InvoicePreview } from './InvoicePreview';
 import { InvoiceOperationFlow } from './InvoiceOperationFlow';
+import { InvoicePrintDialog } from './InvoicePrintDialog';
+import type { InvoicePrintData } from '../lib/invoicePrint';
 
 const MATERIAL_OPTIONS: MaterialType[] = [
   'usd',
@@ -42,6 +44,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const [rawGoldGiven, setRawGoldGiven] = useState('');
   const [extraLines, setExtraLines] = useState<InvoiceLineInput[]>([]);
   const [saved, setSaved] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
 
   const input: InvoiceInput = useMemo(() => ({
     number,
@@ -95,6 +98,22 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
 
   const showWageUsd = type === 'sale18' || type === 'sale21';
   const showRawGold = type === 'workshop';
+
+  const printData: InvoicePrintData | null = useMemo(() => {
+    if (!calc.postings.length || !number.trim()) return null;
+    return {
+      number,
+      date,
+      customer,
+      type,
+      description: calc.description,
+      postings: calc.postings,
+      workedWeight: input.workedWeight,
+      usdAmount: input.usdAmount,
+      wageUsd: input.wageUsd,
+      profitRate,
+    };
+  }, [calc, number, date, customer, type, input, profitRate]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -252,10 +271,24 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
 
       <InvoicePreview postings={calc.postings} description={calc.description} />
 
-      <button type="submit" className="btn-primary flex items-center gap-2" disabled={!calc.postings.length}>
-        <Save className="h-4 w-4" />
-        {saved ? 'تم الحفظ ✓' : 'حفظ الفاتورة'}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className="btn-primary flex items-center gap-2" disabled={!calc.postings.length}>
+          <Save className="h-4 w-4" />
+          {saved ? 'تم الحفظ ✓' : 'حفظ الفاتورة'}
+        </button>
+        <button
+          type="button"
+          className="btn-secondary flex items-center gap-2"
+          disabled={!printData}
+          onClick={() => setPrintOpen(true)}
+        >
+          <Printer className="h-4 w-4" /> طباعة
+        </button>
+      </div>
+
+      {printOpen && printData && (
+        <InvoicePrintDialog data={printData} onClose={() => setPrintOpen(false)} />
+      )}
     </form>
   );
 }

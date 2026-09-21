@@ -9,9 +9,11 @@ import { TreasuryPanel } from './components/TreasuryPanel';
 import { ImportExportBar } from './components/ImportExportBar';
 import { InvoiceForm } from './components/InvoiceForm';
 import { InvoiceList } from './components/InvoiceList';
+import { DisbursementOrdersPanel } from './components/DisbursementOrdersPanel';
+import { AiAssistant } from './components/AiAssistant';
 import type { DashboardRow } from './types';
 
-type View = 'dashboard' | 'treasury' | 'account' | 'invoice';
+type View = 'dashboard' | 'treasury' | 'account' | 'invoice' | 'disbursements';
 
 function focusForRow(row: DashboardRow): LedgerFocus {
   if (row.accountId === 'bourse') return 'usd';
@@ -90,6 +92,8 @@ export default function App() {
               </div>
             )}
 
+            {view === 'disbursements' && <DisbursementOrdersPanel state={store.state} />}
+
             {view === 'treasury' && (
               <TreasuryPanel items={store.state.treasury} onChange={store.updateTreasury} />
             )}
@@ -117,6 +121,7 @@ export default function App() {
           </div>
         </div>
       </main>
+      <AiAssistant />
     </div>
   );
 }
