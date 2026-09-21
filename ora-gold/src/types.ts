@@ -4,7 +4,9 @@ export type CurrencySide = 'gold' | 'usd';
 export type EntryKind =
   | 'standard'      // مدفوع له / مستلم منه
   | 'expense'       // مدفوع / مرتجع مصروف
-  | 'profit'        // خسارة / ربح
+  | 'profit'        // خسارة / ربح (Pro)
+  | 'trading'       // بيع / شراء — ورقة Trading
+  | 'worked'        // مشغول 18/21 — تسليم زبائن + أجور $
   | 'partner'       // Debit / Credit
   | 'inout'         // دخول / خروج
   | 'manufacturing'; // تسليم / استلام بعيارات

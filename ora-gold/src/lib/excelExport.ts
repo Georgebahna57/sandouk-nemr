@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import { ACCOUNTS, getExcelSheetTitle } from './accountsConfig';
 import { buildDashboardSummary } from './dashboard';
 import type { AccountData, EntryKind, LedgerEntry, WorkshopState } from '../types';
-import { calcLedgerTotals, entryToExcelRow } from './ledgerDisplay';
+import { calcLedgerTotals, entryToExcelRow, resolveLedgerKind } from './ledgerDisplay';
 
 export { buildDashboardSummary };
 
@@ -10,22 +10,33 @@ function entryRow(e: LedgerEntry, kind: EntryKind, side: 'gold' | 'usd'): (strin
   return entryToExcelRow(e, kind, side);
 }
 
-function buildAccountSheet(name: string, data: AccountData, entryKind: EntryKind): XLSX.WorkSheet {
-  const goldHeaders = entryKind === 'profit'
+function buildAccountSheet(name: string, data: AccountData, accountId: string, entryKind: EntryKind): XLSX.WorkSheet {
+  const goldKind = resolveLedgerKind(accountId, 'gold', entryKind);
+  const usdKind = resolveLedgerKind(accountId, 'usd', entryKind);
+
+  const goldHeaders = goldKind === 'profit'
     ? ['التاريخ', 'خسارة', 'ربح', 'الرصيد', 'البيان']
-    : entryKind === 'inout'
+    : goldKind === 'trading'
+      ? ['التاريخ', 'بيع', 'شراء', 'الرصيد', 'البيان']
+      : goldKind === 'worked'
+        ? ['التاريخ', 'مستلم من تصنيع', 'تسليم زبائن', 'الرصيد', 'البيان']
+    : goldKind === 'inout'
       ? ['التاريخ', 'دخول ', 'خروج', 'الرصيد', 'البيان']
-      : entryKind === 'expense'
+      : goldKind === 'expense'
         ? ['التاريخ', 'مدفوع ', 'مرتجع مصروف', 'الرصيد', 'البيان']
         : ['التاريخ', 'مدفوع له', 'مستلم منه', 'الرصيد', 'البيان'];
 
-  const usdHeaders = entryKind === 'profit'
+  const usdHeaders = usdKind === 'profit'
     ? ['التاريخ', 'مدفوع', 'مستلم', 'الرصيد', 'البيان']
-    : entryKind === 'partner'
+    : usdKind === 'trading'
+      ? ['التاريخ', 'شراء', 'بيع', 'الرصيد', 'البيان']
+      : usdKind === 'worked'
+        ? ['التاريخ', 'تسليم', 'استلام', 'الرصيد', 'البيان']
+    : usdKind === 'partner'
       ? ['التاريخ', 'Debit', 'Credit', 'الرصيد', 'البيان']
-      : entryKind === 'expense'
+      : usdKind === 'expense'
         ? ['التاريخ', 'مدفوع ', 'مرتجع مصروف', 'رصيد المصروف', 'البيان']
-        : entryKind === 'inout'
+        : usdKind === 'inout'
           ? ['التاريخ', 'دخول', 'خروج', 'الرصيد', 'البيان']
           : ['التاريخ', 'لنا', 'علينا', 'الرصيد', 'البيان'];
 
@@ -41,15 +52,15 @@ function buildAccountSheet(name: string, data: AccountData, entryKind: EntryKind
   for (let i = 0; i < maxLen; i++) {
     const g = data.gold[i];
     const u = data.usd[i];
-    const goldPart = g ? entryRow(g, entryKind, 'gold') : ['', '', '', '', ''];
-    const usdPart = u ? entryRow(u, entryKind, 'usd') : ['', '', '', '', ''];
+    const goldPart = g ? entryRow(g, goldKind, 'gold') : ['', '', '', '', ''];
+    const usdPart = u ? entryRow(u, usdKind, 'usd') : ['', '', '', '', ''];
     rows.push([...goldPart, '', ...usdPart]);
   }
 
   // صف المجموع
   if (data.gold.length || data.usd.length) {
-    const gTot = calcLedgerTotals(data.gold, entryKind, 'gold');
-    const uTot = calcLedgerTotals(data.usd, entryKind, 'usd');
+    const gTot = calcLedgerTotals(data.gold, goldKind, 'gold');
+    const uTot = calcLedgerTotals(data.usd, usdKind, 'usd');
     const goldTotal = data.gold.length
       ? ['المجموع', gTot.sumCol1, gTot.sumCol2, gTot.balance, '']
       : ['', '', '', '', ''];
@@ -109,7 +120,7 @@ export function exportWorkbook(state: WorkshopState): void {
     if (!data) continue;
     const hasData = data.gold.length > 0 || data.usd.length > 0;
     if (!hasData && def.showOnDashboard === undefined) continue;
-    XLSX.utils.book_append_sheet(wb, buildAccountSheet(getExcelSheetTitle(def), data, def.entryKind), def.sheetName);
+    XLSX.utils.book_append_sheet(wb, buildAccountSheet(getExcelSheetTitle(def), data, def.id, def.entryKind), def.sheetName);
   }
 
   const filename = `ميزانية-${state.periodLabel}.xlsx`;

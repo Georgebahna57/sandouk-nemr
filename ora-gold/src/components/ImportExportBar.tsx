@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Download, Upload, Save, FileSpreadsheet, RotateCcw, ChevronDown, AlertTriangle } from 'lucide-react';
 import { accountsWithSheetAlias, dashboardLinks } from '../lib/accountAudit';
+import { MANUAL_OPERATION_HINTS, WORKSHOP_LIFECYCLE } from '../lib/operationFlows';
 
 interface Props {
   periodLabel: string;
@@ -104,6 +105,28 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
                 </div>
               </div>
             )}
+            <div>
+              <p className="text-xs text-slate-400 mb-2">مراحل دورة الورشة (ملف Excel):</p>
+              <ol className="list-decimal list-inside text-xs text-slate-300 space-y-1">
+                {WORKSHOP_LIFECYCLE.map((s) => (
+                  <li key={s.id}>
+                    <span className="text-amber-400/90">{s.titleAr}</span>
+                    <span className="text-slate-500"> — {s.detailAr}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 mb-2">عمليات يدوية شائعة (سند من الحساب + مقابل):</p>
+              <div className="grid sm:grid-cols-2 gap-2 text-xs">
+                {MANUAL_OPERATION_HINTS.map((h) => (
+                  <div key={h.titleAr} className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2">
+                    <p className="text-amber-400/90 font-medium">{h.titleAr}</p>
+                    <p className="text-slate-400 mt-1">{h.sheets.join(' · ')}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

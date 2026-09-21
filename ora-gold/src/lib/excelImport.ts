@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { DEFAULT_TREASURY, getAccountBySheet, getBalanceMode } from './accountsConfig';
+import { resolveLedgerKind } from './ledgerDisplay';
 import { excelDateToIso, parseNum } from './format';
 import { newEntryId, recalcBalances } from './ledger';
 import type { AccountData, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
@@ -22,9 +23,17 @@ function parseLedgerSide(
     let debit: number | undefined;
     let credit: number | undefined;
 
-    if (entryKind === 'profit') {
+    if (entryKind === 'profit' || entryKind === 'trading') {
       debit = parseNum(row[startCol + 1]);
       credit = parseNum(row[startCol + 2]);
+    } else if (entryKind === 'worked') {
+      if (side === 'gold') {
+        debit = parseNum(row[startCol + 1]);
+        credit = parseNum(row[startCol + 2]);
+      } else {
+        credit = parseNum(row[startCol + 1]);
+        debit = parseNum(row[startCol + 2]);
+      }
     } else if (entryKind === 'expense') {
       // مدفوع يزيد رصيد المصروف، مرتجع ينقصه
       credit = parseNum(row[startCol + 1]);
@@ -101,8 +110,10 @@ function parseAccountSheet(rows: unknown[][], accountDef: import('../types').Acc
     gold = parseManufacturingGold(rows);
     usd = [];
   } else {
-    gold = parseLedgerSide(rows, 0, accountDef.entryKind, 'gold', getBalanceMode(accountDef, 'gold'));
-    usd = parseLedgerSide(rows, 6, accountDef.entryKind, 'usd', getBalanceMode(accountDef, 'usd'));
+    const goldKind = resolveLedgerKind(accountDef.id, 'gold', accountDef.entryKind);
+    const usdKind = resolveLedgerKind(accountDef.id, 'usd', accountDef.entryKind);
+    gold = parseLedgerSide(rows, 0, goldKind, 'gold', getBalanceMode(accountDef, 'gold'));
+    usd = parseLedgerSide(rows, 6, usdKind, 'usd', getBalanceMode(accountDef, 'usd'));
   }
 
   return { gold, usd };
