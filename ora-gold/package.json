@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port=3002 --host=0.0.0.0",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --port=3002"
+    "preview": "vite preview --port=3002",
+    "seed:excel": "tsx scripts/seed-default-state.ts"
   },
   "dependencies": {
     "lucide-react": "^0.546.0",
@@ -20,6 +21,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.4",
     "tailwindcss": "^4.1.14",
+    "tsx": "^4.19.4",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

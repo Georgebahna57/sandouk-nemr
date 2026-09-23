@@ -16,7 +16,7 @@ function countEntries(state: WorkshopState): number {
   return Object.values(state.accounts).reduce((sum, acc) => sum + acc.gold.length + acc.usd.length, 0);
 }
 
-/** البيانات الافتراضية من ملف Excel ميزانية-05-2026 */
+/** البيانات الافتراضية من ملف Excel `data/new.xlsx` */
 export function getDefaultState(): WorkshopState {
   const base = seededState as WorkshopState;
   const accounts = { ...base.accounts };
