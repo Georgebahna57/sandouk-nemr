@@ -83,6 +83,7 @@ export function createInvoiceRecord(
     postings: InvoicePosting[];
     entryRefs: PostedEntryRef[];
     workedWeight?: number;
+    receivedUsd?: number;
     usdAmount?: number;
     wageUsd?: number;
     rawGoldGiven?: number;
@@ -100,7 +101,8 @@ export function createInvoiceRecord(
     postings: input.postings,
     entryRefs: input.entryRefs,
     workedWeight: input.workedWeight,
-    usdAmount: input.usdAmount,
+    receivedUsd: input.receivedUsd,
+    usdAmount: input.receivedUsd ?? input.usdAmount,
     wageUsd: input.wageUsd,
     rawGoldGiven: input.rawGoldGiven,
     stoneDiscountGrams: input.stoneDiscountGrams,

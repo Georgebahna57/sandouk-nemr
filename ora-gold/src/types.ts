@@ -102,6 +102,8 @@ export interface InvoiceInput {
   type: InvoiceType;
   workedWeight?: number;
   karat?: 18 | 21;
+  /** مقبوض دولار (إجمالي) — فاتورة كاش */
+  receivedUsd?: number;
   usdAmount?: number;
   wageUsd?: number;
   rawGoldGiven?: number;
@@ -136,6 +138,8 @@ export interface WorkshopInvoice {
   postings: InvoicePosting[];
   entryRefs: InvoiceEntryRef[];
   workedWeight?: number;
+  /** مقبوض دولار (إجمالي) — فاتورة كاش */
+  receivedUsd?: number;
   usdAmount?: number;
   wageUsd?: number;
   rawGoldGiven?: number;

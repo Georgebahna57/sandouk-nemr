@@ -20,7 +20,8 @@ function toPrintData(inv: WorkshopInvoice): InvoicePrintData {
     description: inv.description,
     postings: inv.postings,
     workedWeight: inv.workedWeight,
-    usdAmount: inv.usdAmount,
+    receivedUsd: inv.receivedUsd ?? inv.usdAmount,
+    usdAmount: inv.receivedUsd ?? inv.usdAmount,
     wageUsd: inv.wageUsd,
     stoneDiscountGrams: inv.stoneDiscountGrams,
     profitRate: inv.profitRate,
@@ -52,7 +53,7 @@ export function InvoiceList({ invoices, onDelete }: Props) {
               <th>البيان</th>
               <th>النوع</th>
               <th>الوزن</th>
-              <th>دولار</th>
+              <th>مقبوض $</th>
               <th></th>
             </tr>
           </thead>
@@ -63,7 +64,11 @@ export function InvoiceList({ invoices, onDelete }: Props) {
                 <td className="max-w-[200px] truncate" title={inv.description}>{inv.description}</td>
                 <td className="text-xs text-slate-400">{INVOICE_TYPE_LABELS[inv.type]}</td>
                 <td className="num">{inv.workedWeight ? formatNumber(inv.workedWeight, 2) : '—'}</td>
-                <td className="num">{inv.usdAmount ? formatNumber(inv.usdAmount) : '—'}</td>
+                <td className="num">
+                  {(inv.receivedUsd ?? inv.usdAmount)
+                    ? formatNumber(inv.receivedUsd ?? inv.usdAmount)
+                    : '—'}
+                </td>
                 <td className="flex gap-1 justify-end">
                   <button
                     type="button"

@@ -26,6 +26,7 @@ export interface InvoicePrintData {
   description: string;
   postings: InvoicePosting[];
   workedWeight?: number;
+  receivedUsd?: number;
   usdAmount?: number;
   wageUsd?: number;
   stoneDiscountGrams?: number;
@@ -137,8 +138,8 @@ function totalsBlock(data: InvoicePrintData): string {
       <table class="summary-table">
         <tr><td>وزن المشغول (إجمالي)</td><td class="num">${data.workedWeight ? formatNumber(data.workedWeight, 2) + ' غ' : '—'}</td></tr>
         <tr><td>خصم حجر</td><td class="num">${data.stoneDiscountGrams ? formatNumber(data.stoneDiscountGrams, 2) + ' غ' : '—'}</td></tr>
-        <tr><td>قبض دولار (فاتورة)</td><td class="num">${data.usdAmount ? formatNumber(data.usdAmount) + ' $' : '—'}</td></tr>
-        <tr><td>أجور دولار</td><td class="num">${data.wageUsd ? formatNumber(data.wageUsd) + ' $' : '—'}</td></tr>
+        <tr><td>مقبوض $</td><td class="num">${(data.receivedUsd ?? data.usdAmount) ? formatNumber(data.receivedUsd ?? data.usdAmount) + ' $' : '—'}</td></tr>
+        <tr><td>أجور $</td><td class="num">${data.wageUsd ? formatNumber(data.wageUsd) + ' $' : '—'}</td></tr>
         <tr><td>مجموع مدين ذهب</td><td class="num">${formatNumber(goldOut, 4)} غ</td></tr>
         <tr><td>مجموع دائن ذهب</td><td class="num">${formatNumber(goldIn, 4)} غ</td></tr>
         <tr><td>مجموع مدين دولار</td><td class="num">${formatNumber(usdOut)} $</td></tr>
