@@ -103,7 +103,7 @@ export function useWorkshopStore() {
 
   const restoreExcelDefaults = useCallback(() => {
     if (!confirm('استعادة بيانات Excel الافتراضية (new.xlsx)؟ سيتم مسح التعديلات المحلية.')) return;
-    localStorage.removeItem('workshop-budget-v1');
+    localStorage.removeItem('workshop-budget-v2');
     setState(getDefaultState());
   }, []);
 

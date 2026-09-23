@@ -4,6 +4,7 @@ import { resolveLedgerKind } from './ledgerDisplay';
 import { excelDateToIso, parseNum } from './format';
 import { newEntryId, recalcBalances } from './ledger';
 import type { AccountData, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
+import { parseMainSheet } from './excelMainSheet';
 import { createEmptyState } from './storage';
 
 function parseLedgerSide(
@@ -125,7 +126,7 @@ function parseTreasury(rows: unknown[][]): TreasuryItem[] {
     const row = rows[i];
     if (!row?.[0]) continue;
     const label = String(row[0]).trim();
-    if (!label) continue;
+    if (!label || label.includes('مجموع')) continue;
     items.push({
       id: `t_${i}`,
       label,
@@ -144,6 +145,12 @@ export function importWorkbookFromArrayBuffer(buffer: ArrayBuffer, periodLabel?:
   for (const sheetName of wb.SheetNames) {
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' }) as unknown[][];
+
+    if (sheetName === 'رئيسي') {
+      const snap = parseMainSheet(rows);
+      if (snap) state.mainSheetSnapshot = snap;
+      continue;
+    }
 
     if (sheetName === 'خزنة رئيسية') {
       state.treasury = parseTreasury(rows);

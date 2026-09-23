@@ -94,6 +94,18 @@ function pushAccountRows(
 }
 
 export function buildDashboardSummary(state: WorkshopState) {
+  if (state.mainSheetSnapshot) {
+    const snap = state.mainSheetSnapshot;
+    return {
+      assets: snap.assets,
+      liabilities: snap.liabilities,
+      totalAssets: snap.totalAssets,
+      totalLiab: snap.totalLiab,
+      goldDiff: snap.goldDiff,
+      usdDiff: snap.usdDiff,
+    };
+  }
+
   const assets: DashboardRow[] = [];
   const liabilities: DashboardRow[] = [];
 
