@@ -154,6 +154,8 @@ export interface WorkshopState {
   settings?: WorkshopSettings;
   /** تعديلات يدوية لقيم الملخص الرئيسي */
   dashboardOverrides?: Record<string, DashboardOverride>;
+  /** ملخص مستورد من ورقة «رئيسي» في Excel */
+  mainSheetSnapshot?: MainSheetSnapshot;
   updatedAt: string;
 }
 
@@ -164,6 +166,18 @@ export interface DashboardRow {
   accountId: string;
   /** الحساب الذي يُفتح عند النقر (قد يختلف عن accountId للأسماء المستعارة) */
   navigateAccountId: string;
+  /** تركيز الدفتر عند فتح الصف من الملخص */
+  ledgerFocus?: 'gold' | 'usd' | 'both';
+}
+
+/** نسخة ورقة «رئيسي» من Excel — لعرض الملخص مطابقاً للملف */
+export interface MainSheetSnapshot {
+  assets: DashboardRow[];
+  liabilities: DashboardRow[];
+  totalAssets: { gold: number; usd: number };
+  totalLiab: { gold: number; usd: number };
+  goldDiff: number;
+  usdDiff: number;
 }
 
 export interface AccountSummary {

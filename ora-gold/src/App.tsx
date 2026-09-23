@@ -15,6 +15,7 @@ import type { DashboardRow } from './types';
 type View = 'dashboard' | 'treasury' | 'account' | 'invoice' | 'disbursements';
 
 function focusForRow(row: DashboardRow): LedgerFocus {
+  if (row.ledgerFocus) return row.ledgerFocus;
   if (row.accountId === 'bourse') return 'usd';
   return 'both';
 }

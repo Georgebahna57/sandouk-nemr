@@ -26,6 +26,11 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'scrap18Pull', nameAr: 'كسر 18 سحب', sheetName: 'كسر 18 سحب', entryKind: 'inout' },
   { id: 'scrap21Cast', nameAr: 'كسر 21 صب', sheetName: 'كسر 21 صب', entryKind: 'inout' },
   { id: 'scrap21Pull', nameAr: 'كسر 21 سحب', sheetName: 'كسر 21 سحب', entryKind: 'inout' },
+  { id: 'scrap18', nameAr: 'كسر 18', sheetName: 'كسر 18', entryKind: 'inout' },
+  { id: 'scrap21', nameAr: 'كسر 21', sheetName: 'كسر 21', entryKind: 'inout' },
+  { id: 'scrap22', nameAr: 'كسر 22', sheetName: 'كسر 22', entryKind: 'inout' },
+  { id: 'sand', nameAr: 'رملة', sheetName: 'رملة', entryKind: 'inout' },
+  { id: 'cast18', nameAr: 'صب 18', sheetName: 'صب 18', entryKind: 'inout' },
   { id: 'k18', nameAr: 'K18', sheetName: 'K18', entryKind: 'inout' },
   { id: 'k21', nameAr: 'K21', sheetName: 'K21', entryKind: 'inout' },
   { id: 'k22', nameAr: 'K22', sheetName: 'K22', entryKind: 'inout' },
@@ -50,6 +55,7 @@ export const DEFAULT_TREASURY: TreasuryItem[] = [
   { id: 'worked21', label: 'مشغول 21' },
   { id: 'k18_740', label: 'K18 - 740' },
   { id: 'k22_905', label: 'K22 - 905' },
+  { id: 'k21_865', label: 'K21 - 865' },
 ];
 
 export function getAccountDef(id: string): AccountDef | undefined {

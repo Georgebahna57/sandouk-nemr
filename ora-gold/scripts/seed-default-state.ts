@@ -30,6 +30,7 @@ const out = {
   accounts: state.accounts,
   treasury: state.treasury,
   dashboardOverrides: state.dashboardOverrides ?? {},
+  mainSheetSnapshot: state.mainSheetSnapshot,
   updatedAt: new Date().toISOString(),
 };
 
