@@ -130,6 +130,7 @@ export function useWorkshopStore() {
       usdAmount: input.usdAmount,
       wageUsd: input.wageUsd,
       rawGoldGiven: input.rawGoldGiven,
+      stoneDiscountGrams: input.stoneDiscountGrams,
       profitRate,
     });
     setState({

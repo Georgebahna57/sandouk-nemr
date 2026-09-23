@@ -105,6 +105,8 @@ export interface InvoiceInput {
   usdAmount?: number;
   wageUsd?: number;
   rawGoldGiven?: number;
+  /** وزن الحجر المخصوم من المشغول (غرام) */
+  stoneDiscountGrams?: number;
   lines?: InvoiceLineInput[];
   profitRateOverride?: number;
 }
@@ -137,6 +139,7 @@ export interface WorkshopInvoice {
   usdAmount?: number;
   wageUsd?: number;
   rawGoldGiven?: number;
+  stoneDiscountGrams?: number;
   profitRate: number;
   createdAt: string;
 }

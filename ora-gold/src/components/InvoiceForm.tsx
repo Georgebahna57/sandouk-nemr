@@ -42,6 +42,8 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const [usdAmount, setUsdAmount] = useState('');
   const [wageUsd, setWageUsd] = useState('');
   const [rawGoldGiven, setRawGoldGiven] = useState('');
+  const [stoneDiscountOn, setStoneDiscountOn] = useState(false);
+  const [stoneDiscountGrams, setStoneDiscountGrams] = useState('');
   const [extraLines, setExtraLines] = useState<InvoiceLineInput[]>([]);
   const [saved, setSaved] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
@@ -56,8 +58,10 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     usdAmount: usdAmount ? parseFloat(usdAmount) : undefined,
     wageUsd: wageUsd ? parseFloat(wageUsd) : undefined,
     rawGoldGiven: rawGoldGiven ? parseFloat(rawGoldGiven) : undefined,
+    stoneDiscountGrams:
+      stoneDiscountOn && stoneDiscountGrams ? parseFloat(stoneDiscountGrams) : undefined,
     lines: extraLines.filter((l) => l.amount > 0),
-  }), [number, date, customer, type, workedWeight, usdAmount, wageUsd, rawGoldGiven, extraLines]);
+  }), [number, date, customer, type, workedWeight, usdAmount, wageUsd, rawGoldGiven, stoneDiscountOn, stoneDiscountGrams, extraLines]);
 
   const calc = useMemo(() => calculateInvoice(input, profitRate), [input, profitRate]);
 
@@ -67,8 +71,9 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     if (!w || type === 'purchase') return null;
     const net = parseFloat(usdAmount) || 0;
     const wage = parseFloat(wageUsd) || 0;
-    return previewWagesProfit(w, karat, profitRate, net, wage);
-  }, [workedWeight, karat, profitRate, type, usdAmount, wageUsd]);
+    const stone = stoneDiscountOn ? parseFloat(stoneDiscountGrams) || 0 : 0;
+    return previewWagesProfit(w, karat, profitRate, net, wage, stone);
+  }, [workedWeight, karat, profitRate, type, usdAmount, wageUsd, stoneDiscountOn, stoneDiscountGrams]);
 
   const addLine = () => {
     setExtraLines((lines) => [...lines, { material: 'scrap18_cast', direction: 'receive', amount: 0 }]);
@@ -95,11 +100,14 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     setUsdAmount('');
     setWageUsd('');
     setRawGoldGiven('');
+    setStoneDiscountOn(false);
+    setStoneDiscountGrams('');
     setExtraLines([]);
   };
 
   const showWageUsd = type === 'sale18' || type === 'sale21';
   const showRawGold = type === 'workshop';
+  const showStoneDiscount = type !== 'purchase';
 
   const printData: InvoicePrintData | null = useMemo(() => {
     if (!calc.postings.length || !number.trim()) return null;
@@ -113,6 +121,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       workedWeight: input.workedWeight,
       usdAmount: input.usdAmount,
       wageUsd: input.wageUsd,
+      stoneDiscountGrams: input.stoneDiscountGrams,
       profitRate,
     };
   }, [calc, number, date, customer, type, input, profitRate]);
@@ -187,6 +196,46 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
             </div>
           )}
         </div>
+
+        {showStoneDiscount && (
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-700/60 bg-slate-800/30 px-3 py-3">
+            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-slate-600"
+                checked={stoneDiscountOn}
+                onChange={(e) => setStoneDiscountOn(e.target.checked)}
+              />
+              خصم حجر
+            </label>
+            {stoneDiscountOn && (
+              <div className="min-w-[140px]">
+                <label className="text-xs text-slate-400">وزن الحجر (غرام)</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  className="input-field num"
+                  value={stoneDiscountGrams}
+                  onChange={(e) => setStoneDiscountGrams(e.target.value)}
+                  placeholder="2.5"
+                />
+              </div>
+            )}
+            {stoneDiscountOn && autoPreview && (
+              <p className="text-xs text-slate-400">
+                وزن صافي للحساب:{' '}
+                <span className="num text-amber-300 font-semibold">{formatNumber(autoPreview.wagesGold, 2)} غ</span>
+                {autoPreview.grossWeight > autoPreview.wagesGold && (
+                  <span className="text-slate-500">
+                    {' '}
+                    (من {formatNumber(autoPreview.grossWeight, 2)} غ)
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+        )}
 
         {autoPreview && (
           <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">

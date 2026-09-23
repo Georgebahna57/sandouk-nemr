@@ -86,6 +86,7 @@ export function createInvoiceRecord(
     usdAmount?: number;
     wageUsd?: number;
     rawGoldGiven?: number;
+    stoneDiscountGrams?: number;
     profitRate: number;
   },
 ): WorkshopInvoice {
@@ -102,6 +103,7 @@ export function createInvoiceRecord(
     usdAmount: input.usdAmount,
     wageUsd: input.wageUsd,
     rawGoldGiven: input.rawGoldGiven,
+    stoneDiscountGrams: input.stoneDiscountGrams,
     profitRate: input.profitRate,
     createdAt: new Date().toISOString(),
   };

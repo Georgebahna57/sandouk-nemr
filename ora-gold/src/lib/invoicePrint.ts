@@ -28,6 +28,7 @@ export interface InvoicePrintData {
   workedWeight?: number;
   usdAmount?: number;
   wageUsd?: number;
+  stoneDiscountGrams?: number;
   profitRate?: number;
 }
 
@@ -134,7 +135,8 @@ function totalsBlock(data: InvoicePrintData): string {
     <section class="print-section">
       <h2>${SECTION_TITLES.totals}</h2>
       <table class="summary-table">
-        <tr><td>وزن المشغول</td><td class="num">${data.workedWeight ? formatNumber(data.workedWeight, 2) + ' غ' : '—'}</td></tr>
+        <tr><td>وزن المشغول (إجمالي)</td><td class="num">${data.workedWeight ? formatNumber(data.workedWeight, 2) + ' غ' : '—'}</td></tr>
+        <tr><td>خصم حجر</td><td class="num">${data.stoneDiscountGrams ? formatNumber(data.stoneDiscountGrams, 2) + ' غ' : '—'}</td></tr>
         <tr><td>قبض دولار (فاتورة)</td><td class="num">${data.usdAmount ? formatNumber(data.usdAmount) + ' $' : '—'}</td></tr>
         <tr><td>أجور دولار</td><td class="num">${data.wageUsd ? formatNumber(data.wageUsd) + ' $' : '—'}</td></tr>
         <tr><td>مجموع مدين ذهب</td><td class="num">${formatNumber(goldOut, 4)} غ</td></tr>
