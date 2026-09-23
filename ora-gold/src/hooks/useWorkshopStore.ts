@@ -102,7 +102,7 @@ export function useWorkshopStore() {
   );
 
   const restoreExcelDefaults = useCallback(() => {
-    if (!confirm('استعادة بيانات Excel الأصلية (ميزانية-05-2026)؟ سيتم مسح التعديلات المحلية.')) return;
+    if (!confirm('استعادة بيانات Excel الافتراضية (new.xlsx)؟ سيتم مسح التعديلات المحلية.')) return;
     localStorage.removeItem('workshop-budget-v1');
     setState(getDefaultState());
   }, []);
