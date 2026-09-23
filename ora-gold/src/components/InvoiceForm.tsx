@@ -65,8 +65,10 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const autoPreview = useMemo(() => {
     const w = parseFloat(workedWeight);
     if (!w || type === 'purchase') return null;
-    return previewWagesProfit(w, karat, profitRate);
-  }, [workedWeight, karat, profitRate, type]);
+    const net = parseFloat(usdAmount) || 0;
+    const wage = parseFloat(wageUsd) || 0;
+    return previewWagesProfit(w, karat, profitRate, net, wage);
+  }, [workedWeight, karat, profitRate, type, usdAmount, wageUsd]);
 
   const addLine = () => {
     setExtraLines((lines) => [...lines, { material: 'scrap18_cast', direction: 'receive', amount: 0 }]);
@@ -162,12 +164,19 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
             />
           </div>
           <div>
-            <label className="text-xs text-slate-400">قبض دولار $</label>
-            <input type="number" step="any" className="input-field num" value={usdAmount} onChange={(e) => setUsdAmount(e.target.value)} placeholder="1187" />
+            <label className="text-xs text-slate-400">صافي قبض $ (مقبوض − أجور)</label>
+            <input
+              type="number"
+              step="any"
+              className="input-field num"
+              value={usdAmount}
+              onChange={(e) => setUsdAmount(e.target.value)}
+              placeholder="12866 أو 0 للقبض رملة"
+            />
           </div>
           {showWageUsd && (
             <div>
-              <label className="text-xs text-slate-400">أجور دولار $ (اختياري)</label>
+              <label className="text-xs text-slate-400">أجور دولار $</label>
               <input type="number" step="any" className="input-field num" value={wageUsd} onChange={(e) => setWageUsd(e.target.value)} placeholder="684" />
             </div>
           )}
@@ -180,22 +189,28 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
         </div>
 
         {autoPreview && (
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-4 gap-3 text-sm">
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
             <div>
               <p className="text-xs text-slate-400">أجور (ذهب)</p>
               <p className="num font-bold text-emerald-400">{formatNumber(autoPreview.wagesGold, 2)} غ</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">ربح إنتاج (تلقائي)</p>
+              <p className="text-xs text-slate-400">ربح Pro (2غ/كغ)</p>
               <p className="num font-bold text-amber-400">{formatNumber(autoPreview.profitGold, 4)} غ</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">مكافئ 995</p>
+              <p className="text-xs text-slate-400">مكافئ 995 (رملة)</p>
               <p className="num font-bold">{formatNumber(autoPreview.fineGold995, 2)} غ</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">متاجرة (995)</p>
-              <p className="num font-bold">{formatNumber(autoPreview.tradingGold995, 2)} غ</p>
+              <p className="text-xs text-slate-400">صافي $ (متاجرة)</p>
+              <p className="num font-bold">{formatNumber(autoPreview.profitUsd, 2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">مسار القبض</p>
+              <p className="font-bold text-slate-200">
+                {autoPreview.settlementPath === 'trading' ? 'متاجرة + دولار' : 'رملة + دولار'}
+              </p>
             </div>
           </div>
         )}
@@ -209,7 +224,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
             value={profitRate}
             onChange={(e) => onProfitRateChange(parseFloat(e.target.value) || 0.002)}
           />
-          <span className="text-slate-500">({(profitRate * 100).toFixed(2)}% من وزن الأجور)</span>
+          <span className="text-slate-500">(2 غرام لكل كيلو = {profitRate} × الوزن بالغرام)</span>
         </div>
       </div>
 

@@ -11,8 +11,8 @@ import type {
 export const DEFAULT_PROFIT_RATE = 0.002;
 
 export const INVOICE_TYPE_LABELS: Record<InvoiceType, string> = {
-  sale18: 'مبيع مشغول 18',
-  sale21: 'مبيع مشغول 21',
+  sale18: 'فاتورة كاش — مشغول 18',
+  sale21: 'فاتورة كاش — مشغول 21',
   workshop: 'زبون ورشة',
   purchase: 'شراء ذهب',
 };
@@ -105,27 +105,48 @@ function profitGold(weight: number, rate: number): number {
 }
 
 /**
- * مبيع مشغول (متاجرة) — مطابق لـ Excel: Trading + مشغول + دولار + Pro
- * (بدون زبائن وبدون K18 تلقائياً — أضف K18/كسر من السطور الإضافية)
+ * فاتورة كاش — مشغول 18/21 + متاجرة (عند قبض $ صافي) + ربح + استلام (رملة/دولار)
+ *
+ * - مشغول: تسليم وزن الأجور + استلام أجور $
+ * - متاجرة: عند وجود «صافي قبض $» (مقبوض − أجور) — بيع 995 + ذلك المبلغ
+ * - ربح Pro: 2 غرام / كيلو على وزن المشغول (0.002 × الوزن بالغرام)
+ * - استلام: عند عدم وجود صافي $ — قبض مكافئ 995 على «رملة» و«دهب» + دولار الأجور للصندوق
  */
 function calcSale18(input: InvoiceInput, profitRate: number): InvoicePosting[] {
   const W = input.workedWeight ?? 0;
-  const usd = input.usdAmount ?? 0;
-  const wageUsd = input.wageUsd ?? 0;
+  /** صافي الدولار (مقبوض − أجور) — يُرحَّل على المتاجرة والربح */
+  const netUsd = roundUsd(input.usdAmount ?? 0);
+  const wageUsd = roundUsd(input.wageUsd ?? 0);
   const karat = input.karat ?? 18;
-  const pro = profitGold(W, profitRate);
-  const tradingGold = toGold995(W, karat);
+  const proGoldAmt = profitGold(W, profitRate);
+  const fine995 = toGold995(W, karat);
   const wagesAccount = karat === 21 ? 'wages21' : 'wages18';
-  const cashIn = roundUsd(usd + wageUsd);
+  const cashToBox = roundUsd(wageUsd + netUsd);
+  /** بيع متاجرة عندما صافي القبض أكبر من الأجور — وإلا استلام رملة (كما في Excel) */
+  const useTradingPath = netUsd > 0 && netUsd > wageUsd;
 
   const lines: (InvoicePosting | null)[] = [
-    posting('trading', 'gold', tradingGold, undefined, 'مبيع'),
-    posting('trading', 'usd', undefined, usd, 'مبيع'),
-    posting('pro', 'gold', undefined, pro, 'ربح إنتاج'),
     posting(wagesAccount, 'gold', undefined, W, 'تسليم زبائن'),
-    posting(wagesAccount, 'usd', wageUsd, undefined, 'استلام أجور $'),
-    cashIn > 0 ? posting('dollar', 'usd', undefined, cashIn, 'صندوق — دخول') : null,
+    wageUsd > 0 ? posting(wagesAccount, 'usd', wageUsd, undefined, 'استلام أجور $') : null,
+    proGoldAmt > 0 ? posting('pro', 'gold', undefined, proGoldAmt, 'ربح إنتاج (2غ/كغ)') : null,
   ];
+
+  if (useTradingPath && fine995 > 0) {
+    lines.push(
+      posting('trading', 'gold', fine995, undefined, 'مبيع'),
+      posting('trading', 'usd', undefined, netUsd, 'مقبوض − أجور'),
+    );
+  } else if (fine995 > 0) {
+    lines.push(
+      posting('sand', 'gold', undefined, fine995, 'استلام رملة 995'),
+      posting('gold', 'gold', undefined, fine995, 'استلام رملة'),
+    );
+  }
+
+  if (cashToBox > 0) {
+    lines.push(posting('dollar', 'usd', undefined, cashToBox, 'صندوق — قبض'));
+  }
+
   return mergePostings(lines.filter(Boolean) as InvoicePosting[]);
 }
 
@@ -218,6 +239,7 @@ export interface CalcResult {
     workedWeight995: number;
     profitGold: number;
     totalUsd: number;
+    netUsd: number;
   };
 }
 
@@ -255,19 +277,31 @@ export function calculateInvoice(input: InvoiceInput, profitRate = DEFAULT_PROFI
       workedWeight995: roundGold(toGold995(W, karat)),
       profitGold: pro,
       totalUsd: roundUsd((input.usdAmount ?? 0) + (input.wageUsd ?? 0)),
+      netUsd: roundUsd(input.usdAmount ?? 0),
     },
   };
 }
 
 /** معاينة سريعة للأجور والربح قبل الحفظ */
-export function previewWagesProfit(weight: number, karat: 18 | 21, profitRate = DEFAULT_PROFIT_RATE) {
+export function previewWagesProfit(
+  weight: number,
+  karat: 18 | 21,
+  profitRate = DEFAULT_PROFIT_RATE,
+  netUsd = 0,
+  wageUsd = 0,
+) {
   const pro = profitGold(weight, profitRate);
   const fine = roundGold(toGold995(weight, karat));
+  const net = roundUsd(netUsd);
+  const wage = roundUsd(wageUsd);
+  const useTrading = net > 0 && net > wage;
   return {
     wagesGold: roundGold(weight),
     profitGold: pro,
+    profitUsd: net,
     tradingGold995: fine,
     fineGold995: fine,
+    settlementPath: useTrading ? ('trading' as const) : ('sand' as const),
   };
 }
 

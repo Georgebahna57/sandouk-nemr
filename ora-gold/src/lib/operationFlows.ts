@@ -28,18 +28,18 @@ export interface InvoiceFlowInfo {
 export const INVOICE_OPERATION_FLOWS: Record<InvoiceType, InvoiceFlowInfo> = {
   sale18: {
     type: 'sale18',
-    labelAr: 'مبيع مشغول 18 (متاجرة)',
+    labelAr: 'فاتورة كاش — مشغول 18',
     stages: ['production', 'sale', 'settlement'],
-    sheets: ['Trading', 'مشغول 18', 'دولار', 'Pro'],
+    sheets: ['مشغول 18', 'Trading أو رملة+دهب', 'Pro', 'دولار'],
     notesAr:
-      'لا يُرحَّل تلقائياً على «زبائن» ولا K18 — أضف سطر K18/كسر من السطور الإضافية إن لزم، كما في Excel.',
+      'مشغول (تسليم + أجور $) → متاجرة إذا وُجد صافي قبض $ (مقبوض−أجور) وإلا استلام رملة/دهب → ربح Pro (2غ/كغ + صافي $) → صندوق دولار.',
   },
   sale21: {
     type: 'sale21',
-    labelAr: 'مبيع مشغول 21 (متاجرة)',
+    labelAr: 'فاتورة كاش — مشغول 21',
     stages: ['production', 'sale', 'settlement'],
-    sheets: ['Trading', 'مشغول 21', 'دولار', 'Pro'],
-    notesAr: 'نفس مسار 18 على ورقة مشغول 21.',
+    sheets: ['مشغول 21', 'Trading أو رملة+دهب', 'Pro', 'دولار'],
+    notesAr: 'نفس مسار فاتورة الكاش 18 على ورقة مشغول 21.',
   },
   workshop: {
     type: 'workshop',
