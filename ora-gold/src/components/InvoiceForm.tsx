@@ -51,7 +51,6 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const [usdAmount, setUsdAmount] = useState('');
   const [wageUsd, setWageUsd] = useState('');
   const [rawGoldGiven, setRawGoldGiven] = useState('');
-  const [stoneDiscountOn, setStoneDiscountOn] = useState(false);
   const [stoneDiscountGrams, setStoneDiscountGrams] = useState('');
   const [extraLines, setExtraLines] = useState<InvoiceLineInput[]>([]);
   const [saved, setSaved] = useState(false);
@@ -80,21 +79,23 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
           : undefined,
     rawGoldGiven: rawGoldGiven ? parseFloat(rawGoldGiven) : undefined,
     stoneDiscountGrams:
-      stoneDiscountOn && stoneDiscountGrams ? parseFloat(stoneDiscountGrams) : undefined,
+      type !== 'purchase' && stoneDiscountGrams.trim()
+        ? parseFloat(stoneDiscountGrams) || 0
+        : undefined,
     lines: extraLines.filter((l) => l.amount > 0),
-  }), [number, date, customer, type, workedWeight, receivedUsd, usdAmount, wageUsd, rawGoldGiven, stoneDiscountOn, stoneDiscountGrams, extraLines]);
+  }), [number, date, customer, type, workedWeight, receivedUsd, usdAmount, wageUsd, rawGoldGiven, stoneDiscountGrams, extraLines]);
 
   const calc = useMemo(() => calculateInvoice(input, profitRate), [input, profitRate]);
 
   const karat = type === 'sale21' ? 21 : 18;
   const autoPreview = useMemo(() => {
     const w = parseFloat(workedWeight);
-    if (!w || type === 'purchase' || (type !== 'sale18' && type !== 'sale21')) return null;
+    if (!w || type === 'purchase') return null;
     const received = parseFloat(receivedUsd) || 0;
     const wage = parseFloat(wageUsd) || 0;
-    const stone = stoneDiscountOn ? parseFloat(stoneDiscountGrams) || 0 : 0;
+    const stone = parseFloat(stoneDiscountGrams) || 0;
     return previewWagesProfit(w, karat, profitRate, received, wage, stone);
-  }, [workedWeight, karat, profitRate, type, receivedUsd, wageUsd, stoneDiscountOn, stoneDiscountGrams]);
+  }, [workedWeight, karat, profitRate, type, receivedUsd, wageUsd, stoneDiscountGrams]);
 
   const addLine = () => {
     setExtraLines((lines) => [...lines, { material: 'scrap18_cast', direction: 'receive', amount: 0 }]);
@@ -122,7 +123,6 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     setUsdAmount('');
     setWageUsd('');
     setRawGoldGiven('');
-    setStoneDiscountOn(false);
     setStoneDiscountGrams('');
     setExtraLines([]);
   };
@@ -130,7 +130,6 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const showCashUsd = type === 'sale18' || type === 'sale21';
   const showOtherUsd = type === 'workshop' || type === 'purchase';
   const showRawGold = type === 'workshop';
-  const showStoneDiscount = type !== 'purchase';
 
   const printData: InvoicePrintData | null = useMemo(() => {
     if (!calc.postings.length || !number.trim()) return null;
@@ -196,6 +195,20 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
               required={type !== 'purchase'}
             />
           </div>
+          {type !== 'purchase' && (
+            <div>
+              <label className="text-xs text-slate-400">حجر مخصوم (غرام)</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                className="input-field num"
+                value={stoneDiscountGrams}
+                onChange={(e) => setStoneDiscountGrams(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          )}
           {showCashUsd && (
             <>
               <div>
@@ -245,50 +258,20 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
           )}
         </div>
 
-        {showStoneDiscount && (
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-700/60 bg-slate-800/30 px-3 py-3">
-            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-              <input
-                type="checkbox"
-                className="rounded border-slate-600"
-                checked={stoneDiscountOn}
-                onChange={(e) => setStoneDiscountOn(e.target.checked)}
-              />
-              خصم حجر
-            </label>
-            {stoneDiscountOn && (
-              <div className="min-w-[140px]">
-                <label className="text-xs text-slate-400">وزن الحجر (غرام)</label>
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  className="input-field num"
-                  value={stoneDiscountGrams}
-                  onChange={(e) => setStoneDiscountGrams(e.target.value)}
-                  placeholder="2.5"
-                />
-              </div>
-            )}
-            {stoneDiscountOn && autoPreview && (
-              <p className="text-xs text-slate-400">
-                وزن صافي للحساب:{' '}
-                <span className="num text-amber-300 font-semibold">{formatNumber(autoPreview.wagesGold, 2)} غ</span>
-                {autoPreview.grossWeight > autoPreview.wagesGold && (
-                  <span className="text-slate-500">
-                    {' '}
-                    (من {formatNumber(autoPreview.grossWeight, 2)} غ)
-                  </span>
-                )}
-              </p>
-            )}
-          </div>
-        )}
-
         {autoPreview && (
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-2 lg:grid-cols-6 gap-3 text-sm">
             <div>
-              <p className="text-xs text-slate-400">أجور (ذهب)</p>
+              <p className="text-xs text-slate-400">وزن إجمالي</p>
+              <p className="num font-bold text-slate-200">{formatNumber(autoPreview.grossWeight, 2)} غ</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">حجر مخصوم</p>
+              <p className="num font-bold text-slate-300">
+                {autoPreview.stoneDiscountGrams > 0 ? `${formatNumber(autoPreview.stoneDiscountGrams, 2)} غ` : '—'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">ذهب صافي (أجور)</p>
               <p className="num font-bold text-emerald-400">{formatNumber(autoPreview.wagesGold, 2)} غ</p>
             </div>
             <div>
@@ -303,12 +286,14 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
               <p className="text-xs text-slate-400">صافي $ (مقبوض − أجور)</p>
               <p className="num font-bold">{formatNumber(autoPreview.profitUsd, 2)}</p>
             </div>
-            <div>
-              <p className="text-xs text-slate-400">مسار القبض</p>
-              <p className="font-bold text-slate-200">
-                {autoPreview.settlementPath === 'trading' ? 'متاجرة + دولار' : 'رملة + دولار'}
-              </p>
-            </div>
+            {(type === 'sale18' || type === 'sale21') && (
+              <div>
+                <p className="text-xs text-slate-400">مسار القبض</p>
+                <p className="font-bold text-slate-200">
+                  {autoPreview.settlementPath === 'trading' ? 'متاجرة + دولار' : 'رملة + دولار'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
