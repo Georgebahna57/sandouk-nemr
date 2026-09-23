@@ -22,6 +22,7 @@ function toPrintData(inv: WorkshopInvoice): InvoicePrintData {
     workedWeight: inv.workedWeight,
     usdAmount: inv.usdAmount,
     wageUsd: inv.wageUsd,
+    stoneDiscountGrams: inv.stoneDiscountGrams,
     profitRate: inv.profitRate,
   };
 }

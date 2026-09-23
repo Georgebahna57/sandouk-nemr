@@ -11,8 +11,8 @@ import type {
 export const DEFAULT_PROFIT_RATE = 0.002;
 
 export const INVOICE_TYPE_LABELS: Record<InvoiceType, string> = {
-  sale18: 'مبيع مشغول 18',
-  sale21: 'مبيع مشغول 21',
+  sale18: 'فاتورة كاش — مشغول 18',
+  sale21: 'فاتورة كاش — مشغول 21',
   workshop: 'زبون ورشة',
   purchase: 'شراء ذهب',
 };
@@ -104,28 +104,62 @@ function profitGold(weight: number, rate: number): number {
   return roundGold(weight * rate);
 }
 
+/** وزن الذهب الصافي بعد خصم الحجر */
+export function resolveMetalWeight(input: Pick<InvoiceInput, 'workedWeight' | 'stoneDiscountGrams'>): number {
+  const gross = input.workedWeight ?? 0;
+  const stone = Math.max(0, input.stoneDiscountGrams ?? 0);
+  return roundGold(Math.max(0, gross - stone));
+}
+
+function stoneNote(input: InvoiceInput, base: string): string {
+  const stone = input.stoneDiscountGrams ?? 0;
+  if (!stone) return base;
+  return `${base} (خصم حجر ${stone}غ)`;
+}
+
 /**
- * مبيع مشغول (متاجرة) — مطابق لـ Excel: Trading + مشغول + دولار + Pro
- * (بدون زبائن وبدون K18 تلقائياً — أضف K18/كسر من السطور الإضافية)
+ * فاتورة كاش — مشغول 18/21 + متاجرة (عند قبض $ صافي) + ربح + استلام (رملة/دولار)
+ *
+ * - مشغول: تسليم وزن الأجور + استلام أجور $
+ * - متاجرة: عند وجود «صافي قبض $» (مقبوض − أجور) — بيع 995 + ذلك المبلغ
+ * - ربح Pro: 2 غرام / كيلو على وزن المشغول (0.002 × الوزن بالغرام)
+ * - استلام: عند عدم وجود صافي $ — قبض مكافئ 995 على «رملة» و«دهب» + دولار الأجور للصندوق
  */
 function calcSale18(input: InvoiceInput, profitRate: number): InvoicePosting[] {
-  const W = input.workedWeight ?? 0;
-  const usd = input.usdAmount ?? 0;
-  const wageUsd = input.wageUsd ?? 0;
+  const metalW = resolveMetalWeight(input);
+  /** صافي الدولار (مقبوض − أجور) — يُرحَّل على المتاجرة والربح */
+  const netUsd = roundUsd(input.usdAmount ?? 0);
+  const wageUsd = roundUsd(input.wageUsd ?? 0);
   const karat = input.karat ?? 18;
-  const pro = profitGold(W, profitRate);
-  const tradingGold = toGold995(W, karat);
+  const proGoldAmt = profitGold(metalW, profitRate);
+  const fine995 = toGold995(metalW, karat);
   const wagesAccount = karat === 21 ? 'wages21' : 'wages18';
-  const cashIn = roundUsd(usd + wageUsd);
+  const cashToBox = roundUsd(wageUsd + netUsd);
+  /** بيع متاجرة عندما صافي القبض أكبر من الأجور — وإلا استلام رملة (كما في Excel) */
+  const useTradingPath = netUsd > 0 && netUsd > wageUsd;
 
   const lines: (InvoicePosting | null)[] = [
-    posting('trading', 'gold', tradingGold, undefined, 'مبيع'),
-    posting('trading', 'usd', undefined, usd, 'مبيع'),
-    posting('pro', 'gold', undefined, pro, 'ربح إنتاج'),
-    posting(wagesAccount, 'gold', undefined, W, 'تسليم زبائن'),
-    posting(wagesAccount, 'usd', wageUsd, undefined, 'استلام أجور $'),
-    cashIn > 0 ? posting('dollar', 'usd', undefined, cashIn, 'صندوق — دخول') : null,
+    posting(wagesAccount, 'gold', undefined, metalW, stoneNote(input, 'تسليم زبائن')),
+    wageUsd > 0 ? posting(wagesAccount, 'usd', wageUsd, undefined, 'استلام أجور $') : null,
+    proGoldAmt > 0 ? posting('pro', 'gold', undefined, proGoldAmt, stoneNote(input, 'ربح إنتاج (2غ/كغ)')) : null,
   ];
+
+  if (useTradingPath && fine995 > 0) {
+    lines.push(
+      posting('trading', 'gold', fine995, undefined, 'مبيع'),
+      posting('trading', 'usd', undefined, netUsd, 'مقبوض − أجور'),
+    );
+  } else if (fine995 > 0) {
+    lines.push(
+      posting('sand', 'gold', undefined, fine995, 'استلام رملة 995'),
+      posting('gold', 'gold', undefined, fine995, 'استلام رملة'),
+    );
+  }
+
+  if (cashToBox > 0) {
+    lines.push(posting('dollar', 'usd', undefined, cashToBox, 'صندوق — قبض'));
+  }
+
   return mergePostings(lines.filter(Boolean) as InvoicePosting[]);
 }
 
@@ -135,20 +169,20 @@ function calcSale21(input: InvoiceInput, profitRate: number): InvoicePosting[] {
 
 /** زبون ورشة — زبائن + أجور + ربح + دهب خام */
 function calcWorkshop(input: InvoiceInput, profitRate: number): InvoicePosting[] {
-  const W = input.workedWeight ?? 0;
+  const metalW = resolveMetalWeight(input);
   const usd = input.usdAmount ?? 0;
   const rawGold = input.rawGoldGiven ?? 0;
   const karat = input.karat ?? 18;
-  const pro = profitGold(W, profitRate);
-  const customerGold = roundGold(Math.max(0, toGold995(W, karat) - rawGold));
+  const pro = profitGold(metalW, profitRate);
+  const customerGold = roundGold(Math.max(0, toGold995(metalW, karat) - rawGold));
   const wagesAccount = karat === 21 ? 'wages21' : 'wages18';
 
   const lines: (InvoicePosting | null)[] = [
     posting('customers', 'gold', customerGold, undefined, 'زبون'),
     posting('customers', 'usd', undefined, usd, 'زبون'),
-    posting(wagesAccount, 'gold', undefined, W, 'تسليم زبائن'),
+    posting(wagesAccount, 'gold', undefined, metalW, stoneNote(input, 'تسليم زبائن')),
     posting(wagesAccount, 'usd', usd, undefined, 'استلام أجور $'),
-    posting('pro', 'gold', undefined, pro, 'ربح إنتاج'),
+    posting('pro', 'gold', undefined, pro, stoneNote(input, 'ربح إنتاج')),
   ];
   if (rawGold > 0) {
     lines.push(posting('gold', 'gold', rawGold, undefined, 'دهب خام'));
@@ -196,11 +230,18 @@ function calcMaterialLine(line: InvoiceLineInput): InvoicePosting | null {
     : posting(accountId, side, amount, undefined, MATERIAL_LABELS[line.material]);
 }
 
-export function buildInvoiceDescription(number: string, customer: string): string {
+export function buildInvoiceDescription(
+  number: string,
+  customer: string,
+  stoneDiscountGrams?: number,
+): string {
   const num = number.trim();
   const cust = customer.trim();
   const prefix = num.startsWith('ف') ? num : `ف ${num}`;
-  return cust ? `${prefix} // ${cust}` : prefix;
+  let desc = cust ? `${prefix} // ${cust}` : prefix;
+  const stone = stoneDiscountGrams ?? 0;
+  if (stone > 0) desc += ` // خصم حجر ${stone}غ`;
+  return desc;
 }
 
 export function suggestNextInvoiceNumber(existing: string[]): string {
@@ -218,12 +259,15 @@ export interface CalcResult {
     workedWeight995: number;
     profitGold: number;
     totalUsd: number;
+    netUsd: number;
+    metalWeight: number;
+    stoneDiscountGrams: number;
   };
 }
 
 export function calculateInvoice(input: InvoiceInput, profitRate = DEFAULT_PROFIT_RATE): CalcResult {
   const rate = input.profitRateOverride ?? profitRate;
-  const description = buildInvoiceDescription(input.number, input.customer);
+  const description = buildInvoiceDescription(input.number, input.customer, input.stoneDiscountGrams);
 
   let base: InvoicePosting[] = [];
   switch (input.type) {
@@ -244,30 +288,50 @@ export function calculateInvoice(input: InvoiceInput, profitRate = DEFAULT_PROFI
   const extra = (input.lines ?? []).map(calcMaterialLine).filter(Boolean) as InvoicePosting[];
   const postings = mergePostings([...base, ...extra]);
 
-  const W = input.workedWeight ?? 0;
+  const metalW = resolveMetalWeight(input);
   const karat = input.karat ?? 18;
-  const pro = input.type === 'purchase' ? 0 : profitGold(W, rate);
+  const pro = input.type === 'purchase' ? 0 : profitGold(metalW, rate);
+  const stone = Math.max(0, input.stoneDiscountGrams ?? 0);
 
   return {
     description,
     postings,
     summary: {
-      workedWeight995: roundGold(toGold995(W, karat)),
+      workedWeight995: roundGold(toGold995(metalW, karat)),
       profitGold: pro,
       totalUsd: roundUsd((input.usdAmount ?? 0) + (input.wageUsd ?? 0)),
+      netUsd: roundUsd(input.usdAmount ?? 0),
+      metalWeight: metalW,
+      stoneDiscountGrams: stone,
     },
   };
 }
 
 /** معاينة سريعة للأجور والربح قبل الحفظ */
-export function previewWagesProfit(weight: number, karat: 18 | 21, profitRate = DEFAULT_PROFIT_RATE) {
-  const pro = profitGold(weight, profitRate);
-  const fine = roundGold(toGold995(weight, karat));
+export function previewWagesProfit(
+  weight: number,
+  karat: 18 | 21,
+  profitRate = DEFAULT_PROFIT_RATE,
+  netUsd = 0,
+  wageUsd = 0,
+  stoneDiscountGrams = 0,
+) {
+  const stone = Math.max(0, stoneDiscountGrams);
+  const metalW = roundGold(Math.max(0, weight - stone));
+  const pro = profitGold(metalW, profitRate);
+  const fine = roundGold(toGold995(metalW, karat));
+  const net = roundUsd(netUsd);
+  const wage = roundUsd(wageUsd);
+  const useTrading = net > 0 && net > wage;
   return {
-    wagesGold: roundGold(weight),
+    grossWeight: roundGold(weight),
+    stoneDiscountGrams: stone,
+    wagesGold: metalW,
     profitGold: pro,
+    profitUsd: net,
     tradingGold995: fine,
     fineGold995: fine,
+    settlementPath: useTrading ? ('trading' as const) : ('sand' as const),
   };
 }
 

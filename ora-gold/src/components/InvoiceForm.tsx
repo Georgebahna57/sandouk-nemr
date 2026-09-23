@@ -42,6 +42,8 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const [usdAmount, setUsdAmount] = useState('');
   const [wageUsd, setWageUsd] = useState('');
   const [rawGoldGiven, setRawGoldGiven] = useState('');
+  const [stoneDiscountOn, setStoneDiscountOn] = useState(false);
+  const [stoneDiscountGrams, setStoneDiscountGrams] = useState('');
   const [extraLines, setExtraLines] = useState<InvoiceLineInput[]>([]);
   const [saved, setSaved] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
@@ -56,8 +58,10 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     usdAmount: usdAmount ? parseFloat(usdAmount) : undefined,
     wageUsd: wageUsd ? parseFloat(wageUsd) : undefined,
     rawGoldGiven: rawGoldGiven ? parseFloat(rawGoldGiven) : undefined,
+    stoneDiscountGrams:
+      stoneDiscountOn && stoneDiscountGrams ? parseFloat(stoneDiscountGrams) : undefined,
     lines: extraLines.filter((l) => l.amount > 0),
-  }), [number, date, customer, type, workedWeight, usdAmount, wageUsd, rawGoldGiven, extraLines]);
+  }), [number, date, customer, type, workedWeight, usdAmount, wageUsd, rawGoldGiven, stoneDiscountOn, stoneDiscountGrams, extraLines]);
 
   const calc = useMemo(() => calculateInvoice(input, profitRate), [input, profitRate]);
 
@@ -65,8 +69,11 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const autoPreview = useMemo(() => {
     const w = parseFloat(workedWeight);
     if (!w || type === 'purchase') return null;
-    return previewWagesProfit(w, karat, profitRate);
-  }, [workedWeight, karat, profitRate, type]);
+    const net = parseFloat(usdAmount) || 0;
+    const wage = parseFloat(wageUsd) || 0;
+    const stone = stoneDiscountOn ? parseFloat(stoneDiscountGrams) || 0 : 0;
+    return previewWagesProfit(w, karat, profitRate, net, wage, stone);
+  }, [workedWeight, karat, profitRate, type, usdAmount, wageUsd, stoneDiscountOn, stoneDiscountGrams]);
 
   const addLine = () => {
     setExtraLines((lines) => [...lines, { material: 'scrap18_cast', direction: 'receive', amount: 0 }]);
@@ -93,11 +100,14 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     setUsdAmount('');
     setWageUsd('');
     setRawGoldGiven('');
+    setStoneDiscountOn(false);
+    setStoneDiscountGrams('');
     setExtraLines([]);
   };
 
   const showWageUsd = type === 'sale18' || type === 'sale21';
   const showRawGold = type === 'workshop';
+  const showStoneDiscount = type !== 'purchase';
 
   const printData: InvoicePrintData | null = useMemo(() => {
     if (!calc.postings.length || !number.trim()) return null;
@@ -111,6 +121,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       workedWeight: input.workedWeight,
       usdAmount: input.usdAmount,
       wageUsd: input.wageUsd,
+      stoneDiscountGrams: input.stoneDiscountGrams,
       profitRate,
     };
   }, [calc, number, date, customer, type, input, profitRate]);
@@ -162,12 +173,19 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
             />
           </div>
           <div>
-            <label className="text-xs text-slate-400">قبض دولار $</label>
-            <input type="number" step="any" className="input-field num" value={usdAmount} onChange={(e) => setUsdAmount(e.target.value)} placeholder="1187" />
+            <label className="text-xs text-slate-400">صافي قبض $ (مقبوض − أجور)</label>
+            <input
+              type="number"
+              step="any"
+              className="input-field num"
+              value={usdAmount}
+              onChange={(e) => setUsdAmount(e.target.value)}
+              placeholder="12866 أو 0 للقبض رملة"
+            />
           </div>
           {showWageUsd && (
             <div>
-              <label className="text-xs text-slate-400">أجور دولار $ (اختياري)</label>
+              <label className="text-xs text-slate-400">أجور دولار $</label>
               <input type="number" step="any" className="input-field num" value={wageUsd} onChange={(e) => setWageUsd(e.target.value)} placeholder="684" />
             </div>
           )}
@@ -179,23 +197,69 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
           )}
         </div>
 
+        {showStoneDiscount && (
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-700/60 bg-slate-800/30 px-3 py-3">
+            <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-slate-600"
+                checked={stoneDiscountOn}
+                onChange={(e) => setStoneDiscountOn(e.target.checked)}
+              />
+              خصم حجر
+            </label>
+            {stoneDiscountOn && (
+              <div className="min-w-[140px]">
+                <label className="text-xs text-slate-400">وزن الحجر (غرام)</label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  className="input-field num"
+                  value={stoneDiscountGrams}
+                  onChange={(e) => setStoneDiscountGrams(e.target.value)}
+                  placeholder="2.5"
+                />
+              </div>
+            )}
+            {stoneDiscountOn && autoPreview && (
+              <p className="text-xs text-slate-400">
+                وزن صافي للحساب:{' '}
+                <span className="num text-amber-300 font-semibold">{formatNumber(autoPreview.wagesGold, 2)} غ</span>
+                {autoPreview.grossWeight > autoPreview.wagesGold && (
+                  <span className="text-slate-500">
+                    {' '}
+                    (من {formatNumber(autoPreview.grossWeight, 2)} غ)
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+        )}
+
         {autoPreview && (
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-4 gap-3 text-sm">
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
             <div>
               <p className="text-xs text-slate-400">أجور (ذهب)</p>
               <p className="num font-bold text-emerald-400">{formatNumber(autoPreview.wagesGold, 2)} غ</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">ربح إنتاج (تلقائي)</p>
+              <p className="text-xs text-slate-400">ربح Pro (2غ/كغ)</p>
               <p className="num font-bold text-amber-400">{formatNumber(autoPreview.profitGold, 4)} غ</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">مكافئ 995</p>
+              <p className="text-xs text-slate-400">مكافئ 995 (رملة)</p>
               <p className="num font-bold">{formatNumber(autoPreview.fineGold995, 2)} غ</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">متاجرة (995)</p>
-              <p className="num font-bold">{formatNumber(autoPreview.tradingGold995, 2)} غ</p>
+              <p className="text-xs text-slate-400">صافي $ (متاجرة)</p>
+              <p className="num font-bold">{formatNumber(autoPreview.profitUsd, 2)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">مسار القبض</p>
+              <p className="font-bold text-slate-200">
+                {autoPreview.settlementPath === 'trading' ? 'متاجرة + دولار' : 'رملة + دولار'}
+              </p>
             </div>
           </div>
         )}
@@ -209,7 +273,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
             value={profitRate}
             onChange={(e) => onProfitRateChange(parseFloat(e.target.value) || 0.002)}
           />
-          <span className="text-slate-500">({(profitRate * 100).toFixed(2)}% من وزن الأجور)</span>
+          <span className="text-slate-500">(2 غرام لكل كيلو = {profitRate} × الوزن بالغرام)</span>
         </div>
       </div>
 
