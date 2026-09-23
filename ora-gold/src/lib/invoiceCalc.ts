@@ -116,11 +116,7 @@ export function resolveInvoiceUsdAmounts(input: Pick<InvoiceInput, 'receivedUsd'
   const wageUsd = roundUsd(input.wageUsd ?? 0);
   /** فاتورة كاش: المقبوض في receivedUsd؛ usdAmount للتوافق مع فواتير قديمة (كانت صافيًا) */
   const receivedUsd = roundUsd(
-    input.receivedUsd != null && input.receivedUsd > 0
-      ? input.receivedUsd
-      : input.receivedUsd === 0
-        ? 0
-        : (input.usdAmount ?? 0),
+    input.receivedUsd != null ? input.receivedUsd : (input.usdAmount ?? 0),
   );
   const netUsd = roundUsd(Math.max(0, receivedUsd - wageUsd));
   return { receivedUsd, wageUsd, netUsd };
