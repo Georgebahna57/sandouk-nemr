@@ -114,7 +114,14 @@ export function resolveMetalWeight(input: Pick<InvoiceInput, 'workedWeight' | 's
 /** مقبوض وأجور → صافي (مقبوض − أجور) */
 export function resolveInvoiceUsdAmounts(input: Pick<InvoiceInput, 'receivedUsd' | 'usdAmount' | 'wageUsd'>) {
   const wageUsd = roundUsd(input.wageUsd ?? 0);
-  const receivedUsd = roundUsd(input.receivedUsd ?? input.usdAmount ?? 0);
+  /** فاتورة كاش: المقبوض في receivedUsd؛ usdAmount للتوافق مع فواتير قديمة (كانت صافيًا) */
+  const receivedUsd = roundUsd(
+    input.receivedUsd != null && input.receivedUsd > 0
+      ? input.receivedUsd
+      : input.receivedUsd === 0
+        ? 0
+        : (input.usdAmount ?? 0),
+  );
   const netUsd = roundUsd(Math.max(0, receivedUsd - wageUsd));
   return { receivedUsd, wageUsd, netUsd };
 }

@@ -14,6 +14,14 @@ import { InvoiceOperationFlow } from './InvoiceOperationFlow';
 import { InvoicePrintDialog } from './InvoicePrintDialog';
 import type { InvoicePrintData } from '../lib/invoicePrint';
 
+/** يقبل 0 ولا يعامل الحقل الفارغ كـ undefined عند الحاجة */
+function parseMoneyField(value: string, allowEmpty: boolean): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return allowEmpty ? undefined : 0;
+  const n = parseFloat(trimmed);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 const MATERIAL_OPTIONS: MaterialType[] = [
   'usd',
   'gold995',
@@ -58,17 +66,18 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     karat: type === 'sale21' ? 21 : 18,
     receivedUsd:
       type === 'sale18' || type === 'sale21'
-        ? receivedUsd
-          ? parseFloat(receivedUsd)
-          : undefined
+        ? parseMoneyField(receivedUsd, true)
         : undefined,
     usdAmount:
       type === 'workshop' || type === 'purchase'
-        ? usdAmount
-          ? parseFloat(usdAmount)
-          : undefined
+        ? parseMoneyField(usdAmount, true)
         : undefined,
-    wageUsd: wageUsd ? parseFloat(wageUsd) : undefined,
+    wageUsd:
+      type === 'sale18' || type === 'sale21'
+        ? parseMoneyField(wageUsd, true)
+        : wageUsd
+          ? parseFloat(wageUsd)
+          : undefined,
     rawGoldGiven: rawGoldGiven ? parseFloat(rawGoldGiven) : undefined,
     stoneDiscountGrams:
       stoneDiscountOn && stoneDiscountGrams ? parseFloat(stoneDiscountGrams) : undefined,
