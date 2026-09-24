@@ -22,9 +22,9 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'dollar', nameAr: 'دولار', sheetName: 'دولار', entryKind: 'inout' },
   { id: 'alloyCast', nameAr: 'Alloy Cast', sheetName: 'Alloy Cast', entryKind: 'inout' },
   { id: 'alloyPull', nameAr: 'Alloy سحب', sheetName: 'Alloy سحب', entryKind: 'inout' },
-  { id: 'scrap18', nameAr: 'كسر 18', sheetName: 'كسر 18', entryKind: 'inout' },
-  { id: 'scrap21', nameAr: 'كسر 21', sheetName: 'كسر 21', entryKind: 'inout' },
-  { id: 'scrap22', nameAr: 'كسر 22', sheetName: 'كسر 22', entryKind: 'inout' },
+  { id: 'scrap18', nameAr: 'كسر 18', sheetName: 'كسر 18', entryKind: 'inout', goldSummaryFineness: 740 },
+  { id: 'scrap21', nameAr: 'كسر 21', sheetName: 'كسر 21', entryKind: 'inout', goldSummaryFineness: 875 },
+  { id: 'scrap22', nameAr: 'كسر 22', sheetName: 'كسر 22', entryKind: 'inout', goldSummaryFineness: 905 },
   { id: 'sand', nameAr: 'رملة', sheetName: 'رملة', entryKind: 'inout' },
   { id: 'cast18', nameAr: 'صب 18', sheetName: 'صب 18', entryKind: 'inout' },
 ];
