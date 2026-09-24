@@ -92,7 +92,14 @@ export default function App() {
               </div>
             )}
 
-            {view === 'disbursements' && <DisbursementOrdersPanel state={store.state} />}
+            {view === 'disbursements' && (
+              <DisbursementOrdersPanel
+                state={store.state}
+                onAddManual={store.addManualDisbursementOrder}
+                onDeleteManual={store.deleteManualDisbursementOrder}
+                onSaveTemplates={store.saveDisbursementTemplates}
+              />
+            )}
 
             {view === 'treasury' && (
               <TreasuryPanel items={store.state.treasury} onChange={store.updateTreasury} />

@@ -148,8 +148,32 @@ export interface WorkshopInvoice {
   createdAt: string;
 }
 
+export type DisbursementCategory = 'purchase' | 'expense';
+
+export interface DisbursementPrintTemplate {
+  id: string;
+  nameAr: string;
+  /** HTML كامل مع متغيرات: {{brand}} {{title}} {{date}} {{beneficiary}} {{amount}} {{description}} {{category}} {{source}} {{period}} {{ref}} */
+  html: string;
+  isBuiltin?: boolean;
+}
+
+export interface ManualDisbursementOrder {
+  id: string;
+  date: string;
+  amountUsd: number;
+  beneficiary: string;
+  description: string;
+  category: DisbursementCategory | 'other';
+  sourceLabel?: string;
+  createdAt: string;
+}
+
 export interface WorkshopSettings {
   profitRate: number;
+  /** تخصيص قوالب طباعة أوامر الصرف (يُدمج مع القوالب الجاهزة) */
+  disbursementTemplateOverrides?: DisbursementPrintTemplate[];
+  defaultDisbursementTemplateId?: string;
 }
 
 export interface WorkshopState {
@@ -163,6 +187,8 @@ export interface WorkshopState {
   dashboardOverrides?: Record<string, DashboardOverride>;
   /** ملخص مستورد من ورقة «رئيسي» في Excel */
   mainSheetSnapshot?: MainSheetSnapshot;
+  /** أوامر صرف يدوية (غير مرتبطة بفاتورة أو قيد تلقائي) */
+  manualDisbursementOrders?: ManualDisbursementOrder[];
   updatedAt: string;
 }
 

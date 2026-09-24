@@ -1,9 +1,11 @@
 import { getAccountDef } from './accountsConfig';
 import { getDisplayValues } from './ledgerDisplay';
 import { formatDateAr, formatNumber } from './format';
-import type { WorkshopInvoice, WorkshopState } from '../types';
+import type { DisbursementCategory, ManualDisbursementOrder, WorkshopInvoice, WorkshopState } from '../types';
+import { mergeTemplateOverrides, renderDisbursementTemplate } from './disbursementTemplates';
+import type { DisbursementPrintTemplate } from '../types';
 
-export type DisbursementCategory = 'purchase' | 'expense';
+export type { DisbursementCategory };
 
 export interface DisbursementOrder {
   id: string;
@@ -15,6 +17,7 @@ export interface DisbursementOrder {
   sourceLabel: string;
   accountId?: string;
   entryId?: string;
+  manual?: boolean;
 }
 
 const EXPENSE_ACCOUNT_IDS = ['operational', 'monthly', 'setup', 'machines'] as const;
@@ -69,9 +72,23 @@ function fromExpenseLedgers(state: WorkshopState): DisbursementOrder[] {
   return orders;
 }
 
+function fromManualOrders(list: ManualDisbursementOrder[]): DisbursementOrder[] {
+  return list.map((m) => ({
+    id: m.id,
+    date: m.date,
+    amountUsd: m.amountUsd,
+    beneficiary: m.beneficiary,
+    description: m.description,
+    category: m.category === 'other' ? 'expense' : m.category,
+    sourceLabel: m.sourceLabel ?? 'أمر صرف يدوي',
+    manual: true,
+  }));
+}
+
 export function collectDisbursementOrders(state: WorkshopState): DisbursementOrder[] {
   const invoices = state.invoices ?? [];
-  const all = [...fromPurchaseInvoices(invoices), ...fromExpenseLedgers(state)];
+  const manual = fromManualOrders(state.manualDisbursementOrders ?? []);
+  const all = [...fromPurchaseInvoices(invoices), ...fromExpenseLedgers(state), ...manual];
   return all.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
 }
 
@@ -90,7 +107,14 @@ const DISBURSE_STYLES = `
   @media print { body { margin: 12mm; } }
 `;
 
-export function buildDisbursementPrintHtml(order: DisbursementOrder, periodLabel?: string): string {
+export function buildDisbursementPrintHtml(
+  order: DisbursementOrder,
+  periodLabel?: string,
+  template?: DisbursementPrintTemplate,
+): string {
+  if (template?.html) {
+    return renderDisbursementTemplate(template.html, order, periodLabel);
+  }
   const catLabel = order.category === 'purchase' ? 'شراء / متاجرة' : 'مصروف تشغيلي أو تأسيس';
   return `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"/>
     <title>أمر صرف ${order.id}</title><style>${DISBURSE_STYLES}</style></head>
@@ -112,6 +136,16 @@ export function buildDisbursementPrintHtml(order: DisbursementOrder, periodLabel
         <div>المدير / المخوّل</div>
       </div>
     </body></html>`;
+}
+
+export function resolveDisbursementTemplates(state: WorkshopState): DisbursementPrintTemplate[] {
+  return mergeTemplateOverrides(state.settings?.disbursementTemplateOverrides);
+}
+
+export function resolveDefaultDisbursementTemplate(state: WorkshopState): DisbursementPrintTemplate {
+  const templates = resolveDisbursementTemplates(state);
+  const id = state.settings?.defaultDisbursementTemplateId ?? 'classic';
+  return templates.find((t) => t.id === id) ?? templates[0];
 }
 
 export function expenseAccountLabels(): string[] {

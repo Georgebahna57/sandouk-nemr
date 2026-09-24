@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { CurrencySide, EntryKind, InvoiceInput, LedgerEntry, TreasuryItem, WorkshopState } from '../types';
+import type {
+  CurrencySide,
+  DisbursementPrintTemplate,
+  EntryKind,
+  InvoiceInput,
+  LedgerEntry,
+  ManualDisbursementOrder,
+  TreasuryItem,
+  WorkshopState,
+} from '../types';
+import type { ManualDisbursementInput } from '../components/ManualDisbursementForm';
 import type { LedgerVoucherInput } from '../lib/ledgerVoucher';
 import { voucherToLedgerPostings } from '../lib/ledgerVoucher';
 import { getAccountDef, getBalanceMode } from '../lib/accountsConfig';
@@ -141,6 +151,48 @@ export function useWorkshopStore() {
     return invoice;
   }, [state]);
 
+  const addManualDisbursementOrder = useCallback((input: ManualDisbursementInput) => {
+    const order: ManualDisbursementOrder = {
+      id: `disp_manual_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      date: input.date,
+      amountUsd: input.amountUsd,
+      beneficiary: input.beneficiary,
+      description: input.description,
+      category: input.category,
+      sourceLabel: input.sourceLabel,
+      createdAt: new Date().toISOString(),
+    };
+    setState((s) => ({
+      ...s,
+      manualDisbursementOrders: [...(s.manualDisbursementOrders ?? []), order],
+    }));
+  }, []);
+
+  const deleteManualDisbursementOrder = useCallback((id: string) => {
+    if (!id.startsWith('disp_manual_')) return;
+    if (!confirm('حذف أمر الصرف اليدوي؟')) return;
+    setState((s) => ({
+      ...s,
+      manualDisbursementOrders: (s.manualDisbursementOrders ?? []).filter((o) => o.id !== id),
+    }));
+  }, []);
+
+  const saveDisbursementTemplates = useCallback((overrides: DisbursementPrintTemplate[], defaultTemplateId: string) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        profitRate: s.settings?.profitRate ?? 0.002,
+        ...s.settings,
+        disbursementTemplateOverrides: overrides.map((t) => ({
+          id: t.id,
+          nameAr: t.nameAr,
+          html: t.html,
+        })),
+        defaultDisbursementTemplateId: defaultTemplateId,
+      },
+    }));
+  }, []);
+
   const deleteInvoice = useCallback((invoiceId: string) => {
     const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId);
     if (!invoice) return;
@@ -170,5 +222,8 @@ export function useWorkshopStore() {
     updateProfitRate,
     postInvoice,
     deleteInvoice,
+    addManualDisbursementOrder,
+    deleteManualDisbursementOrder,
+    saveDisbursementTemplates,
   };
 }
