@@ -170,10 +170,39 @@ export function useWorkshopStore() {
 
   const deleteManualDisbursementOrder = useCallback((id: string) => {
     if (!id.startsWith('disp_manual_')) return;
-    if (!confirm('حذف أمر الصرف اليدوي؟')) return;
     setState((s) => ({
       ...s,
       manualDisbursementOrders: (s.manualDisbursementOrders ?? []).filter((o) => o.id !== id),
+    }));
+  }, []);
+
+  const updateManualDisbursementOrder = useCallback((id: string, input: ManualDisbursementInput) => {
+    setState((s) => ({
+      ...s,
+      manualDisbursementOrders: (s.manualDisbursementOrders ?? []).map((o) =>
+        o.id !== id
+          ? o
+          : {
+              ...o,
+              date: input.date,
+              amountUsd: input.amountUsd,
+              beneficiary: input.beneficiary,
+              description: input.description,
+              category: input.category,
+              sourceLabel: input.sourceLabel,
+            },
+      ),
+    }));
+  }, []);
+
+  const updateEditPin = useCallback((pin: string | undefined) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        profitRate: s.settings?.profitRate ?? 0.002,
+        ...s.settings,
+        editPin: pin,
+      },
     }));
   }, []);
 
@@ -194,11 +223,43 @@ export function useWorkshopStore() {
   }, []);
 
   const deleteInvoice = useCallback((invoiceId: string) => {
-    const invoice = (state.invoices ?? []).find((i) => i.id === invoiceId);
-    if (!invoice) return;
-    if (!confirm(`حذف الفاتورة ${invoice.description}؟ سيتم عكس كل الحركات المرتبطة.`)) return;
-    setState(removeInvoiceFromState(state, invoice));
-  }, [state]);
+    setState((prev) => {
+      const invoice = (prev.invoices ?? []).find((i) => i.id === invoiceId);
+      if (!invoice) return prev;
+      return removeInvoiceFromState(prev, invoice);
+    });
+  }, []);
+
+  const updateInvoice = useCallback((invoiceId: string, input: InvoiceInput) => {
+    setState((prev) => {
+      const invoice = (prev.invoices ?? []).find((i) => i.id === invoiceId);
+      if (!invoice) return prev;
+      let next = removeInvoiceFromState(prev, invoice);
+      const profitRate = next.settings?.profitRate ?? 0.002;
+      const calc = calculateInvoice(input, profitRate);
+      const { state: posted, refs } = applyInvoicePostings(next, calc.description, input.date, calc.postings);
+      const record = createInvoiceRecord({
+        number: input.number,
+        date: input.date,
+        customer: input.customer,
+        type: input.type,
+        description: calc.description,
+        postings: calc.postings,
+        entryRefs: refs,
+        workedWeight: input.workedWeight,
+        receivedUsd: input.receivedUsd,
+        usdAmount: input.receivedUsd ?? input.usdAmount,
+        wageUsd: input.wageUsd,
+        rawGoldGiven: input.rawGoldGiven,
+        stoneDiscountGrams: input.stoneDiscountGrams,
+        profitRate,
+      });
+      return {
+        ...posted,
+        invoices: [...(posted.invoices ?? []).filter((i) => i.id !== invoiceId), { ...record, id: invoice.id, createdAt: invoice.createdAt }],
+      };
+    });
+  }, []);
 
   const invoices = useMemo(() => state.invoices ?? [], [state.invoices]);
   const profitRate = state.settings?.profitRate ?? 0.002;
@@ -224,6 +285,9 @@ export function useWorkshopStore() {
     deleteInvoice,
     addManualDisbursementOrder,
     deleteManualDisbursementOrder,
+    updateManualDisbursementOrder,
+    updateEditPin,
+    updateInvoice,
     saveDisbursementTemplates,
   };
 }

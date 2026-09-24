@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Printer } from 'lucide-react';
 import { todayIso } from '../lib/format';
 import type { DisbursementCategory, ManualDisbursementOrder } from '../types';
 
@@ -14,16 +14,20 @@ export interface ManualDisbursementInput {
 
 interface Props {
   onAdd: (input: ManualDisbursementInput) => void;
+  onPrintDraft?: (input: ManualDisbursementInput) => void;
+  initial?: ManualDisbursementInput & { id?: string };
+  onCancelEdit?: () => void;
+  submitLabel?: string;
 }
 
-export function ManualDisbursementForm({ onAdd }: Props) {
-  const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(todayIso());
-  const [beneficiary, setBeneficiary] = useState('');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<DisbursementCategory | 'other'>('expense');
-  const [sourceLabel, setSourceLabel] = useState('');
+export function ManualDisbursementForm({ onAdd, onPrintDraft, initial, onCancelEdit, submitLabel }: Props) {
+  const [open, setOpen] = useState(Boolean(initial));
+  const [date, setDate] = useState(initial?.date ?? todayIso());
+  const [beneficiary, setBeneficiary] = useState(initial?.beneficiary ?? '');
+  const [amount, setAmount] = useState(initial?.amountUsd?.toString() ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [category, setCategory] = useState<DisbursementCategory | 'other'>(initial?.category ?? 'expense');
+  const [sourceLabel, setSourceLabel] = useState(initial?.sourceLabel ?? '');
 
   const reset = () => {
     setDate(todayIso());
@@ -34,20 +38,33 @@ export function ManualDisbursementForm({ onAdd }: Props) {
     setSourceLabel('');
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const buildInput = (): ManualDisbursementInput | null => {
     const amountUsd = parseFloat(amount);
-    if (!beneficiary.trim() || !amountUsd || amountUsd <= 0) return;
-    onAdd({
+    if (!beneficiary.trim() || !amountUsd || amountUsd <= 0) return null;
+    return {
       date,
       amountUsd,
       beneficiary: beneficiary.trim(),
       description: description.trim() || `أمر صرف — ${beneficiary.trim()}`,
       category,
       sourceLabel: sourceLabel.trim() || undefined,
-    });
+    };
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const input = buildInput();
+    if (!input) return;
+    onAdd(input);
     reset();
     setOpen(false);
+    onCancelEdit?.();
+  };
+
+  const printDraft = () => {
+    const input = buildInput();
+    if (!input || !onPrintDraft) return;
+    onPrintDraft(input);
   };
 
   if (!open) {
@@ -60,7 +77,9 @@ export function ManualDisbursementForm({ onAdd }: Props) {
 
   return (
     <form onSubmit={submit} className="card p-4 space-y-3 border border-amber-500/25">
-      <h3 className="font-semibold text-amber-400 text-sm">أمر صرف جديد (يدوي)</h3>
+      <h3 className="font-semibold text-amber-400 text-sm">
+        {initial ? 'تعديل أمر صرف يدوي' : 'أمر صرف جديد (يدوي)'}
+      </h3>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div>
           <label className="text-xs text-slate-400">التاريخ</label>
@@ -91,9 +110,24 @@ export function ManualDisbursementForm({ onAdd }: Props) {
           <input className="input-field" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="تفاصيل الدفع" />
         </div>
       </div>
-      <div className="flex gap-2 justify-end">
-        <button type="button" className="btn-secondary text-sm" onClick={() => { setOpen(false); reset(); }}>إلغاء</button>
-        <button type="submit" className="btn-primary text-sm">حفظ الأمر</button>
+      <div className="flex flex-wrap gap-2 justify-end">
+        <button
+          type="button"
+          className="btn-secondary text-sm"
+          onClick={() => {
+            setOpen(false);
+            reset();
+            onCancelEdit?.();
+          }}
+        >
+          إلغاء
+        </button>
+        {onPrintDraft && (
+          <button type="button" className="btn-secondary text-sm flex items-center gap-1" onClick={printDraft}>
+            <Printer className="h-3.5 w-3.5" /> طباعة (قبل الحفظ)
+          </button>
+        )}
+        <button type="submit" className="btn-primary text-sm">{submitLabel ?? 'حفظ الأمر'}</button>
       </div>
     </form>
   );

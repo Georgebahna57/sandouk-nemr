@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Banknote, Printer, Trash2 } from 'lucide-react';
+import { Banknote, Pencil, Printer, Trash2 } from 'lucide-react';
 import {
   buildDisbursementPrintHtml,
   collectDisbursementOrders,
+  draftDisbursementFromManual,
   expenseAccountLabels,
   resolveDefaultDisbursementTemplate,
   resolveDisbursementTemplates,
@@ -10,18 +11,19 @@ import {
 } from '../lib/disbursementOrders';
 import { openPrintWindow } from '../lib/invoicePrint';
 import { formatDateAr, formatNumber } from '../lib/format';
-import type { DisbursementPrintTemplate, WorkshopState } from '../types';
+import type { DisbursementPrintTemplate, ManualDisbursementOrder, WorkshopState } from '../types';
 import { DisbursementPrintDialog } from './DisbursementPrintDialog';
 import { ManualDisbursementForm, type ManualDisbursementInput } from './ManualDisbursementForm';
 
 interface Props {
   state: WorkshopState;
   onAddManual: (input: ManualDisbursementInput) => void;
+  onUpdateManual: (id: string, input: ManualDisbursementInput) => void;
   onDeleteManual: (id: string) => void;
   onSaveTemplates: (overrides: DisbursementPrintTemplate[], defaultTemplateId: string) => void;
 }
 
-export function DisbursementOrdersPanel({ state, onAddManual, onDeleteManual, onSaveTemplates }: Props) {
+export function DisbursementOrdersPanel({ state, onAddManual, onUpdateManual, onDeleteManual, onSaveTemplates }: Props) {
   const orders = useMemo(() => collectDisbursementOrders(state), [state]);
   const purchases = orders.filter((o) => o.category === 'purchase' && !o.manual);
   const expenses = orders.filter((o) => o.category === 'expense' && !o.manual);
@@ -31,6 +33,7 @@ export function DisbursementOrdersPanel({ state, onAddManual, onDeleteManual, on
   const defaultTemplateId = state.settings?.defaultDisbursementTemplateId ?? 'classic';
 
   const [printOrder, setPrintOrder] = useState<DisbursementOrder | null>(null);
+  const [editingManual, setEditingManual] = useState<ManualDisbursementOrder | null>(null);
 
   const printBatch = (list: DisbursementOrder[]) => {
     if (!list.length) return;
@@ -52,7 +55,30 @@ export function DisbursementOrdersPanel({ state, onAddManual, onDeleteManual, on
           تُجمَع تلقائياً من <strong>فواتير الشراء</strong> وقيود <strong>المصاريف</strong> ($)، أو تُضاف يدوياً.
           الطباعة تدعم <strong>قوالب جاهزة</strong> قابلة للتعديل والحفظ.
         </p>
-        <ManualDisbursementForm onAdd={onAddManual} />
+        {editingManual ? (
+          <ManualDisbursementForm
+            initial={{
+              date: editingManual.date,
+              amountUsd: editingManual.amountUsd,
+              beneficiary: editingManual.beneficiary,
+              description: editingManual.description,
+              category: editingManual.category,
+              sourceLabel: editingManual.sourceLabel,
+            }}
+            submitLabel="حفظ التعديل"
+            onAdd={(input) => {
+              onUpdateManual(editingManual.id, input);
+              setEditingManual(null);
+            }}
+            onPrintDraft={(input) => setPrintOrder(draftDisbursementFromManual(input))}
+            onCancelEdit={() => setEditingManual(null)}
+          />
+        ) : (
+          <ManualDisbursementForm
+            onAdd={onAddManual}
+            onPrintDraft={(input) => setPrintOrder(draftDisbursementFromManual(input))}
+          />
+        )}
       </div>
 
       <OrderTable
@@ -61,6 +87,10 @@ export function DisbursementOrdersPanel({ state, onAddManual, onDeleteManual, on
         onPrint={(o) => setPrintOrder(o)}
         onPrintAll={() => printBatch(manual)}
         onDelete={onDeleteManual}
+        onEditManual={(id) => {
+          const o = (state.manualDisbursementOrders ?? []).find((m) => m.id === id);
+          if (o) setEditingManual(o);
+        }}
       />
       <OrderTable
         title={`مشتريات (${purchases.length})`}
@@ -99,12 +129,14 @@ function OrderTable({
   onPrint,
   onPrintAll,
   onDelete,
+  onEditManual,
 }: {
   title: string;
   orders: DisbursementOrder[];
   onPrint: (o: DisbursementOrder) => void;
   onPrintAll: () => void;
   onDelete?: (id: string) => void;
+  onEditManual?: (id: string) => void;
 }) {
   return (
     <div className="card overflow-hidden">
@@ -148,6 +180,16 @@ function OrderTable({
                     >
                       <Printer className="h-4 w-4" />
                     </button>
+                    {onEditManual && o.manual && (
+                      <button
+                        type="button"
+                        className="text-sky-400 hover:text-sky-300 p-1"
+                        title="تعديل"
+                        onClick={() => onEditManual(o.id)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    )}
                     {onDelete && o.manual && (
                       <button
                         type="button"
