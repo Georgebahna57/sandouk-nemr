@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Printer, Trash2 } from 'lucide-react';
+import { Pencil, Printer, Trash2 } from 'lucide-react';
+import { InvoiceEditDialog } from './InvoiceEditDialog';
+import type { InvoiceInput } from '../types';
 import { INVOICE_TYPE_LABELS } from '../lib/invoiceCalc';
 import { formatDateAr, formatNumber } from '../lib/format';
 import type { WorkshopInvoice } from '../types';
@@ -9,6 +11,7 @@ import type { InvoicePrintData } from '../lib/invoicePrint';
 interface Props {
   invoices: WorkshopInvoice[];
   onDelete: (id: string) => void;
+  onEdit: (id: string, input: InvoiceInput) => void;
 }
 
 function toPrintData(inv: WorkshopInvoice): InvoicePrintData {
@@ -28,8 +31,9 @@ function toPrintData(inv: WorkshopInvoice): InvoicePrintData {
   };
 }
 
-export function InvoiceList({ invoices, onDelete }: Props) {
+export function InvoiceList({ invoices, onDelete, onEdit }: Props) {
   const [printData, setPrintData] = useState<InvoicePrintData | null>(null);
+  const [editing, setEditing] = useState<WorkshopInvoice | null>(null);
   const sorted = [...invoices].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
   if (!sorted.length) {
@@ -80,6 +84,14 @@ export function InvoiceList({ invoices, onDelete }: Props) {
                   </button>
                   <button
                     type="button"
+                    className="text-sky-400 hover:text-sky-300 p-1"
+                    onClick={() => setEditing(inv)}
+                    title="تعديل الفاتورة"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
                     className="text-red-400 hover:text-red-300 p-1"
                     onClick={() => onDelete(inv.id)}
                     title="حذف الفاتورة"
@@ -93,6 +105,13 @@ export function InvoiceList({ invoices, onDelete }: Props) {
         </table>
       </div>
       {printData && <InvoicePrintDialog data={printData} onClose={() => setPrintData(null)} />}
+      {editing && (
+        <InvoiceEditDialog
+          invoice={editing}
+          onClose={() => setEditing(null)}
+          onSave={(input) => onEdit(editing.id, input)}
+        />
+      )}
     </div>
   );
 }

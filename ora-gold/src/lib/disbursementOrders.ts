@@ -148,6 +148,26 @@ export function resolveDefaultDisbursementTemplate(state: WorkshopState): Disbur
   return templates.find((t) => t.id === id) ?? templates[0];
 }
 
+export function draftDisbursementFromManual(input: {
+  date: string;
+  amountUsd: number;
+  beneficiary: string;
+  description: string;
+  category: import('../types').DisbursementCategory | 'other';
+  sourceLabel?: string;
+}): DisbursementOrder {
+  return {
+    id: 'disp_draft_preview',
+    date: input.date,
+    amountUsd: input.amountUsd,
+    beneficiary: input.beneficiary,
+    description: input.description || `أمر صرف — ${input.beneficiary}`,
+    category: input.category === 'other' ? 'expense' : input.category,
+    sourceLabel: input.sourceLabel ?? 'معاينة قبل الحفظ',
+    manual: true,
+  };
+}
+
 export function expenseAccountLabels(): string[] {
   return EXPENSE_ACCOUNT_IDS.map((id) => {
     const d = getAccountDef(id);

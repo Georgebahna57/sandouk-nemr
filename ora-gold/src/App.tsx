@@ -10,6 +10,7 @@ import { ImportExportBar } from './components/ImportExportBar';
 import { InvoiceForm } from './components/InvoiceForm';
 import { InvoiceList } from './components/InvoiceList';
 import { DisbursementOrdersPanel } from './components/DisbursementOrdersPanel';
+import { EditLockBadge, EditProtectionProvider, useEditProtection } from './components/EditProtectionProvider';
 import type { DashboardRow } from './types';
 
 type View = 'dashboard' | 'treasury' | 'account' | 'invoice' | 'disbursements';
@@ -20,8 +21,8 @@ function focusForRow(row: DashboardRow): LedgerFocus {
   return 'both';
 }
 
-export default function App() {
-  const store = useWorkshopStore();
+function AppContent({ store }: { store: ReturnType<typeof useWorkshopStore> }) {
+  const { guard } = useEditProtection();
   const [view, setView] = useState<View>('dashboard');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [ledgerFocus, setLedgerFocus] = useState<LedgerFocus>('both');
@@ -39,15 +40,22 @@ export default function App() {
 
   const bourseAlias = DASHBOARD_ALIASES.find((a) => a.id === 'bourse');
 
+  const confirmDelete = (message: string, action: () => void) => {
+    guard(() => {
+      if (confirm(message)) action();
+    }, 'تأكيد التعديل أو الحذف');
+  };
+
   return (
     <div className="min-h-dvh">
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-3 flex-wrap">
           <Gem className="h-8 w-8 text-amber-500" />
-          <div>
+          <div className="flex-1 min-w-[200px]">
             <h1 className="text-xl font-bold text-amber-400">Ora Gold</h1>
             <p className="text-xs text-slate-400">ميزانية معمل الذهب — مصاريف · أجور · أرباح · مدفوعات</p>
           </div>
+          <EditLockBadge />
         </div>
       </header>
 
@@ -85,24 +93,38 @@ export default function App() {
                 <InvoiceForm
                   profitRate={store.profitRate}
                   existingNumbers={store.invoices.map((i) => i.number)}
-                  onSubmit={store.postInvoice}
-                  onProfitRateChange={store.updateProfitRate}
+                  onSubmit={(input) => guard(() => store.postInvoice(input), 'ترحيل فاتورة جديدة')}
+                  onProfitRateChange={(rate) => guard(() => store.updateProfitRate(rate), 'تعديل نسبة الربح')}
                 />
-                <InvoiceList invoices={store.invoices} onDelete={store.deleteInvoice} />
+                <InvoiceList
+                  invoices={store.invoices}
+                  onDelete={(id) =>
+                    confirmDelete('حذف الفاتورة؟ سيتم عكس كل الحركات المرتبطة.', () => store.deleteInvoice(id))
+                  }
+                  onEdit={(id, input) => guard(() => store.updateInvoice(id, input), 'تعديل فاتورة')}
+                />
               </div>
             )}
 
             {view === 'disbursements' && (
               <DisbursementOrdersPanel
                 state={store.state}
-                onAddManual={store.addManualDisbursementOrder}
-                onDeleteManual={store.deleteManualDisbursementOrder}
-                onSaveTemplates={store.saveDisbursementTemplates}
+                onAddManual={(input) => guard(() => store.addManualDisbursementOrder(input), 'إضافة أمر صرف')}
+                onUpdateManual={(id, input) => guard(() => store.updateManualDisbursementOrder(id, input), 'تعديل أمر صرف')}
+                onDeleteManual={(id) =>
+                  confirmDelete('حذف أمر الصرف اليدوي؟', () => store.deleteManualDisbursementOrder(id))
+                }
+                onSaveTemplates={(overrides, defaultId) =>
+                  guard(() => store.saveDisbursementTemplates(overrides, defaultId), 'حفظ قوالب الطباعة')
+                }
               />
             )}
 
             {view === 'treasury' && (
-              <TreasuryPanel items={store.state.treasury} onChange={store.updateTreasury} />
+              <TreasuryPanel
+                items={store.state.treasury}
+                onSave={(items) => guard(() => store.updateTreasury(items), 'حفظ تعديلات الخزنة')}
+              />
             )}
 
             {view === 'account' && selectedDef && selectedData && (
@@ -120,8 +142,18 @@ export default function App() {
                   entryKind={selectedDef.entryKind}
                   data={selectedData}
                   focus={ledgerFocus}
-                  onAddVoucher={(voucher) => store.addLedgerVoucher(selectedAccountId!, selectedDef.entryKind, voucher)}
-                  onDelete={(side, id) => store.removeLedgerEntry(selectedAccountId!, side, id)}
+                  onAddVoucher={(voucher) =>
+                    guard(
+                      () => store.addLedgerVoucher(selectedAccountId!, selectedDef.entryKind, voucher),
+                      'إضافة قيد في الدفتر',
+                    )
+                  }
+                  onDelete={(side, id) =>
+                    confirmDelete('حذف هذه الحركة؟', () => store.removeLedgerEntry(selectedAccountId!, side, id))
+                  }
+                  onEdit={(side, id, patch) =>
+                    guard(() => store.editLedgerEntry(selectedAccountId!, side, id, patch), 'تعديل حركة في الدفتر')
+                  }
                 />
               </div>
             )}
@@ -129,5 +161,14 @@ export default function App() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  const store = useWorkshopStore();
+  return (
+    <EditProtectionProvider editPin={store.state.settings?.editPin} onEditPinChange={store.updateEditPin}>
+      <AppContent store={store} />
+    </EditProtectionProvider>
   );
 }

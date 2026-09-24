@@ -171,6 +171,8 @@ export interface ManualDisbursementOrder {
 
 export interface WorkshopSettings {
   profitRate: number;
+  /** رمز حماية التعديل والحذف (محلي على الجهاز) */
+  editPin?: string;
   /** تخصيص قوالب طباعة أوامر الصرف (يُدمج مع القوالب الجاهزة) */
   disbursementTemplateOverrides?: DisbursementPrintTemplate[];
   defaultDisbursementTemplateId?: string;

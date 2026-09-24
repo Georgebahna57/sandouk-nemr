@@ -1,4 +1,6 @@
-import { Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
+import { LedgerEntryEditDialog } from './LedgerEntryEditDialog';
 import { formatDateAr, formatNumber } from '../lib/format';
 import { sortEntriesNewestFirst } from '../lib/ledger';
 import { calcLedgerTotals, getColumnHeaders, getDisplayValues, resolveLedgerKind } from '../lib/ledgerDisplay';
@@ -16,6 +18,7 @@ interface Props {
   focus?: LedgerFocus;
   onAddVoucher: (voucher: LedgerVoucherInput) => void;
   onDelete: (side: CurrencySide, id: string) => void;
+  onEdit: (side: CurrencySide, id: string, patch: Partial<Omit<import('../types').LedgerEntry, 'id' | 'balance'>>) => void;
 }
 
 function LedgerTable({
@@ -24,12 +27,14 @@ function LedgerTable({
   ledgerKind,
   side,
   onDelete,
+  onEdit,
 }: {
   title: string;
   entries: AccountData['gold'];
   ledgerKind: EntryKind;
   side: CurrencySide;
   onDelete: (id: string) => void;
+  onEdit: (entry: import('../types').LedgerEntry) => void;
 }) {
   const [col1Label, col2Label] = getColumnHeaders(ledgerKind, side);
   const headers = ['التاريخ', col1Label, col2Label, 'الرصيد', 'البيان', ''];
@@ -62,7 +67,10 @@ function LedgerTable({
                     {formatNumber(e.balance, decimals)}
                   </td>
                   <td className="max-w-[200px] truncate" title={e.description}>{e.description}</td>
-                  <td>
+                  <td className="flex gap-1 justify-end">
+                    <button type="button" className="text-sky-400 hover:text-sky-300 p-1" onClick={() => onEdit(e)} title="تعديل">
+                      <Pencil className="h-4 w-4" />
+                    </button>
                     <button type="button" className="text-red-400 hover:text-red-300 p-1" onClick={() => onDelete(e.id)} title="حذف">
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -90,7 +98,8 @@ function LedgerTable({
   );
 }
 
-export function AccountLedger({ accountId, accountName, entryKind, data, focus = 'both', onAddVoucher, onDelete }: Props) {
+export function AccountLedger({ accountId, accountName, entryKind, data, focus = 'both', onAddVoucher, onDelete, onEdit }: Props) {
+  const [editing, setEditing] = useState<{ entry: import('../types').LedgerEntry; side: CurrencySide } | null>(null);
   const showGold = focus === 'both' || focus === 'gold';
   const showUsd = (focus === 'both' || focus === 'usd') && entryKind !== 'manufacturing';
 
@@ -136,6 +145,7 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
             ledgerKind={resolveLedgerKind(accountId, 'gold', entryKind)}
             side="gold"
             onDelete={(id) => onDelete('gold', id)}
+            onEdit={(entry) => setEditing({ entry, side: 'gold' })}
           />
         )}
         {showUsd && (
@@ -145,9 +155,20 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
             ledgerKind={resolveLedgerKind(accountId, 'usd', entryKind)}
             side="usd"
             onDelete={(id) => onDelete('usd', id)}
+            onEdit={(entry) => setEditing({ entry, side: 'usd' })}
           />
         )}
       </div>
+
+      {editing && (
+        <LedgerEntryEditDialog
+          entry={editing.entry}
+          entryKind={resolveLedgerKind(accountId, editing.side, entryKind)}
+          side={editing.side}
+          onClose={() => setEditing(null)}
+          onSave={(patch) => onEdit(editing.side, editing.entry.id, patch)}
+        />
+      )}
     </div>
   );
 }
