@@ -45,11 +45,12 @@ function parseMoneyField(value: string, allowEmpty: boolean): number | undefined
   return Number.isFinite(n) ? n : undefined;
 }
 
-const MATERIAL_OPTIONS_CASH: MaterialType[] = ['usd'];
+const MATERIAL_OPTIONS_CASH: MaterialType[] = ['usd', 'gold995', 'scrap18', 'scrap21', 'scrap22'];
 
 const MATERIAL_OPTIONS_FULL: MaterialType[] = [
   ...MATERIAL_OPTIONS_CASH,
-  'gold995',
+  'worked18',
+  'worked21',
   'raw_gold',
 ];
 
@@ -149,7 +150,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const showCashUsd = type === 'sale18' || type === 'sale21';
   const showOtherUsd = type === 'workshop' || type === 'purchase';
   const showRawGold = type === 'workshop';
-  const showExtraLines = type === 'workshop' || type === 'purchase';
+  const showExtraLines = true;
   const materialOptions = showCashUsd ? MATERIAL_OPTIONS_CASH : MATERIAL_OPTIONS_FULL;
 
   const printData: InvoicePrintData | null = useMemo(() => {
@@ -348,14 +349,14 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       {showExtraLines && (
         <div className="card p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-300">سطور إضافية (كسر / …)</h3>
+            <h3 className="text-sm font-semibold text-slate-300">سطور إضافية (كسر / رملة / …)</h3>
             <button type="button" className="btn-secondary text-xs flex items-center gap-1" onClick={addLine}>
               <Plus className="h-3.5 w-3.5" /> إضافة سطر
             </button>
           </div>
 
           {extraLines.length === 0 && (
-            <p className="text-xs text-slate-500">مثال: دولار، مشغول، مواد إضافية، إلخ.</p>
+            <p className="text-xs text-slate-500">مثال: استلام كسر 18، رملة 995، دولار إضافي، إلخ.</p>
           )}
 
           {extraLines.map((line, idx) => (
