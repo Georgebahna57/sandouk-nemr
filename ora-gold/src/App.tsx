@@ -93,8 +93,8 @@ function AppContent({ store }: { store: ReturnType<typeof useWorkshopStore> }) {
                 <InvoiceForm
                   profitRate={store.profitRate}
                   existingNumbers={store.invoices.map((i) => i.number)}
-                  onSubmit={(input) => guard(() => store.postInvoice(input), 'ترحيل فاتورة جديدة')}
-                  onProfitRateChange={(rate) => guard(() => store.updateProfitRate(rate), 'تعديل نسبة الربح')}
+                  onSubmit={store.postInvoice}
+                  onProfitRateChange={store.updateProfitRate}
                 />
                 <InvoiceList
                   invoices={store.invoices}
@@ -109,14 +109,12 @@ function AppContent({ store }: { store: ReturnType<typeof useWorkshopStore> }) {
             {view === 'disbursements' && (
               <DisbursementOrdersPanel
                 state={store.state}
-                onAddManual={(input) => guard(() => store.addManualDisbursementOrder(input), 'إضافة أمر صرف')}
+                onAddManual={store.addManualDisbursementOrder}
                 onUpdateManual={(id, input) => guard(() => store.updateManualDisbursementOrder(id, input), 'تعديل أمر صرف')}
                 onDeleteManual={(id) =>
                   confirmDelete('حذف أمر الصرف اليدوي؟', () => store.deleteManualDisbursementOrder(id))
                 }
-                onSaveTemplates={(overrides, defaultId) =>
-                  guard(() => store.saveDisbursementTemplates(overrides, defaultId), 'حفظ قوالب الطباعة')
-                }
+                onSaveTemplates={store.saveDisbursementTemplates}
               />
             )}
 
@@ -143,10 +141,7 @@ function AppContent({ store }: { store: ReturnType<typeof useWorkshopStore> }) {
                   data={selectedData}
                   focus={ledgerFocus}
                   onAddVoucher={(voucher) =>
-                    guard(
-                      () => store.addLedgerVoucher(selectedAccountId!, selectedDef.entryKind, voucher),
-                      'إضافة قيد في الدفتر',
-                    )
+                    store.addLedgerVoucher(selectedAccountId!, selectedDef.entryKind, voucher)
                   }
                   onDelete={(side, id) =>
                     confirmDelete('حذف هذه الحركة؟', () => store.removeLedgerEntry(selectedAccountId!, side, id))
@@ -167,7 +162,7 @@ function AppContent({ store }: { store: ReturnType<typeof useWorkshopStore> }) {
 export default function App() {
   const store = useWorkshopStore();
   return (
-    <EditProtectionProvider editPin={store.state.settings?.editPin} onEditPinChange={store.updateEditPin}>
+    <EditProtectionProvider>
       <AppContent store={store} />
     </EditProtectionProvider>
   );

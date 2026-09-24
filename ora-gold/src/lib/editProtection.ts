@@ -1,6 +1,9 @@
 const SESSION_KEY = 'workshop-edit-unlock-until';
 const UNLOCK_MS = 30 * 60 * 1000;
 
+/** رمز ثابت للتعديل والحذف فقط */
+export const FIXED_EDIT_PIN = '2233';
+
 export function isEditUnlocked(): boolean {
   try {
     const until = parseInt(sessionStorage.getItem(SESSION_KEY) ?? '0', 10);
@@ -18,7 +21,6 @@ export function lockEditSession(): void {
   sessionStorage.removeItem(SESSION_KEY);
 }
 
-export function verifyEditPin(input: string, storedPin?: string): boolean {
-  if (!storedPin) return false;
-  return input.trim() === storedPin;
+export function verifyEditPin(input: string): boolean {
+  return input.trim() === FIXED_EDIT_PIN;
 }
