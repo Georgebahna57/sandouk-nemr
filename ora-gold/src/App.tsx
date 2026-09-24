@@ -146,9 +146,7 @@ function AppContent({ store }: { store: ReturnType<typeof useWorkshopStore> }) {
                   onDelete={(side, id) =>
                     confirmDelete('حذف هذه الحركة؟', () => store.removeLedgerEntry(selectedAccountId!, side, id))
                   }
-                  onEdit={(side, id, patch) =>
-                    guard(() => store.editLedgerEntry(selectedAccountId!, side, id, patch), 'تعديل حركة في الدفتر')
-                  }
+                  onEdit={(side, id, patch) => store.editLedgerEntry(selectedAccountId!, side, id, patch)}
                 />
               </div>
             )}

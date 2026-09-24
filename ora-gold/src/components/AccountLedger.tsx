@@ -7,6 +7,7 @@ import { calcLedgerTotals, getColumnHeaders, getDisplayValues, resolveLedgerKind
 import type { AccountData, CurrencySide, EntryKind } from '../types';
 import { extractInvoiceNumbers, getOffsetAccountOptions, type LedgerVoucherInput } from '../lib/ledgerVoucher';
 import { LedgerVoucherForm } from './LedgerVoucherForm';
+import { useEditProtection } from './EditProtectionProvider';
 
 export type LedgerFocus = 'both' | 'gold' | 'usd';
 
@@ -27,25 +28,27 @@ function LedgerTable({
   ledgerKind,
   side,
   onDelete,
-  onEdit,
+  onBeginEdit,
 }: {
   title: string;
   entries: AccountData['gold'];
   ledgerKind: EntryKind;
   side: CurrencySide;
   onDelete: (id: string) => void;
-  onEdit: (entry: import('../types').LedgerEntry) => void;
+  onBeginEdit: (entry: import('../types').LedgerEntry) => void;
 }) {
   const [col1Label, col2Label] = getColumnHeaders(ledgerKind, side);
-  const headers = ['التاريخ', col1Label, col2Label, 'الرصيد', 'البيان', ''];
+  /** إجراءات أولاً في DOM لتظهر يمين الجدول (RTL) ولا تختفي عند التمرير */
+  const headers = ['إجراءات', 'البيان', 'الرصيد', col2Label, col1Label, 'التاريخ'];
   const decimals = side === 'gold' ? 4 : 2;
   const totals = calcLedgerTotals(entries, ledgerKind, side);
   const displayEntries = sortEntriesNewestFirst(entries);
 
   return (
     <div className="card overflow-hidden">
-      <div className="border-b border-slate-700 px-4 py-2 bg-slate-800/40">
+      <div className="border-b border-slate-700 px-4 py-2 bg-slate-800/40 flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold text-amber-400">{title}</h3>
+        <span className="text-[11px] text-slate-500">تعديل/حذف من عمود الإجراءات (رمز 2233)</span>
       </div>
       <div className="max-h-96 overflow-auto">
         <table className="w-full table-ledger">
@@ -59,22 +62,34 @@ function LedgerTable({
             {displayEntries.map((e) => {
               const { col1: v1, col2: v2 } = getDisplayValues(e, ledgerKind, side);
               return (
-                <tr key={e.id}>
-                  <td>{formatDateAr(e.date)}</td>
-                  <td className="num">{v1 ? formatNumber(v1, decimals) : ''}</td>
-                  <td className="num">{v2 ? formatNumber(v2, decimals) : ''}</td>
+                <tr key={e.id} className="group">
+                  <td className="ledger-actions-cell whitespace-nowrap">
+                    <div className="flex gap-0.5 justify-end">
+                      <button
+                        type="button"
+                        className="text-sky-400 hover:text-sky-200 p-1 rounded hover:bg-sky-500/10"
+                        onClick={() => onBeginEdit(e)}
+                        title="تعديل"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10"
+                        onClick={() => onDelete(e.id)}
+                        title="حذف"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="max-w-[220px] truncate" title={e.description}>{e.description}</td>
                   <td className={`num font-medium ${e.balance < 0 ? 'num-neg' : 'num-pos'}`}>
                     {formatNumber(e.balance, decimals)}
                   </td>
-                  <td className="max-w-[200px] truncate" title={e.description}>{e.description}</td>
-                  <td className="flex gap-1 justify-end">
-                    <button type="button" className="text-sky-400 hover:text-sky-300 p-1" onClick={() => onEdit(e)} title="تعديل">
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button type="button" className="text-red-400 hover:text-red-300 p-1" onClick={() => onDelete(e.id)} title="حذف">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
+                  <td className="num">{v2 ? formatNumber(v2, decimals) : ''}</td>
+                  <td className="num">{v1 ? formatNumber(v1, decimals) : ''}</td>
+                  <td className="whitespace-nowrap">{formatDateAr(e.date)}</td>
                 </tr>
               );
             })}
@@ -82,13 +97,14 @@ function LedgerTable({
           {entries.length > 0 && (
             <tfoot>
               <tr className="ledger-total-row">
+                <td />
                 <td className="font-bold text-amber-400">المجموع</td>
-                <td className="num font-bold">{formatNumber(totals.sumCol1, decimals)}</td>
-                <td className="num font-bold">{formatNumber(totals.sumCol2, decimals)}</td>
                 <td className={`num font-bold ${totals.balance < 0 ? 'num-neg' : 'num-pos'}`}>
                   {formatNumber(totals.balance, decimals)}
                 </td>
-                <td colSpan={2} />
+                <td className="num font-bold">{formatNumber(totals.sumCol2, decimals)}</td>
+                <td className="num font-bold">{formatNumber(totals.sumCol1, decimals)}</td>
+                <td />
               </tr>
             </tfoot>
           )}
@@ -99,7 +115,12 @@ function LedgerTable({
 }
 
 export function AccountLedger({ accountId, accountName, entryKind, data, focus = 'both', onAddVoucher, onDelete, onEdit }: Props) {
+  const { guard } = useEditProtection();
   const [editing, setEditing] = useState<{ entry: import('../types').LedgerEntry; side: CurrencySide } | null>(null);
+
+  const beginEdit = (entry: import('../types').LedgerEntry, side: CurrencySide) => {
+    guard(() => setEditing({ entry, side }), 'تعديل حركة في الدفتر');
+  };
   const showGold = focus === 'both' || focus === 'gold';
   const showUsd = (focus === 'both' || focus === 'usd') && entryKind !== 'manufacturing';
 
@@ -145,7 +166,7 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
             ledgerKind={resolveLedgerKind(accountId, 'gold', entryKind)}
             side="gold"
             onDelete={(id) => onDelete('gold', id)}
-            onEdit={(entry) => setEditing({ entry, side: 'gold' })}
+            onBeginEdit={(entry) => beginEdit(entry, 'gold')}
           />
         )}
         {showUsd && (
@@ -155,7 +176,7 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
             ledgerKind={resolveLedgerKind(accountId, 'usd', entryKind)}
             side="usd"
             onDelete={(id) => onDelete('usd', id)}
-            onEdit={(entry) => setEditing({ entry, side: 'usd' })}
+            onBeginEdit={(entry) => beginEdit(entry, 'usd')}
           />
         )}
       </div>
@@ -166,7 +187,10 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
           entryKind={resolveLedgerKind(accountId, editing.side, entryKind)}
           side={editing.side}
           onClose={() => setEditing(null)}
-          onSave={(patch) => onEdit(editing.side, editing.entry.id, patch)}
+          onSave={(patch) => {
+            onEdit(editing.side, editing.entry.id, patch);
+            setEditing(null);
+          }}
         />
       )}
     </div>
