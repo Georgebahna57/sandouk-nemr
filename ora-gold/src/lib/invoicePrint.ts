@@ -9,6 +9,7 @@ export type InvoicePrintSectionId =
   | 'customers'
   | 'profit'
   | 'cash'
+  | 'receipt'
   | 'materials'
   | 'totals';
 
@@ -39,6 +40,7 @@ function sectionForAccount(accountId: string): InvoicePrintSectionId {
   if (accountId === 'customers') return 'customers';
   if (accountId === 'pro') return 'profit';
   if (accountId === 'dollar' || accountId === 'cash') return 'cash';
+  if (accountId === 'sand') return 'receipt';
   return 'materials';
 }
 
@@ -49,7 +51,8 @@ const SECTION_TITLES: Record<InvoicePrintSectionId, string> = {
   customers: 'قسم زبائن الورشة',
   profit: 'قسم ربح الإنتاج (Pro)',
   cash: 'قسم الصندوق / الدولار',
-  materials: 'قسم المواد (كسر / K / دهب)',
+  receipt: 'قسم الاستلام (رملة)',
+  materials: 'قسم المواد (كسر / K / دهب خام)',
   totals: 'ملخص المبالغ',
 };
 
@@ -58,7 +61,7 @@ export function defaultSectionsForType(type: InvoiceType): InvoicePrintSectionId
   switch (type) {
     case 'sale18':
     case 'sale21':
-      return ['header', 'trading', 'worked', 'profit', 'cash', 'materials', 'totals'];
+      return ['header', 'trading', 'worked', 'profit', 'cash', 'receipt', 'materials', 'totals'];
     case 'workshop':
       return ['header', 'customers', 'worked', 'profit', 'materials', 'totals'];
     case 'purchase':

@@ -134,7 +134,7 @@ function stoneNote(input: InvoiceInput, base: string): string {
  * - مشغول: تسليم وزن الأجور + استلام أجور $
  * - متاجرة: عند وجود «صافي قبض $» (مقبوض − أجور) — بيع 995 + ذلك المبلغ
  * - ربح Pro: 2 غرام / كيلو على وزن المشغول (0.002 × الوزن بالغرام)
- * - استلام: عند عدم وجود صافي $ — قبض مكافئ 995 على «رملة» و«دهب» + دولار الأجور للصندوق
+ * - استلام: عند عدم وجود صافي $ — قبض مكافئ 995 على «رملة» + دولار للصندوق
  */
 function calcSale18(input: InvoiceInput, profitRate: number): InvoicePosting[] {
   const metalW = resolveMetalWeight(input);
@@ -159,10 +159,7 @@ function calcSale18(input: InvoiceInput, profitRate: number): InvoicePosting[] {
       posting('trading', 'usd', undefined, netUsd, 'مقبوض − أجور'),
     );
   } else if (fine995 > 0) {
-    lines.push(
-      posting('sand', 'gold', undefined, fine995, 'استلام رملة 995'),
-      posting('gold', 'gold', undefined, fine995, 'استلام رملة'),
-    );
+    lines.push(posting('sand', 'gold', undefined, fine995, 'استلام رملة 995'));
   }
 
   if (cashToBox > 0) {

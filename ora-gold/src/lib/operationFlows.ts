@@ -30,15 +30,15 @@ export const INVOICE_OPERATION_FLOWS: Record<InvoiceType, InvoiceFlowInfo> = {
     type: 'sale18',
     labelAr: 'فاتورة كاش — مشغول 18',
     stages: ['production', 'sale', 'settlement'],
-    sheets: ['مشغول 18', 'Trading أو رملة+دهب', 'Pro', 'دولار'],
+    sheets: ['مشغول 18', 'Trading أو رملة', 'Pro', 'دولار'],
     notesAr:
-      'مشغول (تسليم + أجور $) → متاجرة إذا وُجد صافي قبض $ (مقبوض−أجور) وإلا استلام رملة/دهب → ربح Pro (2غ/كغ + صافي $) → صندوق دولار.',
+      'مشغول (تسليم + أجور $) → متاجرة إذا وُجد صافي قبض $ (مقبوض−أجور) وإلا استلام رملة → ربح Pro (2غ/كغ) → صندوق دولار.',
   },
   sale21: {
     type: 'sale21',
     labelAr: 'فاتورة كاش — مشغول 21',
     stages: ['production', 'sale', 'settlement'],
-    sheets: ['مشغول 21', 'Trading أو رملة+دهب', 'Pro', 'دولار'],
+    sheets: ['مشغول 21', 'Trading أو رملة', 'Pro', 'دولار'],
     notesAr: 'نفس مسار فاتورة الكاش 18 على ورقة مشغول 21.',
   },
   workshop: {

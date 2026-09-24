@@ -12,7 +12,7 @@ interface Props {
 export function AccountNav({ selectedId, ledgerFocus, onSelect, view, onViewChange }: Props) {
   const grouped = {
     main: ACCOUNTS.filter((a) => a.showOnDashboard),
-    detail: ACCOUNTS.filter((a) => !a.showOnDashboard),
+    detail: ACCOUNTS.filter((a) => !a.showOnDashboard && a.id !== 'gold'),
   };
 
   const isBourseActive = selectedId === 'cash' && ledgerFocus === 'usd';

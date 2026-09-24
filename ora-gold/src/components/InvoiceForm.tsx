@@ -22,15 +22,19 @@ function parseMoneyField(value: string, allowEmpty: boolean): number | undefined
   return Number.isFinite(n) ? n : undefined;
 }
 
-const MATERIAL_OPTIONS: MaterialType[] = [
+const MATERIAL_OPTIONS_CASH: MaterialType[] = [
   'usd',
-  'gold995',
   'scrap18_cast',
   'scrap18_pull',
   'scrap21_cast',
   'scrap21_pull',
   'k18',
   'k21',
+];
+
+const MATERIAL_OPTIONS_FULL: MaterialType[] = [
+  ...MATERIAL_OPTIONS_CASH,
+  'gold995',
   'raw_gold',
 ];
 
@@ -130,6 +134,8 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const showCashUsd = type === 'sale18' || type === 'sale21';
   const showOtherUsd = type === 'workshop' || type === 'purchase';
   const showRawGold = type === 'workshop';
+  const showExtraLines = type === 'workshop' || type === 'purchase';
+  const materialOptions = showCashUsd ? MATERIAL_OPTIONS_CASH : MATERIAL_OPTIONS_FULL;
 
   const printData: InvoicePrintData | null = useMemo(() => {
     if (!calc.postings.length || !number.trim()) return null;
@@ -271,7 +277,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">ذهب صافي (أجور)</p>
+              <p className="text-xs text-slate-400">وزن الأجور (صافي)</p>
               <p className="num font-bold text-emerald-400">{formatNumber(autoPreview.wagesGold, 2)} غ</p>
             </div>
             <div>
@@ -310,59 +316,61 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
         </div>
       </div>
 
-      <div className="card p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-300">سطور إضافية (كسر / رملة / …)</h3>
-          <button type="button" className="btn-secondary text-xs flex items-center gap-1" onClick={addLine}>
-            <Plus className="h-3.5 w-3.5" /> إضافة سطر
-          </button>
-        </div>
-
-        {extraLines.length === 0 && (
-          <p className="text-xs text-slate-500">مثال: استلام كسر 18 صب، استلام رملة 995، إلخ.</p>
-        )}
-
-        {extraLines.map((line, idx) => (
-          <div key={idx} className="grid sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
-            <div>
-              <label className="text-xs text-slate-400">المادة</label>
-              <select
-                className="input-field"
-                value={line.material}
-                onChange={(e) => updateLine(idx, { material: e.target.value as MaterialType })}
-              >
-                {MATERIAL_OPTIONS.map((m) => (
-                  <option key={m} value={m}>{MATERIAL_LABELS[m]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-slate-400">الاتجاه</label>
-              <select
-                className="input-field"
-                value={line.direction}
-                onChange={(e) => updateLine(idx, { direction: e.target.value as LineDirection })}
-              >
-                <option value="receive">قبضنا ←</option>
-                <option value="give">سلّمنا →</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-slate-400">الكمية</label>
-              <input
-                type="number"
-                step="any"
-                className="input-field num"
-                value={line.amount || ''}
-                onChange={(e) => updateLine(idx, { amount: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-            <button type="button" className="text-red-400 p-2" onClick={() => removeLine(idx)}>
-              <Trash2 className="h-4 w-4" />
+      {showExtraLines && (
+        <div className="card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300">سطور إضافية (كسر / …)</h3>
+            <button type="button" className="btn-secondary text-xs flex items-center gap-1" onClick={addLine}>
+              <Plus className="h-3.5 w-3.5" /> إضافة سطر
             </button>
           </div>
-        ))}
-      </div>
+
+          {extraLines.length === 0 && (
+            <p className="text-xs text-slate-500">مثال: استلام كسر 18 صب، مواد إضافية، إلخ.</p>
+          )}
+
+          {extraLines.map((line, idx) => (
+            <div key={idx} className="grid sm:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+              <div>
+                <label className="text-xs text-slate-400">المادة</label>
+                <select
+                  className="input-field"
+                  value={line.material}
+                  onChange={(e) => updateLine(idx, { material: e.target.value as MaterialType })}
+                >
+                  {materialOptions.map((m) => (
+                    <option key={m} value={m}>{MATERIAL_LABELS[m]}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">الاتجاه</label>
+                <select
+                  className="input-field"
+                  value={line.direction}
+                  onChange={(e) => updateLine(idx, { direction: e.target.value as LineDirection })}
+                >
+                  <option value="receive">قبضنا ←</option>
+                  <option value="give">سلّمنا →</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">الكمية</label>
+                <input
+                  type="number"
+                  step="any"
+                  className="input-field num"
+                  value={line.amount || ''}
+                  onChange={(e) => updateLine(idx, { amount: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+              <button type="button" className="text-red-400 p-2" onClick={() => removeLine(idx)}>
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <InvoiceOperationFlow type={type} />
 
