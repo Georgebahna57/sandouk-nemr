@@ -22,15 +22,21 @@ export const MATERIAL_LABELS: Record<MaterialType, string> = {
   gold995: 'ذهب رملة 995',
   worked18: 'مشغول عيار 18',
   worked21: 'مشغول عيار 21',
+  scrap18: 'كسر 18',
+  scrap21: 'كسر 21',
+  scrap22: 'كسر 22',
   raw_gold: 'دهب خام (995)',
 };
 
 const MATERIAL_ACCOUNT: Record<MaterialType, { accountId: string; side: 'gold' | 'usd' }> = {
   usd: { accountId: 'dollar', side: 'usd' },
-  gold995: { accountId: 'gold', side: 'gold' },
+  gold995: { accountId: 'sand', side: 'gold' },
   worked18: { accountId: 'wages18', side: 'gold' },
   worked21: { accountId: 'wages21', side: 'gold' },
-  raw_gold: { accountId: 'gold', side: 'gold' },
+  scrap18: { accountId: 'scrap18', side: 'gold' },
+  scrap21: { accountId: 'scrap21', side: 'gold' },
+  scrap22: { accountId: 'scrap22', side: 'gold' },
+  raw_gold: { accountId: 'sand', side: 'gold' },
 };
 
 function posting(

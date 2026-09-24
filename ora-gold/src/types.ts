@@ -84,6 +84,9 @@ export type MaterialType =
   | 'gold995'
   | 'worked18'
   | 'worked21'
+  | 'scrap18'
+  | 'scrap21'
+  | 'scrap22'
   | 'raw_gold';
 
 export type LineDirection = 'receive' | 'give';

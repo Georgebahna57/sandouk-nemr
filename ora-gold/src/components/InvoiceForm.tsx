@@ -14,6 +14,29 @@ import { InvoiceOperationFlow } from './InvoiceOperationFlow';
 import { InvoicePrintDialog } from './InvoicePrintDialog';
 import type { InvoicePrintData } from '../lib/invoicePrint';
 
+function InvoicePreviewStat({
+  label,
+  value,
+  valueClassName = 'text-slate-200',
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col items-center justify-start gap-1.5 px-2 text-center sm:px-3">
+      <p className="flex min-h-[2.75rem] w-full items-end justify-center text-xs leading-snug text-slate-400">
+        {label}
+      </p>
+      <p
+        className={`num flex min-h-[1.5rem] w-full items-center justify-center text-base font-bold leading-tight ${valueClassName}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
 /** يقبل 0 ولا يعامل الحقل الفارغ كـ undefined عند الحاجة */
 function parseMoneyField(value: string, allowEmpty: boolean): number | undefined {
   const trimmed = value.trim();
@@ -22,11 +45,12 @@ function parseMoneyField(value: string, allowEmpty: boolean): number | undefined
   return Number.isFinite(n) ? n : undefined;
 }
 
-const MATERIAL_OPTIONS_CASH: MaterialType[] = ['usd'];
+const MATERIAL_OPTIONS_CASH: MaterialType[] = ['usd', 'gold995', 'scrap18', 'scrap21', 'scrap22'];
 
 const MATERIAL_OPTIONS_FULL: MaterialType[] = [
   ...MATERIAL_OPTIONS_CASH,
-  'gold995',
+  'worked18',
+  'worked21',
   'raw_gold',
 ];
 
@@ -126,7 +150,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const showCashUsd = type === 'sale18' || type === 'sale21';
   const showOtherUsd = type === 'workshop' || type === 'purchase';
   const showRawGold = type === 'workshop';
-  const showExtraLines = type === 'workshop' || type === 'purchase';
+  const showExtraLines = true;
   const materialOptions = showCashUsd ? MATERIAL_OPTIONS_CASH : MATERIAL_OPTIONS_FULL;
 
   const printData: InvoicePrintData | null = useMemo(() => {
@@ -257,41 +281,55 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
         </div>
 
         {autoPreview && (
-          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 grid sm:grid-cols-2 lg:grid-cols-6 gap-3 text-sm">
-            <div>
-              <p className="text-xs text-slate-400">وزن إجمالي</p>
-              <p className="num font-bold text-slate-200">{formatNumber(autoPreview.grossWeight, 2)} غ</p>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+            <div
+              className={
+                type === 'sale18' || type === 'sale21'
+                  ? 'grid grid-cols-2 gap-y-5 gap-x-0 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7'
+                  : 'grid grid-cols-2 gap-y-5 gap-x-0 sm:grid-cols-3 lg:grid-cols-6'
+              }
+            >
+              <InvoicePreviewStat
+                label="وزن إجمالي"
+                value={`${formatNumber(autoPreview.grossWeight, 2)} غ`}
+              />
+              <InvoicePreviewStat
+                label="حجر مخصوم"
+                value={
+                  autoPreview.stoneDiscountGrams > 0
+                    ? `${formatNumber(autoPreview.stoneDiscountGrams, 2)} غ`
+                    : '—'
+                }
+                valueClassName="text-slate-300"
+              />
+              <InvoicePreviewStat
+                label="وزن الأجور (صافي)"
+                value={`${formatNumber(autoPreview.wagesGold, 2)} غ`}
+                valueClassName="text-emerald-400"
+              />
+              <InvoicePreviewStat
+                label="ربح Pro (2غ/كغ)"
+                value={`${formatNumber(autoPreview.profitGold, 4)} غ`}
+                valueClassName="text-amber-400"
+              />
+              <InvoicePreviewStat
+                label="مكافئ 995 (رملة)"
+                value={`${formatNumber(autoPreview.fineGold995, 2)} غ`}
+              />
+              <InvoicePreviewStat
+                label="صافي $ (مقبوض − أجور)"
+                value={formatNumber(autoPreview.profitUsd, 2)}
+              />
+              {(type === 'sale18' || type === 'sale21') && (
+                <InvoicePreviewStat
+                  label="مسار القبض"
+                  value={
+                    autoPreview.settlementPath === 'trading' ? 'متاجرة + دولار' : 'رملة + دولار'
+                  }
+                  valueClassName="text-slate-200"
+                />
+              )}
             </div>
-            <div>
-              <p className="text-xs text-slate-400">حجر مخصوم</p>
-              <p className="num font-bold text-slate-300">
-                {autoPreview.stoneDiscountGrams > 0 ? `${formatNumber(autoPreview.stoneDiscountGrams, 2)} غ` : '—'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">وزن الأجور (صافي)</p>
-              <p className="num font-bold text-emerald-400">{formatNumber(autoPreview.wagesGold, 2)} غ</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">ربح Pro (2غ/كغ)</p>
-              <p className="num font-bold text-amber-400">{formatNumber(autoPreview.profitGold, 4)} غ</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">مكافئ 995 (رملة)</p>
-              <p className="num font-bold">{formatNumber(autoPreview.fineGold995, 2)} غ</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-400">صافي $ (مقبوض − أجور)</p>
-              <p className="num font-bold">{formatNumber(autoPreview.profitUsd, 2)}</p>
-            </div>
-            {(type === 'sale18' || type === 'sale21') && (
-              <div>
-                <p className="text-xs text-slate-400">مسار القبض</p>
-                <p className="font-bold text-slate-200">
-                  {autoPreview.settlementPath === 'trading' ? 'متاجرة + دولار' : 'رملة + دولار'}
-                </p>
-              </div>
-            )}
           </div>
         )}
 
@@ -311,14 +349,14 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       {showExtraLines && (
         <div className="card p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-300">سطور إضافية (كسر / …)</h3>
+            <h3 className="text-sm font-semibold text-slate-300">سطور إضافية (كسر / رملة / …)</h3>
             <button type="button" className="btn-secondary text-xs flex items-center gap-1" onClick={addLine}>
               <Plus className="h-3.5 w-3.5" /> إضافة سطر
             </button>
           </div>
 
           {extraLines.length === 0 && (
-            <p className="text-xs text-slate-500">مثال: دولار، مشغول، مواد إضافية، إلخ.</p>
+            <p className="text-xs text-slate-500">مثال: استلام كسر 18، رملة 995، دولار إضافي، إلخ.</p>
           )}
 
           {extraLines.map((line, idx) => (
