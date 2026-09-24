@@ -27,9 +27,6 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'scrap22', nameAr: 'كسر 22', sheetName: 'كسر 22', entryKind: 'inout' },
   { id: 'sand', nameAr: 'رملة', sheetName: 'رملة', entryKind: 'inout' },
   { id: 'cast18', nameAr: 'صب 18', sheetName: 'صب 18', entryKind: 'inout' },
-  { id: 'k18', nameAr: 'K18', sheetName: 'K18', entryKind: 'inout' },
-  { id: 'k21', nameAr: 'K21', sheetName: 'K21', entryKind: 'inout' },
-  { id: 'k22', nameAr: 'K22', sheetName: 'K22', entryKind: 'inout' },
 ];
 
 /** صفوف الملخص المرتبطة بورقة أخرى — مطابق لـ Excel */
@@ -45,9 +42,6 @@ export const DEFAULT_TREASURY: TreasuryItem[] = [
   { id: 'alloy_pull', label: 'Alloy سحب' },
   { id: 'worked18', label: 'مشغول 18' },
   { id: 'worked21', label: 'مشغول 21' },
-  { id: 'k18_740', label: 'K18 - 740' },
-  { id: 'k22_905', label: 'K22 - 905' },
-  { id: 'k21_865', label: 'K21 - 865' },
 ];
 
 /** حسابات مُوقَفة — لا تظهر في القائمة ولا في الفواتير (قد تبقى في بيانات قديمة) */
@@ -57,6 +51,9 @@ export const RETIRED_ACCOUNT_IDS = new Set([
   'scrap18Pull',
   'scrap21Cast',
   'scrap21Pull',
+  'k18',
+  'k21',
+  'k22',
 ]);
 
 export function getAccountDef(id: string): AccountDef | undefined {

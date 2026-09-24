@@ -22,18 +22,14 @@ export const MATERIAL_LABELS: Record<MaterialType, string> = {
   gold995: 'ذهب رملة 995',
   worked18: 'مشغول عيار 18',
   worked21: 'مشغول عيار 21',
-  k18: 'K18',
-  k21: 'K21',
   raw_gold: 'دهب خام (995)',
 };
 
 const MATERIAL_ACCOUNT: Record<MaterialType, { accountId: string; side: 'gold' | 'usd' }> = {
   usd: { accountId: 'dollar', side: 'usd' },
   gold995: { accountId: 'gold', side: 'gold' },
-  worked18: { accountId: 'k18', side: 'gold' },
-  worked21: { accountId: 'k21', side: 'gold' },
-  k18: { accountId: 'k18', side: 'gold' },
-  k21: { accountId: 'k21', side: 'gold' },
+  worked18: { accountId: 'wages18', side: 'gold' },
+  worked21: { accountId: 'wages21', side: 'gold' },
   raw_gold: { accountId: 'gold', side: 'gold' },
 };
 

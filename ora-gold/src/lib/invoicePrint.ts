@@ -52,7 +52,7 @@ const SECTION_TITLES: Record<InvoicePrintSectionId, string> = {
   profit: 'قسم ربح الإنتاج (Pro)',
   cash: 'قسم الصندوق / الدولار',
   receipt: 'قسم الاستلام (رملة)',
-  materials: 'قسم المواد (كسر / K / دهب خام)',
+  materials: 'قسم المواد (كسر / مشغول / دهب خام)',
   totals: 'ملخص المبالغ',
 };
 

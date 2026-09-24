@@ -12,7 +12,7 @@ export const WORKSHOP_LIFECYCLE: WorkshopStage[] = [
   { id: 'wip', titleAr: 'تحت التصنيع', detailAr: 'خروج من الخام ودخول ورشة — ورقة «تحت التصنيع»' },
   { id: 'production', titleAr: 'مشغول جاهز', detailAr: 'استلام مشغول 18/21 — أعمدة مستلم من تصنيع / تسليم زبائن' },
   { id: 'sale', titleAr: 'بيع أو تسليم زبون', detailAr: 'متاجرة (Trading) أو زبون ورشة (زبائن) — حسب نوع الفاتورة' },
-  { id: 'settlement', titleAr: 'تسوية وتحصيل', detailAr: 'دولار (صندوق) + Pro (ربح) + مواد إضافية (K18/K21/دهب) عند الحاجة' },
+  { id: 'settlement', titleAr: 'تسوية وتحصيل', detailAr: 'دولار (صندوق) + Pro (ربح) + مواد إضافية عند الحاجة' },
 ];
 
 export interface InvoiceFlowInfo {
