@@ -113,7 +113,7 @@ export function LedgerVoucherForm({
         {hasOffsetOptions && (
           <p className="text-xs text-slate-500 flex items-center gap-1">
             <ArrowLeftRight className="h-3.5 w-3.5" />
-            اختر «مقابل في حساب» لترحيل العملية في مكانين — مثلاً استلام كسر 18 صب مقابل تسليم كسر 18 سحب
+            اختر «مقابل في حساب» لترحيل العملية في مكانين — مثلاً تحويل بين كسر 18 ورملة
           </p>
         )}
 

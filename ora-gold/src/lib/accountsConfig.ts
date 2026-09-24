@@ -22,10 +22,6 @@ export const ACCOUNTS: AccountDef[] = [
   { id: 'dollar', nameAr: 'دولار', sheetName: 'دولار', entryKind: 'inout' },
   { id: 'alloyCast', nameAr: 'Alloy Cast', sheetName: 'Alloy Cast', entryKind: 'inout' },
   { id: 'alloyPull', nameAr: 'Alloy سحب', sheetName: 'Alloy سحب', entryKind: 'inout' },
-  { id: 'scrap18Cast', nameAr: 'كسر 18 صب', sheetName: 'كسر 18 صب', entryKind: 'inout' },
-  { id: 'scrap18Pull', nameAr: 'كسر 18 سحب', sheetName: 'كسر 18 سحب', entryKind: 'inout' },
-  { id: 'scrap21Cast', nameAr: 'كسر 21 صب', sheetName: 'كسر 21 صب', entryKind: 'inout' },
-  { id: 'scrap21Pull', nameAr: 'كسر 21 سحب', sheetName: 'كسر 21 سحب', entryKind: 'inout' },
   { id: 'scrap18', nameAr: 'كسر 18', sheetName: 'كسر 18', entryKind: 'inout' },
   { id: 'scrap21', nameAr: 'كسر 21', sheetName: 'كسر 21', entryKind: 'inout' },
   { id: 'scrap22', nameAr: 'كسر 22', sheetName: 'كسر 22', entryKind: 'inout' },
@@ -47,16 +43,21 @@ export const DEFAULT_TREASURY: TreasuryItem[] = [
   { id: 'silver_rob', label: 'فضة روباص' },
   { id: 'alloy_cast', label: 'Alloy Cast' },
   { id: 'alloy_pull', label: 'Alloy سحب' },
-  { id: 'scrap18_cast', label: 'دهب كسر 18 - صب' },
-  { id: 'scrap18_pull', label: 'دهب كسر 18 - سحب' },
-  { id: 'scrap21_cast', label: 'دهب كسر 21 - صب' },
-  { id: 'scrap21_pull', label: 'دهب كسر 21 - سحب' },
   { id: 'worked18', label: 'مشغول 18' },
   { id: 'worked21', label: 'مشغول 21' },
   { id: 'k18_740', label: 'K18 - 740' },
   { id: 'k22_905', label: 'K22 - 905' },
   { id: 'k21_865', label: 'K21 - 865' },
 ];
+
+/** حسابات مُوقَفة — لا تظهر في القائمة ولا في الفواتير (قد تبقى في بيانات قديمة) */
+export const RETIRED_ACCOUNT_IDS = new Set([
+  'gold',
+  'scrap18Cast',
+  'scrap18Pull',
+  'scrap21Cast',
+  'scrap21Pull',
+]);
 
 export function getAccountDef(id: string): AccountDef | undefined {
   return ACCOUNTS.find((a) => a.id === id);

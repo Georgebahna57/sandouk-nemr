@@ -1,5 +1,5 @@
 import type { CurrencySide, EntryKind, LedgerEntry } from '../types';
-import { ACCOUNTS, getAccountDef, getAccountNavLabel } from './accountsConfig';
+import { ACCOUNTS, getAccountDef, getAccountNavLabel, RETIRED_ACCOUNT_IDS } from './accountsConfig';
 import { formValuesToLedger, getColumnHeaders, resolveLedgerKind } from './ledgerDisplay';
 
 export type VoucherLineDirection = 'col1' | 'col2';
@@ -162,7 +162,7 @@ export interface OffsetAccountOption {
 /** حسابات يمكن الترحيل المقابل إليها */
 export function getOffsetAccountOptions(currentAccountId: string, allowUsd: boolean): OffsetAccountOption[] {
   return ACCOUNTS
-    .filter((a) => a.id !== currentAccountId)
+    .filter((a) => a.id !== currentAccountId && !RETIRED_ACCOUNT_IDS.has(a.id))
     .filter((a) => {
       if (allowUsd) return a.entryKind !== 'manufacturing';
       return a.entryKind !== 'manufacturing' && a.id !== 'dollar';

@@ -79,10 +79,6 @@ export type MaterialType =
   | 'gold995'
   | 'worked18'
   | 'worked21'
-  | 'scrap18_cast'
-  | 'scrap18_pull'
-  | 'scrap21_cast'
-  | 'scrap21_pull'
   | 'k18'
   | 'k21'
   | 'raw_gold';

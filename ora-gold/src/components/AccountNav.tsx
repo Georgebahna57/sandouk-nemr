@@ -1,4 +1,4 @@
-import { ACCOUNTS, DASHBOARD_ALIASES, getAccountNavLabel } from '../lib/accountsConfig';
+import { ACCOUNTS, DASHBOARD_ALIASES, getAccountNavLabel, RETIRED_ACCOUNT_IDS } from '../lib/accountsConfig';
 import type { LedgerFocus } from './AccountLedger';
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
 export function AccountNav({ selectedId, ledgerFocus, onSelect, view, onViewChange }: Props) {
   const grouped = {
     main: ACCOUNTS.filter((a) => a.showOnDashboard),
-    detail: ACCOUNTS.filter((a) => !a.showOnDashboard && a.id !== 'gold'),
+    detail: ACCOUNTS.filter((a) => !a.showOnDashboard && !RETIRED_ACCOUNT_IDS.has(a.id)),
   };
 
   const isBourseActive = selectedId === 'cash' && ledgerFocus === 'usd';

@@ -22,15 +22,7 @@ function parseMoneyField(value: string, allowEmpty: boolean): number | undefined
   return Number.isFinite(n) ? n : undefined;
 }
 
-const MATERIAL_OPTIONS_CASH: MaterialType[] = [
-  'usd',
-  'scrap18_cast',
-  'scrap18_pull',
-  'scrap21_cast',
-  'scrap21_pull',
-  'k18',
-  'k21',
-];
+const MATERIAL_OPTIONS_CASH: MaterialType[] = ['usd', 'k18', 'k21'];
 
 const MATERIAL_OPTIONS_FULL: MaterialType[] = [
   ...MATERIAL_OPTIONS_CASH,
@@ -102,7 +94,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   }, [workedWeight, karat, profitRate, type, receivedUsd, wageUsd, stoneDiscountGrams]);
 
   const addLine = () => {
-    setExtraLines((lines) => [...lines, { material: 'scrap18_cast', direction: 'receive', amount: 0 }]);
+    setExtraLines((lines) => [...lines, { material: 'k18', direction: 'receive', amount: 0 }]);
   };
 
   const updateLine = (idx: number, patch: Partial<InvoiceLineInput>) => {
@@ -326,7 +318,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
           </div>
 
           {extraLines.length === 0 && (
-            <p className="text-xs text-slate-500">مثال: استلام كسر 18 صب، مواد إضافية، إلخ.</p>
+            <p className="text-xs text-slate-500">مثال: K18، دولار، مواد إضافية، إلخ.</p>
           )}
 
           {extraLines.map((line, idx) => (
