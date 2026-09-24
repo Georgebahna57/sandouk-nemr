@@ -29,3 +29,9 @@ export function roundGold(n: number): number {
 export function roundUsd(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/** مكافئ رملة 995 لرصيد كسر — مطابق لصيغة Excel (الرصيد × العيار ÷ 1000) */
+export function scrapBalanceToRamla995(balance: number, fineness: number): number {
+  if (!balance || !fineness) return 0;
+  return (balance * fineness) / 1000;
+}

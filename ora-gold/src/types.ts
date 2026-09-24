@@ -43,6 +43,11 @@ export interface AccountDef {
   dashboardUsd?: number;
   /** في الملخص: عرض الذهب فقط أو الدولار فقط */
   dashboardSide?: 'gold' | 'usd';
+  /**
+   * عيار الكسر لعرض الرصيد في أعلى الدفتر: مكافئ رملة 995 = الرصيد × العيار ÷ 1000
+   * (مثل Excel: =B*740/1000 لورقة كسر 18)
+   */
+  goldSummaryFineness?: number;
 }
 
 /** صف ملخص مرتبط بحساب آخر — مثل بورصة ← دولار CASH */

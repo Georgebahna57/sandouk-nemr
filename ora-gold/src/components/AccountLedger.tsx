@@ -8,6 +8,8 @@ import type { AccountData, CurrencySide, EntryKind } from '../types';
 import { extractInvoiceNumbers, getOffsetAccountOptions, type LedgerVoucherInput } from '../lib/ledgerVoucher';
 import { LedgerVoucherForm } from './LedgerVoucherForm';
 import { useEditProtection } from './EditProtectionProvider';
+import { getAccountDef } from '../lib/accountsConfig';
+import { scrapBalanceToRamla995 } from '../lib/karat';
 
 export type LedgerFocus = 'both' | 'gold' | 'usd';
 
@@ -126,6 +128,12 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
 
   const goldBal = data.gold.length ? data.gold[data.gold.length - 1].balance : 0;
   const usdBal = data.usd.length ? data.usd[data.usd.length - 1].balance : 0;
+  const accountDef = getAccountDef(accountId);
+  const goldFineness = accountDef?.goldSummaryFineness;
+  const goldDisplayBal =
+    goldFineness != null ? scrapBalanceToRamla995(goldBal, goldFineness) : goldBal;
+  const goldBalanceLabel =
+    goldFineness != null ? `مكافئ رملة 995 (×${goldFineness}÷1000)` : 'رصيد ذهب';
 
   const defaultSide: CurrencySide = focus === 'usd' ? 'usd' : 'gold';
   const existingNumbers = extractInvoiceNumbers([...data.gold, ...data.usd]);
@@ -136,8 +144,13 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
       <div className="flex flex-wrap gap-4">
         {showGold && (
           <div className="card px-4 py-3">
-            <span className="text-xs text-slate-400">رصيد ذهب</span>
-            <div className={`text-xl font-bold num ${goldBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(goldBal, 4)}</div>
+            <span className="text-xs text-slate-400">{goldBalanceLabel}</span>
+            <div className={`text-xl font-bold num ${goldDisplayBal < 0 ? 'num-neg' : 'num-pos'}`}>
+              {formatNumber(goldDisplayBal, goldFineness != null ? 2 : 4)}
+            </div>
+            {goldFineness != null && goldBal !== 0 && (
+              <span className="text-[11px] text-slate-500 num">رصيد الكسر: {formatNumber(goldBal, 4)}</span>
+            )}
           </div>
         )}
         {showUsd && (
