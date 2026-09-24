@@ -43,8 +43,9 @@ function parseLedgerSide(
       debit = parseNum(row[startCol + 1]);
       credit = parseNum(row[startCol + 2]);
     } else if (entryKind === 'inout') {
-      debit = parseNum(row[startCol + 2]); // خروج
-      credit = parseNum(row[startCol + 1]); // دخول
+      // Excel: العمود 1 مستلم/دخول، العمود 2 مدفوع/خروج
+      credit = parseNum(row[startCol + 1]);
+      debit = parseNum(row[startCol + 2]);
     } else if (entryKind === 'manufacturing') {
       debit = parseNum(row[startCol + 1]);
       credit = parseNum(row[startCol + 5]);

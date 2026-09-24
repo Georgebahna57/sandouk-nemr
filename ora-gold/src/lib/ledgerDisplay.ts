@@ -18,7 +18,7 @@ export function getColumnHeaders(entryKind: EntryKind, side: CurrencySide = 'gol
     case 'profit':
       return side === 'usd' ? ['مدفوع', 'مستلم'] : ['خسارة', 'ربح'];
     case 'inout':
-      return ['دخول', 'خروج'];
+      return side === 'usd' ? ['دخول', 'خروج'] : ['مستلم', 'مدفوع'];
     case 'expense':
       return ['مدفوع', 'مرتجع'];
     case 'partner':
@@ -33,7 +33,7 @@ export function getColumnHeaders(entryKind: EntryKind, side: CurrencySide = 'gol
 /**
  * هل العمود الأول (col1) يُخزَّن في credit؟
  * - expense: مدفوع=credit، مرتجع=debit
- * - inout: دخول=credit، خروج=debit
+ * - inout (ذهب): مستلم=credit، مدفوع=debit — (دولار: دخول=credit، خروج=debit)
  * - standard/usd: لنا=credit، علينا=debit
  */
 function col1IsCredit(entryKind: EntryKind, side: CurrencySide): boolean {

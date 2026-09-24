@@ -38,8 +38,8 @@ function LedgerTable({
   onBeginEdit: (entry: import('../types').LedgerEntry) => void;
 }) {
   const [col1Label, col2Label] = getColumnHeaders(ledgerKind, side);
-  /** إجراءات أولاً في DOM لتظهر يمين الجدول (RTL) ولا تختفي عند التمرير */
-  const headers = ['إجراءات', 'البيان', 'الرصيد', col2Label, col1Label, 'التاريخ'];
+  /** ترتيب DOM لـ dir=rtl: أول عمود يميناً = التاريخ (مثل Excel) */
+  const headers = ['التاريخ', col1Label, col2Label, 'الرصيد', 'البيان', 'إجراءات'];
   const decimals = side === 'gold' ? 4 : 2;
   const totals = calcLedgerTotals(entries, ledgerKind, side);
   const displayEntries = sortEntriesNewestFirst(entries);
@@ -63,6 +63,13 @@ function LedgerTable({
               const { col1: v1, col2: v2 } = getDisplayValues(e, ledgerKind, side);
               return (
                 <tr key={e.id} className="group">
+                  <td className="whitespace-nowrap">{formatDateAr(e.date)}</td>
+                  <td className="num">{v1 ? formatNumber(v1, decimals) : ''}</td>
+                  <td className="num">{v2 ? formatNumber(v2, decimals) : ''}</td>
+                  <td className={`num font-medium ${e.balance < 0 ? 'num-neg' : 'num-pos'}`}>
+                    {formatNumber(e.balance, decimals)}
+                  </td>
+                  <td className="max-w-[220px] truncate" title={e.description}>{e.description}</td>
                   <td className="ledger-actions-cell whitespace-nowrap">
                     <div className="flex gap-0.5 justify-end">
                       <button
@@ -83,13 +90,6 @@ function LedgerTable({
                       </button>
                     </div>
                   </td>
-                  <td className="max-w-[220px] truncate" title={e.description}>{e.description}</td>
-                  <td className={`num font-medium ${e.balance < 0 ? 'num-neg' : 'num-pos'}`}>
-                    {formatNumber(e.balance, decimals)}
-                  </td>
-                  <td className="num">{v2 ? formatNumber(v2, decimals) : ''}</td>
-                  <td className="num">{v1 ? formatNumber(v1, decimals) : ''}</td>
-                  <td className="whitespace-nowrap">{formatDateAr(e.date)}</td>
                 </tr>
               );
             })}
@@ -98,12 +98,12 @@ function LedgerTable({
             <tfoot>
               <tr className="ledger-total-row">
                 <td />
-                <td className="font-bold text-amber-400">المجموع</td>
+                <td className="num font-bold">{formatNumber(totals.sumCol1, decimals)}</td>
+                <td className="num font-bold">{formatNumber(totals.sumCol2, decimals)}</td>
                 <td className={`num font-bold ${totals.balance < 0 ? 'num-neg' : 'num-pos'}`}>
                   {formatNumber(totals.balance, decimals)}
                 </td>
-                <td className="num font-bold">{formatNumber(totals.sumCol2, decimals)}</td>
-                <td className="num font-bold">{formatNumber(totals.sumCol1, decimals)}</td>
+                <td className="font-bold text-amber-400">المجموع</td>
                 <td />
               </tr>
             </tfoot>

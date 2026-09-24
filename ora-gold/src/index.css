@@ -55,15 +55,15 @@ input, select, textarea, button {
 }
 
 .table-ledger .ledger-actions-cell {
-  @apply sticky end-0 z-[1] bg-slate-900/95 shadow-[-4px_0_12px_rgba(0,0,0,0.35)];
+  @apply sticky left-0 z-[1] bg-slate-900/95 shadow-[4px_0_12px_rgba(0,0,0,0.35)];
 }
 
 .table-ledger tr:hover .ledger-actions-cell {
   @apply bg-slate-800/95;
 }
 
-.table-ledger thead th:first-child {
-  @apply sticky end-0 z-[2];
+.table-ledger thead th:last-child {
+  @apply sticky left-0 z-[2] bg-slate-800;
 }
 
 .num { font-variant-numeric: tabular-nums; direction: ltr; text-align: left; }
