@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
-import { Download, Upload, Save, FileSpreadsheet, RotateCcw, ChevronDown, AlertTriangle, KeyRound } from 'lucide-react';
+import { Download, Upload, Save, FileSpreadsheet, RotateCcw, ChevronDown, AlertTriangle } from 'lucide-react';
 import { accountsWithSheetAlias, dashboardLinks } from '../lib/accountAudit';
 import { MANUAL_OPERATION_HINTS, WORKSHOP_LIFECYCLE } from '../lib/operationFlows';
-import { useEditProtection } from './EditProtectionProvider';
 
 interface Props {
   periodLabel: string;
@@ -14,13 +13,11 @@ interface Props {
 }
 
 export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExport, onBackup, onRestoreDefaults }: Props) {
-  const { guard, hasPin, clearEditPin, lockNow, isUnlocked, setEditPin } = useEditProtection();
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [msg, setMsg] = useState('');
   const [showMap, setShowMap] = useState(false);
   const [showDataOps, setShowDataOps] = useState(false);
-  const [newPin, setNewPin] = useState('');
   const sheetAliases = accountsWithSheetAlias();
   const dashLinks = dashboardLinks();
 
@@ -41,13 +38,11 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    guard(() => {
-      if (!confirm(`استيراد «${file.name}»؟\n\nسيتم استبدال كل البيانات الحالية بمحتوى الملف.`)) {
-        if (fileRef.current) fileRef.current.value = '';
-        return;
-      }
-      void runImport(file);
-    }, 'استيراد Excel');
+    if (!confirm(`استيراد «${file.name}»؟\n\nسيتم استبدال كل البيانات الحالية بمحتوى الملف.`)) {
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+    void runImport(file);
   };
 
   return (
@@ -174,54 +169,11 @@ export function ImportExportBar({ periodLabel, onPeriodChange, onImport, onExpor
               <button
                 type="button"
                 className="btn-secondary flex items-center gap-2 border-rose-500/30 text-rose-300 hover:bg-rose-500/10"
-                onClick={() => guard(() => onRestoreDefaults(), 'استعادة البيانات الافتراضية')}
+                onClick={onRestoreDefaults}
               >
                 <RotateCcw className="h-4 w-4" />
                 استعادة Excel الأصلي
               </button>
-            </div>
-
-            <div className="border-t border-amber-500/15 pt-3 space-y-2">
-              <p className="text-xs text-slate-400 flex items-center gap-1">
-                <KeyRound className="h-3.5 w-3.5" /> رمز حماية التعديل والحذف (محلي على هذا الجهاز)
-              </p>
-              {hasPin ? (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs text-emerald-400/90">{isUnlocked ? 'الجلسة مفتوحة للتعديل' : 'مقفول — سيُطلب الرمز عند التعديل'}</span>
-                  <button type="button" className="btn-secondary text-xs" onClick={() => lockNow()}>قفل الآن</button>
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs text-rose-300"
-                    onClick={() => {
-                      if (confirm('إزالة رمز الحماية؟ سيتم قفل التعديل حتى إنشاء رمز جديد.')) clearEditPin();
-                    }}
-                  >
-                    إزالة الرمز
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2 items-center">
-                  <input
-                    type="password"
-                    className="input-field w-36 text-sm num"
-                    placeholder="رمز جديد (4+)"
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    className="btn-secondary text-xs"
-                    onClick={() => {
-                      if (newPin.trim().length < 4) return;
-                      setEditPin(newPin.trim());
-                      setNewPin('');
-                    }}
-                    disabled={newPin.trim().length < 4}
-                  >
-                    إنشاء الرمز
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}

@@ -195,17 +195,6 @@ export function useWorkshopStore() {
     }));
   }, []);
 
-  const updateEditPin = useCallback((pin: string | undefined) => {
-    setState((s) => ({
-      ...s,
-      settings: {
-        profitRate: s.settings?.profitRate ?? 0.002,
-        ...s.settings,
-        editPin: pin,
-      },
-    }));
-  }, []);
-
   const saveDisbursementTemplates = useCallback((overrides: DisbursementPrintTemplate[], defaultTemplateId: string) => {
     setState((s) => ({
       ...s,
@@ -286,7 +275,6 @@ export function useWorkshopStore() {
     addManualDisbursementOrder,
     deleteManualDisbursementOrder,
     updateManualDisbursementOrder,
-    updateEditPin,
     updateInvoice,
     saveDisbursementTemplates,
   };

@@ -8,11 +8,9 @@ interface PendingAction {
 }
 
 interface EditProtectionContextValue {
-  hasPin: boolean;
   isUnlocked: boolean;
-  setEditPin: (pin: string) => void;
-  clearEditPin: () => void;
   lockNow: () => void;
+  /** يطلب الرمز 2233 للتعديل والحذف فقط */
   guard: (action: () => void, label: string) => void;
 }
 
@@ -24,20 +22,11 @@ export function useEditProtection(): EditProtectionContextValue {
   return ctx;
 }
 
-interface Props {
-  editPin?: string;
-  onEditPinChange: (pin: string | undefined) => void;
-  children: React.ReactNode;
-}
-
-export function EditProtectionProvider({ editPin, onEditPinChange, children }: Props) {
+export function EditProtectionProvider({ children }: { children: React.ReactNode }) {
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [pinInput, setPinInput] = useState('');
-  const [newPin, setNewPin] = useState('');
   const [error, setError] = useState('');
   const [unlocked, setUnlocked] = useState(() => isEditUnlocked());
-
-  const hasPin = Boolean(editPin?.length);
 
   const finishUnlock = useCallback((action?: PendingAction) => {
     unlockEditSession();
@@ -50,11 +39,6 @@ export function EditProtectionProvider({ editPin, onEditPinChange, children }: P
 
   const guard = useCallback(
     (action: () => void, label: string) => {
-      if (!hasPin) {
-        setPending({ run: action, label });
-        setError('');
-        return;
-      }
       if (unlocked || isEditUnlocked()) {
         setUnlocked(true);
         action();
@@ -63,7 +47,7 @@ export function EditProtectionProvider({ editPin, onEditPinChange, children }: P
       setPending({ run: action, label });
       setError('');
     },
-    [hasPin, unlocked],
+    [unlocked],
   );
 
   const lockNow = useCallback(() => {
@@ -71,33 +55,8 @@ export function EditProtectionProvider({ editPin, onEditPinChange, children }: P
     setUnlocked(false);
   }, []);
 
-  const setEditPin = useCallback(
-    (pin: string) => {
-      const trimmed = pin.trim();
-      if (trimmed.length < 4) return;
-      onEditPinChange(trimmed);
-      finishUnlock();
-    },
-    [onEditPinChange, finishUnlock],
-  );
-
-  const clearEditPin = useCallback(() => {
-    onEditPinChange(undefined);
-    lockNow();
-  }, [onEditPinChange, lockNow]);
-
   const submitUnlock = () => {
-    if (!hasPin) {
-      if (newPin.trim().length < 4) {
-        setError('الرمز 4 أرقام على الأقل');
-        return;
-      }
-      onEditPinChange(newPin.trim());
-      finishUnlock(pending ?? undefined);
-      setNewPin('');
-      return;
-    }
-    if (!verifyEditPin(pinInput, editPin)) {
+    if (!verifyEditPin(pinInput)) {
       setError('رمز غير صحيح');
       return;
     }
@@ -106,14 +65,11 @@ export function EditProtectionProvider({ editPin, onEditPinChange, children }: P
 
   const value = useMemo(
     () => ({
-      hasPin,
       isUnlocked: unlocked || isEditUnlocked(),
-      setEditPin,
-      clearEditPin,
       lockNow,
       guard,
     }),
-    [hasPin, unlocked, setEditPin, clearEditPin, lockNow, guard],
+    [unlocked, lockNow, guard],
   );
 
   return (
@@ -124,34 +80,19 @@ export function EditProtectionProvider({ editPin, onEditPinChange, children }: P
           <div className="card w-full max-w-sm p-4 space-y-3 border border-amber-500/30">
             <div className="flex items-center gap-2 text-amber-400">
               <Shield className="h-5 w-5" />
-              <h3 className="font-bold text-sm">حماية التعديل</h3>
+              <h3 className="font-bold text-sm">حماية التعديل والحذف</h3>
             </div>
             <p className="text-xs text-slate-400">{pending.label}</p>
-            {!hasPin ? (
-              <>
-                <p className="text-sm text-slate-300">أنشئ رمزًا سريًا (4 أرقام أو أكثر) لحماية التعديل والحذف.</p>
-                <input
-                  type="password"
-                  className="input-field num text-center tracking-widest"
-                  placeholder="رمز جديد"
-                  value={newPin}
-                  onChange={(e) => setNewPin(e.target.value)}
-                  autoFocus
-                />
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-slate-300">أدخل الرمز للمتابعة (صلاحية 30 دقيقة).</p>
-                <input
-                  type="password"
-                  className="input-field num text-center tracking-widest"
-                  placeholder="••••"
-                  value={pinInput}
-                  onChange={(e) => setPinInput(e.target.value)}
-                  autoFocus
-                />
-              </>
-            )}
+            <p className="text-sm text-slate-300">أدخل الرمز للمتابعة (صلاحية 30 دقيقة).</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              className="input-field num text-center tracking-widest"
+              placeholder="••••"
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              autoFocus
+            />
             {error && <p className="text-xs text-red-400">{error}</p>}
             <div className="flex gap-2 justify-end">
               <button
@@ -160,14 +101,13 @@ export function EditProtectionProvider({ editPin, onEditPinChange, children }: P
                 onClick={() => {
                   setPending(null);
                   setPinInput('');
-                  setNewPin('');
                   setError('');
                 }}
               >
                 إلغاء
               </button>
               <button type="button" className="btn-primary text-sm" onClick={submitUnlock}>
-                {hasPin ? 'تأكيد' : 'إنشاء الرمز'}
+                تأكيد
               </button>
             </div>
           </div>
@@ -178,8 +118,7 @@ export function EditProtectionProvider({ editPin, onEditPinChange, children }: P
 }
 
 export function EditLockBadge() {
-  const { isUnlocked, hasPin, lockNow } = useEditProtection();
-  if (!hasPin) return null;
+  const { isUnlocked, lockNow } = useEditProtection();
   return (
     <button
       type="button"
@@ -189,10 +128,10 @@ export function EditLockBadge() {
           : 'border-slate-600 text-slate-400'
       }`}
       onClick={() => isUnlocked && lockNow()}
-      title={isUnlocked ? 'قفل التعديل' : 'التعديل مقفول'}
+      title={isUnlocked ? 'قفل التعديل والحذف' : 'التعديل والحذف مقفولان — يُطلب الرمز'}
     >
       <Lock className="h-3.5 w-3.5" />
-      {isUnlocked ? 'التعديل مفتوح' : 'التعديل مقفول'}
+      {isUnlocked ? 'التعديل/الحذف مفتوح' : 'التعديل/الحذف مقفول'}
     </button>
   );
 }
