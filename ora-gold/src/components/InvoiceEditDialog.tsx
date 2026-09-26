@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Save, X } from 'lucide-react';
-import { INVOICE_TYPE_LABELS } from '../lib/invoiceCalc';
+import { INVOICE_TYPE_LABELS, resolveMetalWeight, resolveWageUsd } from '../lib/invoiceCalc';
+import { formatNumber } from '../lib/format';
 import type { InvoiceInput, WorkshopInvoice } from '../types';
 
 interface Props {
@@ -9,17 +10,42 @@ interface Props {
   onSave: (input: InvoiceInput) => void;
 }
 
+function initialWagePerGram(invoice: WorkshopInvoice): string {
+  if (invoice.wagePerGramUsd != null) return String(invoice.wagePerGramUsd);
+  const metal = resolveMetalWeight({
+    workedWeight: invoice.workedWeight,
+    stoneDiscountGrams: invoice.stoneDiscountGrams,
+  });
+  if (metal > 0 && invoice.wageUsd) {
+    return String(Math.round((invoice.wageUsd / metal) * 100) / 100);
+  }
+  return '';
+}
+
 export function InvoiceEditDialog({ invoice, onClose, onSave }: Props) {
   const [date, setDate] = useState(invoice.date);
   const [customer, setCustomer] = useState(invoice.customer);
   const [workedWeight, setWorkedWeight] = useState(invoice.workedWeight?.toString() ?? '');
   const [receivedUsd, setReceivedUsd] = useState((invoice.receivedUsd ?? invoice.usdAmount)?.toString() ?? '');
-  const [wageUsd, setWageUsd] = useState(invoice.wageUsd?.toString() ?? '');
+  const [wagePerGramUsd, setWagePerGramUsd] = useState(() => initialWagePerGram(invoice));
   const [stoneDiscountGrams, setStoneDiscountGrams] = useState(invoice.stoneDiscountGrams?.toString() ?? '');
   const [rawGoldGiven, setRawGoldGiven] = useState(invoice.rawGoldGiven?.toString() ?? '');
 
+  const previewWageUsd = useMemo(() => {
+    const w = workedWeight ? parseFloat(workedWeight) : undefined;
+    const perGram = wagePerGramUsd.trim() ? parseFloat(wagePerGramUsd) : undefined;
+    const stone = stoneDiscountGrams.trim() ? parseFloat(stoneDiscountGrams) || 0 : undefined;
+    return resolveWageUsd({
+      workedWeight: w,
+      stoneDiscountGrams: stone,
+      wagePerGramUsd: perGram,
+      wageUsd: invoice.wageUsd,
+    });
+  }, [workedWeight, wagePerGramUsd, stoneDiscountGrams, invoice.wageUsd]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    const perGram = wagePerGramUsd.trim() ? parseFloat(wagePerGramUsd) : undefined;
     onSave({
       number: invoice.number,
       date,
@@ -27,7 +53,7 @@ export function InvoiceEditDialog({ invoice, onClose, onSave }: Props) {
       type: invoice.type,
       workedWeight: workedWeight ? parseFloat(workedWeight) : undefined,
       receivedUsd: receivedUsd ? parseFloat(receivedUsd) : undefined,
-      wageUsd: wageUsd ? parseFloat(wageUsd) : undefined,
+      wagePerGramUsd: perGram,
       stoneDiscountGrams: stoneDiscountGrams ? parseFloat(stoneDiscountGrams) : undefined,
       rawGoldGiven: rawGoldGiven ? parseFloat(rawGoldGiven) : undefined,
       karat: invoice.type === 'sale21' || invoice.type === 'workshop' ? 21 : 18,
@@ -66,8 +92,11 @@ export function InvoiceEditDialog({ invoice, onClose, onSave }: Props) {
               <input type="number" step="any" className="input-field num" value={receivedUsd} onChange={(e) => setReceivedUsd(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs text-slate-400">الأجور $</label>
-              <input type="number" step="any" className="input-field num" value={wageUsd} onChange={(e) => setWageUsd(e.target.value)} />
+              <label className="text-xs text-slate-400">أجور الغرام $</label>
+              <input type="number" step="any" className="input-field num" value={wagePerGramUsd} onChange={(e) => setWagePerGramUsd(e.target.value)} />
+              {previewWageUsd > 0 && (
+                <p className="mt-1 text-[11px] text-slate-500 num">إجمالي الأجور: {formatNumber(previewWageUsd, 2)} $</p>
+              )}
             </div>
             <div>
               <label className="text-xs text-slate-400">حجر مخصوم (غرام)</label>

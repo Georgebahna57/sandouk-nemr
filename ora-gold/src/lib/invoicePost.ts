@@ -86,6 +86,7 @@ export function createInvoiceRecord(
     receivedUsd?: number;
     usdAmount?: number;
     wageUsd?: number;
+    wagePerGramUsd?: number;
     rawGoldGiven?: number;
     stoneDiscountGrams?: number;
     profitRate: number;
@@ -104,6 +105,7 @@ export function createInvoiceRecord(
     receivedUsd: input.receivedUsd,
     usdAmount: input.receivedUsd ?? input.usdAmount,
     wageUsd: input.wageUsd,
+    wagePerGramUsd: input.wagePerGramUsd,
     rawGoldGiven: input.rawGoldGiven,
     stoneDiscountGrams: input.stoneDiscountGrams,
     profitRate: input.profitRate,
