@@ -14,6 +14,7 @@ import { InvoicePreview } from './InvoicePreview';
 import { InvoiceOperationFlow } from './InvoiceOperationFlow';
 import { InvoicePrintDialog } from './InvoicePrintDialog';
 import type { InvoicePrintData } from '../lib/invoicePrint';
+import { handleFormEnterKeyDown, preventFormSubmit } from '../lib/formEnterNav';
 
 function InvoicePreviewStat({
   label,
@@ -129,8 +130,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     setExtraLines((lines) => lines.filter((_, i) => i !== idx));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (!number.trim() || !customer.trim()) return;
     if (type !== 'purchase' && !workedWeight) return;
     onSubmit(input);
@@ -173,7 +173,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   }, [calc, number, date, customer, type, input, profitRate]);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={preventFormSubmit} onKeyDown={handleFormEnterKeyDown} className="space-y-4">
       <div className="card p-4 space-y-4">
         <div className="flex items-center gap-2">
           <Calculator className="h-5 w-5 text-amber-400" />
@@ -422,7 +422,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       <InvoicePreview postings={calc.postings} description={calc.description} />
 
       <div className="flex flex-wrap gap-2">
-        <button type="submit" className="btn-primary flex items-center gap-2" disabled={!calc.postings.length}>
+        <button type="button" className="btn-primary flex items-center gap-2" disabled={!calc.postings.length} onClick={handleSubmit}>
           <Save className="h-4 w-4" />
           {saved ? 'تم الحفظ ✓' : 'حفظ الفاتورة'}
         </button>

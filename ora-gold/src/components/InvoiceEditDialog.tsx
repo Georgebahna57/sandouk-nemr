@@ -3,6 +3,7 @@ import { Save, X } from 'lucide-react';
 import { INVOICE_TYPE_LABELS, resolveMetalWeight, resolveWageUsd } from '../lib/invoiceCalc';
 import { formatNumber } from '../lib/format';
 import type { InvoiceInput, WorkshopInvoice } from '../types';
+import { handleFormEnterKeyDown, preventFormSubmit } from '../lib/formEnterNav';
 
 interface Props {
   invoice: WorkshopInvoice;
@@ -43,8 +44,7 @@ export function InvoiceEditDialog({ invoice, onClose, onSave }: Props) {
     });
   }, [workedWeight, wagePerGramUsd, stoneDiscountGrams, invoice.wageUsd]);
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = () => {
     const perGram = wagePerGramUsd.trim() ? parseFloat(wagePerGramUsd) : undefined;
     onSave({
       number: invoice.number,
@@ -63,7 +63,7 @@ export function InvoiceEditDialog({ invoice, onClose, onSave }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <form onSubmit={submit} className="card w-full max-w-md p-4 space-y-3 max-h-[90vh] overflow-y-auto">
+      <form onSubmit={preventFormSubmit} onKeyDown={handleFormEnterKeyDown} className="card w-full max-w-md p-4 space-y-3 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center">
           <h3 className="font-bold text-amber-400 text-sm">
             تعديل فاتورة {invoice.number} — {INVOICE_TYPE_LABELS[invoice.type]}
@@ -110,7 +110,7 @@ export function InvoiceEditDialog({ invoice, onClose, onSave }: Props) {
             <input type="number" step="any" className="input-field num" value={rawGoldGiven} onChange={(e) => setRawGoldGiven(e.target.value)} />
           </div>
         )}
-        <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 text-sm">
+        <button type="button" className="btn-primary w-full flex items-center justify-center gap-2 text-sm" onClick={submit}>
           <Save className="h-4 w-4" /> حفظ وإعادة الترحيل
         </button>
       </form>

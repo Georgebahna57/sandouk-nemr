@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, Printer } from 'lucide-react';
 import { todayIso } from '../lib/format';
 import type { DisbursementCategory, ManualDisbursementOrder } from '../types';
+import { handleFormEnterKeyDown, preventFormSubmit } from '../lib/formEnterNav';
 
 export interface ManualDisbursementInput {
   date: string;
@@ -51,8 +52,7 @@ export function ManualDisbursementForm({ onAdd, onPrintDraft, initial, onCancelE
     };
   };
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = () => {
     const input = buildInput();
     if (!input) return;
     onAdd(input);
@@ -76,7 +76,7 @@ export function ManualDisbursementForm({ onAdd, onPrintDraft, initial, onCancelE
   }
 
   return (
-    <form onSubmit={submit} className="card p-4 space-y-3 border border-amber-500/25">
+    <form onSubmit={preventFormSubmit} onKeyDown={handleFormEnterKeyDown} className="card p-4 space-y-3 border border-amber-500/25">
       <h3 className="font-semibold text-amber-400 text-sm">
         {initial ? 'تعديل أمر صرف يدوي' : 'أمر صرف جديد (يدوي)'}
       </h3>
@@ -127,7 +127,7 @@ export function ManualDisbursementForm({ onAdd, onPrintDraft, initial, onCancelE
             <Printer className="h-3.5 w-3.5" /> طباعة (قبل الحفظ)
           </button>
         )}
-        <button type="submit" className="btn-primary text-sm">{submitLabel ?? 'حفظ الأمر'}</button>
+        <button type="button" className="btn-primary text-sm" onClick={submit}>{submitLabel ?? 'حفظ الأمر'}</button>
       </div>
     </form>
   );
