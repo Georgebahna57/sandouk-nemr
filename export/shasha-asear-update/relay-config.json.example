@@ -1,0 +1,5 @@
+{
+  "feedUrl": "https://YOUR_PROJECT.supabase.co/storage/v1/object/public/shop-board/prices.json",
+  "allowMarketFallback": false,
+  "comment": "Copy to relay-config.json and commit for GitHub Pages / TV / phone. feedUrl is public read-only."
+}

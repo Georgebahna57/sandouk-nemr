@@ -1,0 +1,5 @@
+{
+  "uploadUrl": "https://YOUR_PROJECT.supabase.co/storage/v1/object/shop-board/prices.json",
+  "apiKey": "YOUR_SERVICE_ROLE_KEY",
+  "comment": "Copy to relay.json on the shop PC only. Never commit relay.json."
+}
