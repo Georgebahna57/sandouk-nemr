@@ -1,0 +1,27 @@
+name: Ora Gold
+
+on:
+  push:
+    paths:
+      - 'ora-gold/**'
+      - '.github/workflows/ora-gold.yml'
+  pull_request:
+    paths:
+      - 'ora-gold/**'
+      - '.github/workflows/ora-gold.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ora-gold
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ora-gold/package-lock.json
+      - run: npm ci
+      - run: npm run build
