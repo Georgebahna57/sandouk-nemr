@@ -5,6 +5,7 @@ import {
   INVOICE_TYPE_LABELS,
   MATERIAL_LABELS,
   previewWagesProfit,
+  resolveWageUsd,
   suggestNextInvoiceNumber,
 } from '../lib/invoiceCalc';
 import { formatNumber, todayIso } from '../lib/format';
@@ -13,6 +14,7 @@ import { InvoicePreview } from './InvoicePreview';
 import { InvoiceOperationFlow } from './InvoiceOperationFlow';
 import { InvoicePrintDialog } from './InvoicePrintDialog';
 import type { InvoicePrintData } from '../lib/invoicePrint';
+import { handleFormEnterKeyDown, preventFormSubmit } from '../lib/formEnterNav';
 
 function InvoicePreviewStat({
   label,
@@ -69,7 +71,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
   const [workedWeight, setWorkedWeight] = useState('');
   const [receivedUsd, setReceivedUsd] = useState('');
   const [usdAmount, setUsdAmount] = useState('');
-  const [wageUsd, setWageUsd] = useState('');
+  const [wagePerGramUsd, setWagePerGramUsd] = useState('');
   const [rawGoldGiven, setRawGoldGiven] = useState('');
   const [stoneDiscountGrams, setStoneDiscountGrams] = useState('');
   const [extraLines, setExtraLines] = useState<InvoiceLineInput[]>([]);
@@ -91,31 +93,30 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       type === 'workshop' || type === 'purchase'
         ? parseMoneyField(usdAmount, true)
         : undefined,
-    wageUsd:
+    wagePerGramUsd:
       type === 'sale18' || type === 'sale21'
-        ? parseMoneyField(wageUsd, true)
-        : wageUsd
-          ? parseFloat(wageUsd)
-          : undefined,
+        ? parseMoneyField(wagePerGramUsd, true)
+        : undefined,
     rawGoldGiven: rawGoldGiven ? parseFloat(rawGoldGiven) : undefined,
     stoneDiscountGrams:
       type !== 'purchase' && stoneDiscountGrams.trim()
         ? parseFloat(stoneDiscountGrams) || 0
         : undefined,
     lines: extraLines.filter((l) => l.amount > 0),
-  }), [number, date, customer, type, workedWeight, receivedUsd, usdAmount, wageUsd, rawGoldGiven, stoneDiscountGrams, extraLines]);
+  }), [number, date, customer, type, workedWeight, receivedUsd, usdAmount, wagePerGramUsd, rawGoldGiven, stoneDiscountGrams, extraLines]);
 
   const calc = useMemo(() => calculateInvoice(input, profitRate), [input, profitRate]);
+  const resolvedWageUsd = useMemo(() => resolveWageUsd(input), [input]);
 
   const karat = type === 'sale21' ? 21 : 18;
   const autoPreview = useMemo(() => {
     const w = parseFloat(workedWeight);
     if (!w || type === 'purchase') return null;
     const received = parseFloat(receivedUsd) || 0;
-    const wage = parseFloat(wageUsd) || 0;
+    const perGram = parseMoneyField(wagePerGramUsd, true);
     const stone = parseFloat(stoneDiscountGrams) || 0;
-    return previewWagesProfit(w, karat, profitRate, received, wage, stone);
-  }, [workedWeight, karat, profitRate, type, receivedUsd, wageUsd, stoneDiscountGrams]);
+    return previewWagesProfit(w, karat, profitRate, received, perGram, stone);
+  }, [workedWeight, karat, profitRate, type, receivedUsd, wagePerGramUsd, stoneDiscountGrams]);
 
   const addLine = () => {
     setExtraLines((lines) => [...lines, { material: 'usd', direction: 'receive', amount: 0 }]);
@@ -129,8 +130,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     setExtraLines((lines) => lines.filter((_, i) => i !== idx));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     if (!number.trim() || !customer.trim()) return;
     if (type !== 'purchase' && !workedWeight) return;
     onSubmit(input);
@@ -141,7 +141,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
     setWorkedWeight('');
     setReceivedUsd('');
     setUsdAmount('');
-    setWageUsd('');
+    setWagePerGramUsd('');
     setRawGoldGiven('');
     setStoneDiscountGrams('');
     setExtraLines([]);
@@ -165,14 +165,15 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       workedWeight: input.workedWeight,
       receivedUsd: input.receivedUsd,
       usdAmount: input.receivedUsd ?? input.usdAmount,
-      wageUsd: input.wageUsd,
+      wageUsd: resolvedWageUsd,
+      wagePerGramUsd: input.wagePerGramUsd,
       stoneDiscountGrams: input.stoneDiscountGrams,
       profitRate,
     };
   }, [calc, number, date, customer, type, input, profitRate]);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={preventFormSubmit} onKeyDown={handleFormEnterKeyDown} className="space-y-4">
       <div className="card p-4 space-y-4">
         <div className="flex items-center gap-2">
           <Calculator className="h-5 w-5 text-amber-400" />
@@ -245,15 +246,22 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-400">أجور $</label>
+                <label className="text-xs text-slate-400">أجور الغرام $</label>
                 <input
                   type="number"
                   step="any"
                   className="input-field num"
-                  value={wageUsd}
-                  onChange={(e) => setWageUsd(e.target.value)}
-                  placeholder="684"
+                  value={wagePerGramUsd}
+                  onChange={(e) => setWagePerGramUsd(e.target.value)}
+                  placeholder="16"
                 />
+                {autoPreview && autoPreview.wageUsd > 0 && (
+                  <p className="mt-1 text-[11px] text-slate-500 num">
+                    إجمالي الأجور: {formatNumber(autoPreview.wageUsd, 2)} $ (
+                    {formatNumber(autoPreview.wagePerGramUsd ?? (parseFloat(wagePerGramUsd) || 0), 2)} ×{' '}
+                    {formatNumber(autoPreview.wagesGold, 2)} غ)
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -316,6 +324,13 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
                 label="مكافئ 995 (رملة)"
                 value={`${formatNumber(autoPreview.fineGold995, 2)} غ`}
               />
+              {(type === 'sale18' || type === 'sale21') && autoPreview.wageUsd > 0 && (
+                <InvoicePreviewStat
+                  label="أجور $ (إجمالي)"
+                  value={formatNumber(autoPreview.wageUsd, 2)}
+                  valueClassName="text-sky-400"
+                />
+              )}
               <InvoicePreviewStat
                 label="صافي $ (مقبوض − أجور)"
                 value={formatNumber(autoPreview.profitUsd, 2)}
@@ -407,7 +422,7 @@ export function InvoiceForm({ profitRate, existingNumbers, onSubmit, onProfitRat
       <InvoicePreview postings={calc.postings} description={calc.description} />
 
       <div className="flex flex-wrap gap-2">
-        <button type="submit" className="btn-primary flex items-center gap-2" disabled={!calc.postings.length}>
+        <button type="button" className="btn-primary flex items-center gap-2" disabled={!calc.postings.length} onClick={handleSubmit}>
           <Save className="h-4 w-4" />
           {saved ? 'تم الحفظ ✓' : 'حفظ الفاتورة'}
         </button>

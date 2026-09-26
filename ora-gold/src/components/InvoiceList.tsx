@@ -26,6 +26,7 @@ function toPrintData(inv: WorkshopInvoice): InvoicePrintData {
     receivedUsd: inv.receivedUsd ?? inv.usdAmount,
     usdAmount: inv.receivedUsd ?? inv.usdAmount,
     wageUsd: inv.wageUsd,
+    wagePerGramUsd: inv.wagePerGramUsd,
     stoneDiscountGrams: inv.stoneDiscountGrams,
     profitRate: inv.profitRate,
   };

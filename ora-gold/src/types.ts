@@ -108,6 +108,8 @@ export interface InvoiceInput {
   receivedUsd?: number;
   usdAmount?: number;
   wageUsd?: number;
+  /** أجور الدولار لكل غرام صافي (بعد خصم الحجر) — فاتورة كاش */
+  wagePerGramUsd?: number;
   rawGoldGiven?: number;
   /** وزن الحجر المخصوم من المشغول (غرام) */
   stoneDiscountGrams?: number;
@@ -144,6 +146,7 @@ export interface WorkshopInvoice {
   receivedUsd?: number;
   usdAmount?: number;
   wageUsd?: number;
+  wagePerGramUsd?: number;
   rawGoldGiven?: number;
   stoneDiscountGrams?: number;
   profitRate: number;
