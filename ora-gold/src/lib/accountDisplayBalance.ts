@@ -1,7 +1,20 @@
 import { getAccountDef } from './accountsConfig';
 import { getDashboardBalance, getLedgerBalance } from './dashboard';
-import { scrapBalanceToRamla995 } from './karat';
+import { scrap995FromMainSheetValue, scrapBalanceToRamla995 } from './karat';
 import type { DashboardRow, WorkshopState } from '../types';
+
+/** تصحيح مكافئ الكسر في صفوف «رئيسي» (مثلاً كسر 22: 910 → 905) */
+export function normalizeMainSheetDashboardRows(rows: DashboardRow[]): DashboardRow[] {
+  return rows.map((row) => {
+    const accountId = row.navigateAccountId || row.accountId;
+    const fineness = getAccountDef(accountId)?.goldSummaryFineness;
+    if (fineness == null || !row.gold) return row;
+    return {
+      ...row,
+      gold: scrap995FromMainSheetValue(accountId, row.gold, fineness),
+    };
+  });
+}
 
 export type AccountLedgerFocus = 'both' | 'gold' | 'usd';
 
@@ -67,8 +80,12 @@ export function getAccountGoldSummaryDisplay(
 
   if (rows.length > 0) {
     const picked = pickMainSheetSide(rows, 'gold', focus);
+    const mainGold = picked ?? ledgerRaw;
+    const fineness = getAccountDef(accountId)?.goldSummaryFineness;
+    const value =
+      fineness != null ? scrap995FromMainSheetValue(accountId, mainGold, fineness) : mainGold;
     return {
-      value: picked ?? ledgerRaw,
+      value,
       ledgerRaw,
       fromMainSheet: true,
     };

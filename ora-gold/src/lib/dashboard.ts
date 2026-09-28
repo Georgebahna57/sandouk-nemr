@@ -1,4 +1,5 @@
 import { ACCOUNTS, DASHBOARD_ALIASES, getAccountDef } from './accountsConfig';
+import { normalizeMainSheetDashboardRows } from './accountDisplayBalance';
 import { reorderDashboardAssetRows } from './dashboardRowOrder';
 import { getAccountBalances } from './ledger';
 import type { DashboardRow, WorkshopState } from '../types';
@@ -97,13 +98,20 @@ function pushAccountRows(
 export function buildDashboardSummary(state: WorkshopState) {
   if (state.mainSheetSnapshot) {
     const snap = state.mainSheetSnapshot;
+    const assets = normalizeMainSheetDashboardRows(reorderDashboardAssetRows(snap.assets));
+    const liabilities = snap.liabilities;
+    const totalAssets = {
+      gold: assets.reduce((s, r) => s + r.gold, 0),
+      usd: assets.reduce((s, r) => s + r.usd, 0),
+    };
+    const totalLiab = snap.totalLiab;
     return {
-      assets: reorderDashboardAssetRows(snap.assets),
-      liabilities: snap.liabilities,
-      totalAssets: snap.totalAssets,
-      totalLiab: snap.totalLiab,
-      goldDiff: snap.goldDiff,
-      usdDiff: snap.usdDiff,
+      assets,
+      liabilities,
+      totalAssets,
+      totalLiab,
+      goldDiff: totalAssets.gold + totalLiab.gold,
+      usdDiff: totalAssets.usd + totalLiab.usd,
     };
   }
 
