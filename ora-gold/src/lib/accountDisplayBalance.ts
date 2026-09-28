@@ -54,6 +54,9 @@ function usdFromDashboardRules(state: WorkshopState, accountId: string): number 
   return getDashboardBalance(state, accountId).usd;
 }
 
+/**
+ * رصيد الذهب المعروض داخل الحساب — يطابق لوحة الملخص عند وجود ورقة «رئيسي».
+ */
 export function getAccountGoldSummaryDisplay(
   state: WorkshopState,
   accountId: string,
@@ -111,7 +114,7 @@ export function getAccountUsdSummaryDisplay(
   return {
     value: usdFromDashboardRules(state, accountId),
     ledgerRaw,
-    fromMainSheet: !state.mainSheetSnapshot ? false : false,
+    fromMainSheet: false,
   };
 }
 
