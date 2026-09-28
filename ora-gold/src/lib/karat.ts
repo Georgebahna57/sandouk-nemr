@@ -35,3 +35,25 @@ export function scrapBalanceToRamla995(balance: number, fineness: number): numbe
   if (!balance || !fineness) return 0;
   return (balance * fineness) / 1000;
 }
+
+/** عيار قديم في ورقة «رئيسي» قبل التصحيح (مثلاً كسر 22 كان ×910÷1000) */
+export const SCRAP_MAIN_SHEET_LEGACY_FINENESS: Partial<Record<string, number>> = {
+  scrap22: 910,
+};
+
+/**
+ * إعادة حساب مكافئ رملة من قيمة «رئيسي» عند تغيّر العيار في التطبيق.
+ * مثال: 13.21 (×910) → 13.14 (×905) لنفس وزن الكسر.
+ */
+export function scrap995FromMainSheetValue(
+  accountId: string,
+  mainSheetGold995: number,
+  fineness: number,
+): number {
+  const legacy = SCRAP_MAIN_SHEET_LEGACY_FINENESS[accountId];
+  if (legacy != null && legacy !== fineness) {
+    const scrapWeight = (mainSheetGold995 * 1000) / legacy;
+    return roundGold(scrapBalanceToRamla995(scrapWeight, fineness));
+  }
+  return mainSheetGold995;
+}

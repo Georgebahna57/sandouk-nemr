@@ -150,10 +150,10 @@ export function AccountLedger({
   const goldDisplayBal = goldSummaryDisplay?.value ?? goldBal;
   const fromMainSheet = goldSummaryDisplay?.fromMainSheet ?? false;
   const goldBalanceLabel =
-    fromMainSheet
-      ? 'ذهب 995 — كما في الملخص'
-      : goldFineness != null
-        ? `مكافئ رملة 995 (×${goldFineness}÷1000)`
+    goldFineness != null
+      ? `مكافئ رملة 995 (×${goldFineness}÷1000)`
+      : fromMainSheet
+        ? 'ذهب 995 — كما في الملخص'
         : 'رصيد ذهب';
   const goldDisplayMeta = goldSummaryDisplay ?? {
     value: goldBal,
