@@ -1,4 +1,5 @@
 import { ACCOUNTS, DASHBOARD_ALIASES, getAccountDef } from './accountsConfig';
+import { reorderDashboardAssetRows } from './dashboardRowOrder';
 import { getAccountBalances } from './ledger';
 import type { DashboardRow, WorkshopState } from '../types';
 
@@ -97,7 +98,7 @@ export function buildDashboardSummary(state: WorkshopState) {
   if (state.mainSheetSnapshot) {
     const snap = state.mainSheetSnapshot;
     return {
-      assets: snap.assets,
+      assets: reorderDashboardAssetRows(snap.assets),
       liabilities: snap.liabilities,
       totalAssets: snap.totalAssets,
       totalLiab: snap.totalLiab,
@@ -125,11 +126,15 @@ export function buildDashboardSummary(state: WorkshopState) {
     else liabilities.push(row);
   }
 
-  const totalAssets = { gold: assets.reduce((s, r) => s + r.gold, 0), usd: assets.reduce((s, r) => s + r.usd, 0) };
+  const orderedAssets = reorderDashboardAssetRows(assets);
+  const totalAssets = {
+    gold: orderedAssets.reduce((s, r) => s + r.gold, 0),
+    usd: orderedAssets.reduce((s, r) => s + r.usd, 0),
+  };
   const totalLiab = { gold: liabilities.reduce((s, r) => s + r.gold, 0), usd: liabilities.reduce((s, r) => s + r.usd, 0) };
 
   return {
-    assets,
+    assets: orderedAssets,
     liabilities,
     totalAssets,
     totalLiab,
