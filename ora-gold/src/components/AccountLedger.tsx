@@ -9,7 +9,7 @@ import { extractInvoiceNumbers, getOffsetAccountOptions, type LedgerVoucherInput
 import { LedgerVoucherForm } from './LedgerVoucherForm';
 import { useEditProtection } from './EditProtectionProvider';
 import { getAccountDef } from '../lib/accountsConfig';
-import { scrapBalanceToRamla995 } from '../lib/karat';
+import type { AccountGoldSummaryDisplay } from '../lib/accountDisplayBalance';
 
 export type LedgerFocus = 'both' | 'gold' | 'usd';
 
@@ -22,6 +22,7 @@ interface Props {
   onAddVoucher: (voucher: LedgerVoucherInput) => void;
   onDelete: (side: CurrencySide, id: string) => void;
   onEdit: (side: CurrencySide, id: string, patch: Partial<Omit<import('../types').LedgerEntry, 'id' | 'balance'>>) => void;
+  goldSummaryDisplay?: AccountGoldSummaryDisplay;
 }
 
 function LedgerTable({
@@ -116,7 +117,17 @@ function LedgerTable({
   );
 }
 
-export function AccountLedger({ accountId, accountName, entryKind, data, focus = 'both', onAddVoucher, onDelete, onEdit }: Props) {
+export function AccountLedger({
+  accountId,
+  accountName,
+  entryKind,
+  data,
+  focus = 'both',
+  onAddVoucher,
+  onDelete,
+  onEdit,
+  goldSummaryDisplay,
+}: Props) {
   const { guard } = useEditProtection();
   const [editing, setEditing] = useState<{ entry: import('../types').LedgerEntry; side: CurrencySide } | null>(null);
 
@@ -130,10 +141,17 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
   const usdBal = data.usd.length ? data.usd[data.usd.length - 1].balance : 0;
   const accountDef = getAccountDef(accountId);
   const goldFineness = accountDef?.goldSummaryFineness;
-  const goldDisplayBal =
-    goldFineness != null ? scrapBalanceToRamla995(goldBal, goldFineness) : goldBal;
+  const goldDisplayBal = goldSummaryDisplay?.value ?? goldBal;
+  const ledgerRawGold = goldSummaryDisplay?.ledgerRaw ?? goldBal;
+  const fromMainSheet = goldSummaryDisplay?.fromMainSheet ?? false;
   const goldBalanceLabel =
-    goldFineness != null ? `مكافئ رملة 995 (×${goldFineness}÷1000)` : 'رصيد ذهب';
+    fromMainSheet
+      ? 'ذهب 995 — كما في الملخص'
+      : goldFineness != null
+        ? `مكافئ رملة 995 (×${goldFineness}÷1000)`
+        : 'رصيد ذهب';
+  const showScrapWeightNote =
+    goldFineness != null && Math.abs(ledgerRawGold - goldDisplayBal) > 0.0001;
 
   const defaultSide: CurrencySide = focus === 'usd' ? 'usd' : 'gold';
   const existingNumbers = extractInvoiceNumbers([...data.gold, ...data.usd]);
@@ -146,10 +164,10 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
           <div className="card px-4 py-3">
             <span className="text-xs text-slate-400">{goldBalanceLabel}</span>
             <div className={`text-xl font-bold num ${goldDisplayBal < 0 ? 'num-neg' : 'num-pos'}`}>
-              {formatNumber(goldDisplayBal, goldFineness != null ? 2 : 4)}
+              {formatNumber(goldDisplayBal, goldFineness != null || fromMainSheet ? 2 : 4)}
             </div>
-            {goldFineness != null && goldBal !== 0 && (
-              <span className="text-[11px] text-slate-500 num">رصيد الكسر: {formatNumber(goldBal, 4)}</span>
+            {showScrapWeightNote && (
+              <span className="text-[11px] text-slate-500 num">وزن الكسر في الدفتر: {formatNumber(ledgerRawGold, 4)} غ</span>
             )}
           </div>
         )}
@@ -174,7 +192,7 @@ export function AccountLedger({ accountId, accountName, entryKind, data, focus =
       <div className={`grid gap-4 ${showGold && showUsd ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
         {showGold && (
           <LedgerTable
-            title={`${accountName} — ذهب 995`}
+            title={goldFineness != null ? `${accountName} — وزن الكسر (غرام)` : `${accountName} — ذهب 995`}
             entries={data.gold}
             ledgerKind={resolveLedgerKind(accountId, 'gold', entryKind)}
             side="gold"

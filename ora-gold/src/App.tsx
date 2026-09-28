@@ -11,6 +11,7 @@ import { InvoiceForm } from './components/InvoiceForm';
 import { InvoiceList } from './components/InvoiceList';
 import { DisbursementOrdersPanel } from './components/DisbursementOrdersPanel';
 import { EditLockBadge, EditProtectionProvider, useEditProtection } from './components/EditProtectionProvider';
+import { getAccountGoldSummaryDisplay } from './lib/accountDisplayBalance';
 import type { DashboardRow } from './types';
 
 type View = 'dashboard' | 'treasury' | 'account' | 'invoice' | 'disbursements';
@@ -140,6 +141,7 @@ function AppContent({ store }: { store: ReturnType<typeof useWorkshopStore> }) {
                   entryKind={selectedDef.entryKind}
                   data={selectedData}
                   focus={ledgerFocus}
+                  goldSummaryDisplay={getAccountGoldSummaryDisplay(store.state, selectedAccountId!)}
                   onAddVoucher={(voucher) =>
                     store.addLedgerVoucher(selectedAccountId!, selectedDef.entryKind, voucher)
                   }
