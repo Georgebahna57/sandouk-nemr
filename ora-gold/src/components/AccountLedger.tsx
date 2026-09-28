@@ -9,7 +9,11 @@ import { extractInvoiceNumbers, getOffsetAccountOptions, type LedgerVoucherInput
 import { LedgerVoucherForm } from './LedgerVoucherForm';
 import { useEditProtection } from './EditProtectionProvider';
 import { getAccountDef } from '../lib/accountsConfig';
-import type { AccountGoldSummaryDisplay } from '../lib/accountDisplayBalance';
+import {
+  shouldShowLedgerRawNote,
+  type AccountGoldSummaryDisplay,
+  type AccountSideSummaryDisplay,
+} from '../lib/accountDisplayBalance';
 
 export type LedgerFocus = 'both' | 'gold' | 'usd';
 
@@ -23,6 +27,7 @@ interface Props {
   onDelete: (side: CurrencySide, id: string) => void;
   onEdit: (side: CurrencySide, id: string, patch: Partial<Omit<import('../types').LedgerEntry, 'id' | 'balance'>>) => void;
   goldSummaryDisplay?: AccountGoldSummaryDisplay;
+  usdSummaryDisplay?: AccountSideSummaryDisplay;
 }
 
 function LedgerTable({
@@ -127,6 +132,7 @@ export function AccountLedger({
   onDelete,
   onEdit,
   goldSummaryDisplay,
+  usdSummaryDisplay,
 }: Props) {
   const { guard } = useEditProtection();
   const [editing, setEditing] = useState<{ entry: import('../types').LedgerEntry; side: CurrencySide } | null>(null);
@@ -142,7 +148,6 @@ export function AccountLedger({
   const accountDef = getAccountDef(accountId);
   const goldFineness = accountDef?.goldSummaryFineness;
   const goldDisplayBal = goldSummaryDisplay?.value ?? goldBal;
-  const ledgerRawGold = goldSummaryDisplay?.ledgerRaw ?? goldBal;
   const fromMainSheet = goldSummaryDisplay?.fromMainSheet ?? false;
   const goldBalanceLabel =
     fromMainSheet
@@ -150,8 +155,19 @@ export function AccountLedger({
       : goldFineness != null
         ? `مكافئ رملة 995 (×${goldFineness}÷1000)`
         : 'رصيد ذهب';
-  const showScrapWeightNote =
-    goldFineness != null && Math.abs(ledgerRawGold - goldDisplayBal) > 0.0001;
+  const goldDisplayMeta = goldSummaryDisplay ?? {
+    value: goldBal,
+    ledgerRaw: goldBal,
+    fromMainSheet: false,
+  };
+  const usdDisplayMeta = usdSummaryDisplay ?? {
+    value: usdBal,
+    ledgerRaw: usdBal,
+    fromMainSheet: false,
+  };
+  const usdDisplayBal = usdDisplayMeta.value;
+  const showGoldLedgerNote = shouldShowLedgerRawNote(goldDisplayMeta);
+  const showUsdLedgerNote = shouldShowLedgerRawNote(usdDisplayMeta);
 
   const defaultSide: CurrencySide = focus === 'usd' ? 'usd' : 'gold';
   const existingNumbers = extractInvoiceNumbers([...data.gold, ...data.usd]);
@@ -166,15 +182,28 @@ export function AccountLedger({
             <div className={`text-xl font-bold num ${goldDisplayBal < 0 ? 'num-neg' : 'num-pos'}`}>
               {formatNumber(goldDisplayBal, goldFineness != null || fromMainSheet ? 2 : 4)}
             </div>
-            {showScrapWeightNote && (
-              <span className="text-[11px] text-slate-500 num">وزن الكسر في الدفتر: {formatNumber(ledgerRawGold, 4)} غ</span>
+            {showGoldLedgerNote && (
+              <span className="text-[11px] text-slate-500 num">
+                {goldFineness != null
+                  ? `وزن الكسر في الدفتر: ${formatNumber(goldDisplayMeta.ledgerRaw, 4)} غ`
+                  : `رصيد الدفتر: ${formatNumber(goldDisplayMeta.ledgerRaw, 4)}`}
+              </span>
             )}
           </div>
         )}
         {showUsd && (
           <div className="card px-4 py-3">
-            <span className="text-xs text-slate-400">رصيد دولار</span>
-            <div className={`text-xl font-bold num ${usdBal < 0 ? 'num-neg' : 'num-pos'}`}>{formatNumber(usdBal)}</div>
+            <span className="text-xs text-slate-400">
+              {usdDisplayMeta.fromMainSheet ? 'دولار $ — كما في الملخص' : 'رصيد دولار'}
+            </span>
+            <div className={`text-xl font-bold num ${usdDisplayBal < 0 ? 'num-neg' : 'num-pos'}`}>
+              {formatNumber(usdDisplayBal)}
+            </div>
+            {showUsdLedgerNote && (
+              <span className="text-[11px] text-slate-500 num">
+                رصيد الدفتر: {formatNumber(usdDisplayMeta.ledgerRaw)}
+              </span>
+            )}
           </div>
         )}
       </div>
