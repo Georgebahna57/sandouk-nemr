@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --color-ink: #ebe4d6;
+  --color-muted: #a39886;
+  --color-gold: #e4c27a;
+  --color-up: #3dbe86;
+  --color-down: #f07167;
+  --color-panel: #16140f;
+  --color-bg: #0c0b09;
+  --color-line: #2c2820;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, rgba(228, 194, 122, 0.14), transparent 55%),
+    radial-gradient(900px 400px at 0% 0%, rgba(61, 190, 134, 0.06), transparent 50%),
+    var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.num {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
