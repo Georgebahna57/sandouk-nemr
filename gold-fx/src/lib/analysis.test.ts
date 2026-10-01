@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildBriefing } from './briefing.ts'
+import { buildBriefing, type Snapshot } from './briefing.ts'
+import { judgeSetup } from './setup.ts'
 import { goldNote, isGoldRelevant, newsTopic, surpriseGuide } from './events.ts'
 import { nearestLevels, rsi, sma } from './indicators.ts'
 import { describeCandle, detectPatterns } from './patterns.ts'
-import type { Candle, EcoEvent } from '../types.ts'
+import type { Candle, EcoEvent, PatternHit } from '../types.ts'
 
 function candle(time: number, open: number, high: number, low: number, close: number): Candle {
   return { time, open, high, low, close }
@@ -115,6 +116,79 @@ test('explains non-farm payrolls for gold', () => {
   assert.match(surpriseGuide(event) ?? '', /89K/)
   assert.equal(isGoldRelevant(event), true)
   assert.equal(newsTopic('Gold slips as Treasury yields climb'), 'الدولار والعوائد')
+})
+
+function snapshot(overrides: Partial<Snapshot> = {}): Snapshot {
+  return {
+    price: 2000,
+    rsi: 55,
+    atr: 10,
+    ema21: 1980,
+    sma20: 1975,
+    sma50: 1900,
+    support: 1988,
+    resistance: 2060,
+    trend: 'bullish',
+    ...overrides,
+  }
+}
+
+function pattern(direction: PatternHit['direction'] = 'bullish'): PatternHit {
+  return {
+    id: 'hammer',
+    name: 'مطرقة',
+    english: 'Hammer',
+    direction,
+    time: 99,
+    index: 99,
+    strength: 3,
+    summary: 'اختبار',
+    lesson: 'اختبار',
+  }
+}
+
+test('shows a conditional long plan only when the higher timeframe agrees', () => {
+  const plan = judgeSetup({
+    local: snapshot(),
+    higher: snapshot(),
+    higherLabel: '4 ساعات',
+    pattern: pattern(),
+    patternCandle: candle(99, 1992, 2010, 1990, 2000),
+    candleCount: 100,
+    risks: [],
+  })
+  assert.equal(plan.status, 'watch')
+  assert.equal(plan.side, 'long')
+  assert.equal(plan.triggerPrice, 2010)
+  assert.equal(plan.invalidation, 1990)
+  assert.match(plan.headline, /ليس دخولاً مضموناً/)
+})
+
+test('refuses a setup when a high-impact US event is close or the higher trend disagrees', () => {
+  const blocked = judgeSetup({
+    local: snapshot(),
+    higher: snapshot(),
+    higherLabel: '4 ساعات',
+    pattern: pattern(),
+    patternCandle: candle(99, 1992, 2010, 1990, 2000),
+    candleCount: 100,
+    risks: [{ title: 'Non-Farm Employment Change', country: 'USD', impact: 'High', hours: 2 }],
+  })
+  assert.equal(blocked.status, 'wait')
+  assert.equal(blocked.side, null)
+  assert.match(blocked.missing.join(' '), /خبر/)
+
+  const against = judgeSetup({
+    local: snapshot(),
+    higher: snapshot({ trend: 'bearish' }),
+    higherLabel: '4 ساعات',
+    pattern: pattern(),
+    patternCandle: candle(99, 1992, 2010, 1990, 2000),
+    candleCount: 100,
+    risks: [],
+  })
+  assert.equal(against.status, 'wait')
+  assert.match(against.missing.join(' '), /الإطار الأعلى/)
 })
 
 test('lowers confidence when a high-impact US release is soon', () => {
