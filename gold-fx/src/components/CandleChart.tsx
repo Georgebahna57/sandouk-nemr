@@ -125,7 +125,7 @@ export function CandleChart({ candles, ema, sma, patterns, support, resistance, 
       position: pattern.direction === 'bullish' ? 'belowBar' : 'aboveBar',
       color: pattern.direction === 'bullish' ? '#3dbe86' : pattern.direction === 'bearish' ? '#f07167' : '#e4c27a',
       shape: pattern.direction === 'bullish' ? 'arrowUp' : pattern.direction === 'bearish' ? 'arrowDown' : 'circle',
-      text: pattern.name,
+      text: '',
     }))
     series.setMarkers(markers.reverse())
     if (supportRef.current) series.removePriceLine(supportRef.current)

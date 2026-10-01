@@ -89,7 +89,7 @@ function toCandles(result) {
 export async function getCandles(interval) {
   const spec = SPECS[interval]
   if (!spec) throw new Error('إطار زمني غير مدعوم')
-  return cached(`candles:${interval}`, 20_000, async () => {
+  return cached(`candles:${interval}`, 5_000, async () => {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF?interval=${spec.interval}&range=${spec.range}&includePrePost=false`
     const data = await fetchJson(url)
     const result = data?.chart?.result?.[0]
@@ -126,7 +126,7 @@ export async function getCandles(interval) {
 }
 
 export async function getSpot() {
-  return cached('spot', 15_000, async () => {
+  return cached('spot', 5_000, async () => {
     const data = await fetchJson('https://api.gold-api.com/price/XAU')
     const price = Number(data?.price)
     if (!Number.isFinite(price)) throw new Error('سعر السبوت غير متاح')
