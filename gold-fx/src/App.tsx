@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CalendarDays, Newspaper, RefreshCw } from 'lucide-react'
 import { CandleChart } from '@/components/CandleChart'
-import { buildBriefing } from '@/lib/briefing'
+import { buildBriefing, readMarket } from '@/lib/briefing'
 import { countryName, goldNote, impactName, isGoldRelevant, newsTopic, surpriseGuide, upcomingRisks } from '@/lib/events'
 import { candleTime, eventTime, formatLead, hoursUntil, money, relativeNews, signed } from '@/lib/format'
 import { ema, sma } from '@/lib/indicators'
 import { averageRange, describeCandle, detectPatterns, parts } from '@/lib/patterns'
+import { buildTradePlan, weeklyCandles, type TradePlan } from '@/lib/setup'
 import { openSessions, sessionNote } from '@/lib/sessions'
 import type { Candle, EcoEvent, Interval, MarketPack, NewsItem, SpotQuote } from '@/types'
 
@@ -16,6 +17,14 @@ const INTERVALS: { id: Interval; label: string }[] = [
   { id: '4h', label: '4 س' },
   { id: '1d', label: 'يوم' },
 ]
+
+const HIGHER: Record<Interval, { id: Interval | 'week'; label: string }> = {
+  '5m': { id: '1h', label: 'الساعة' },
+  '15m': { id: '1h', label: 'الساعة' },
+  '1h': { id: '4h', label: '4 ساعات' },
+  '4h': { id: '1d', label: 'اليوم' },
+  '1d': { id: 'week', label: 'الأسبوع' },
+}
 
 async function loadJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
@@ -50,6 +59,7 @@ function MiniCandle({ candle }: { candle: Candle }) {
 export default function App() {
   const [interval, setInterval] = useState<Interval>('1h')
   const [market, setMarket] = useState<MarketPack | null>(null)
+  const [higherCandles, setHigherCandles] = useState<Candle[]>([])
   const [spot, setSpot] = useState<SpotQuote | null>(null)
   const [events, setEvents] = useState<EcoEvent[]>([])
   const [news, setNews] = useState<NewsItem[]>([])
@@ -61,9 +71,24 @@ export default function App() {
 
   const loadChart = useCallback(async (next: Interval) => {
     setChartError(null)
-    const pack = await loadJson<MarketPack>(`/api/candles?interval=${next}`)
+    setHigherCandles([])
+    const higher = HIGHER[next]
+    const packPromise = loadJson<MarketPack>(`/api/candles?interval=${next}`)
+    const higherPromise =
+      higher.id === 'week' ? null : loadJson<MarketPack>(`/api/candles?interval=${higher.id}`)
+    const pack = await packPromise
     setMarket(pack)
     setHovered(null)
+    if (!higherPromise) {
+      setHigherCandles(weeklyCandles(pack.candles))
+      return
+    }
+    try {
+      const higherPack = await higherPromise
+      setHigherCandles(higherPack.candles)
+    } catch {
+      setHigherCandles([])
+    }
   }, [])
 
   const loadAux = useCallback(async () => {
@@ -125,7 +150,19 @@ export default function App() {
   const candles = market?.candles ?? []
   const patterns = useMemo(() => detectPatterns(candles), [candles])
   const risks = useMemo(() => upcomingRisks(events, now), [events, now])
-  const briefing = useMemo(() => (candles.length ? buildBriefing(candles, patterns, risks) : null), [candles, patterns, risks])
+  const higherLabel = HIGHER[interval].label
+  const higherSnapshot = useMemo(
+    () => (higherCandles.length >= 55 ? readMarket(higherCandles) : null),
+    [higherCandles],
+  )
+  const briefing = useMemo(
+    () => (candles.length ? buildBriefing(candles, patterns, risks, { higher: higherSnapshot, higherLabel }) : null),
+    [candles, patterns, risks, higherSnapshot, higherLabel],
+  )
+  const plan = useMemo(
+    () => (candles.length ? buildTradePlan(candles, patterns, higherCandles, higherLabel, risks) : null),
+    [candles, patterns, higherCandles, higherLabel, risks],
+  )
   const closes = useMemo(() => candles.map((candle) => candle.close), [candles])
   const emaLine = useMemo(
     () => ema(closes, 21).flatMap((value, index) => (value == null ? [] : [{ time: candles[index].time, value }])),
@@ -157,7 +194,7 @@ export default function App() {
           <p className="text-sm text-gold">XAU / USD</p>
           <h1 className="text-3xl font-semibold">أونصة</h1>
           <p className="mt-1 max-w-xl text-sm text-muted">
-            قراءة شموع الذهب والأخبار التي تحرّكه. الأداة تعلّمك السياق، ولا تنفّذ صفقة ولا تعطي أمر شراء أو بيع.
+            قراءة شموع الذهب مع الإطار الأعلى والخبر. فكرة الدخول لا تظهر إلا إذا اجتمعت الشروط، وهي ليست صفقة مضمونة.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -269,8 +306,7 @@ export default function App() {
           </h2>
           {briefing && (
             <p className="mt-1 text-sm text-muted">
-              ثقة القراءة: {briefing.confidence}
-              {briefing.confidence === 'منخفضة' ? ' لأن خبراً قريباً قد يلغي الشكل الفني' : ''}
+              وضوح القراءة: {briefing.confidence}، مقارنة مع {higherLabel}. الميل ليس أمر دخول.
             </p>
           )}
           <ul className="mt-4 space-y-3 text-sm leading-6">
@@ -298,6 +334,8 @@ export default function App() {
           )}
         </aside>
       </section>
+
+      {plan && <PlanCard plan={plan} />}
 
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
         <article className="rounded-2xl border border-line bg-panel p-4">
@@ -415,6 +453,47 @@ export default function App() {
         يمكن أن يخسّرك رأس المال.
       </footer>
     </div>
+  )
+}
+
+function PlanCard({ plan }: { plan: TradePlan }) {
+  const watching = plan.status === 'watch'
+  return (
+    <section className="mt-4 rounded-2xl border border-line bg-panel p-4">
+      <p className="text-xs text-gold">خطة المراقبة</p>
+      <h2 className={`mt-1 text-xl font-semibold ${watching ? biasClass(plan.side === 'long' ? 'bullish' : 'bearish') : ''}`}>
+        {plan.headline}
+      </h2>
+      {watching && (
+        <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+          <Level label="التأكيد" value={plan.triggerPrice == null ? '—' : money(plan.triggerPrice)} />
+          <Level label="الإبطال" value={money(plan.invalidation)} />
+          <Level label="الهدف الممكن" value={money(plan.target)} />
+        </dl>
+      )}
+      {watching && plan.side && (
+        <p className="mt-3 text-sm leading-6">
+          {plan.side === 'long'
+            ? 'لا تبدأ المراقبة إلا بعد إغلاق شمعة فوق سعر التأكيد. إذا أغلق السعر تحت الإبطال، الفكرة انتهت.'
+            : 'لا تبدأ المراقبة إلا بعد إغلاق شمعة تحت سعر التأكيد. إذا أغلق السعر فوق الإبطال، الفكرة انتهت.'}
+        </p>
+      )}
+      {plan.checks.length > 0 && (
+        <ul className="mt-3 space-y-1 text-sm leading-6">
+          {plan.checks.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      )}
+      {plan.missing.length > 0 && (
+        <ul className="mt-3 space-y-1 text-sm leading-6 text-muted">
+          {plan.missing.map((item) => (
+            <li key={item}>ناقص: {item}</li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-3 text-sm leading-6 text-gold">{plan.note}</p>
+    </section>
   )
 }
 
