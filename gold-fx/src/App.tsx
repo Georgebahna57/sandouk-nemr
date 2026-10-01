@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CalendarDays, Newspaper, RefreshCw } from 'lucide-react'
+import { AlertTriangle, BookOpen, CalendarDays, ChartCandlestick, Coins, Newspaper, RefreshCw } from 'lucide-react'
 import { CandleChart } from '@/components/CandleChart'
 import { buildBriefing, readMarket } from '@/lib/briefing'
 import { countryName, goldNote, impactName, isGoldRelevant, newsTopic, surpriseGuide, upcomingRisks } from '@/lib/events'
@@ -87,6 +87,9 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [hovered, setHovered] = useState<Candle | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(readLayout)
+  const [narrow, setNarrow] = useState(false)
+  const [tab, setTab] = useState<PhoneTab>('price')
 
   const loadChart = useCallback(async (next: Interval, silent = false) => {
     if (!silent) {
@@ -139,6 +142,18 @@ export default function App() {
       setLoading(false)
     }
   }, [interval, loadAux, loadChart])
+
+  useEffect(() => {
+    localStorage.setItem('onssa-layout', layoutMode)
+  }, [layoutMode])
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 800px)')
+    const apply = () => setNarrow(query.matches)
+    apply()
+    query.addEventListener('change', apply)
+    return () => query.removeEventListener('change', apply)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -213,17 +228,41 @@ export default function App() {
       ? 'border-up/40 bg-up/10'
       : briefing?.bias === 'bearish'
         ? 'border-down/40 bg-down/10'
-        : 'border-line bg-panel'
+        : 'border-gold/25 bg-panel'
+  const phone = layoutMode === 'phone' || (layoutMode === 'auto' && narrow)
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-gold">XAU / USD</p>
-          <h1 className="text-3xl font-semibold">أونصة</h1>
+    <div className={`app-root mx-auto max-w-7xl px-4 py-5 sm:px-6 ${phone ? 'phone' : 'desk'}`} data-tab={tab}>
+      <header className="topbar flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="brand-mark" aria-hidden>
+            أ
+          </span>
+          <div>
+            <p className="text-sm font-medium tracking-wide text-gold">XAU / USD</p>
+            <h1 className="text-3xl font-semibold leading-none">أونصة</h1>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full border border-line px-3 py-1 text-xs text-muted">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="layout-switch" role="group" aria-label="طريقة العرض">
+            {(
+              [
+                ['auto', 'تلقائي'],
+                ['desk', 'كمبيوتر'],
+                ['phone', 'جوال'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={layoutMode === id ? 'active' : ''}
+                onClick={() => setLayoutMode(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-gold/30 px-3 py-1 text-xs text-muted">
             <span className="h-2 w-2 animate-pulse rounded-full bg-gold" />
             كل 5 ث · <bdi className="num">{clock(now)}</bdi>
           </span>
@@ -244,11 +283,11 @@ export default function App() {
           <div className="h-[460px] animate-pulse rounded-3xl bg-line/40" />
         </div>
       ) : (
-        <section className="mt-5 rounded-3xl border border-line bg-panel p-5">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <section className="sheet tab-price mt-5 rounded-3xl p-5">
+          <div className="hero-row flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs text-muted">سبوت الأونصة</p>
-              <p className="mt-1 text-5xl font-semibold tracking-tight sm:text-6xl">
+              <p className="price-hero mt-1 text-5xl font-semibold tracking-tight sm:text-6xl">
                 <bdi className="num">{money(spot?.price)}</bdi>
               </p>
               <p className="mt-2 text-sm text-muted">دولار للأونصة · يتحدث تلقائياً كل 5 ثوانٍ</p>
@@ -286,14 +325,14 @@ export default function App() {
       )}
       {auxError && <p className="mt-3 text-sm text-muted">بعض المصادر لم تصل: {auxError}</p>}
 
-      <section className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.9fr)]">
-        <div className="rounded-2xl border border-line bg-panel p-3 sm:p-4">
+      <section className="chart-grid mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.9fr)]">
+        <div className="sheet tab-chart rounded-2xl p-3 sm:p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-medium">شموع العقد</h2>
               <p className="text-xs text-muted">مرّر على الشمعة لتقرأ جسمها وذيولها.</p>
             </div>
-            <div className="flex rounded-full border border-line p-1">
+            <div className="intervals flex flex-wrap rounded-full border border-line p-1">
               {INTERVALS.map((item) => (
                 <button
                   key={item.id}
@@ -333,7 +372,7 @@ export default function App() {
           )}
         </div>
 
-        <aside className={`rounded-2xl border p-4 ${biasWash}`}>
+        <aside className={`sheet tab-read rounded-2xl border p-4 ${biasWash}`}>
           <p className="text-xs text-muted">القراءة على إطار {INTERVALS.find((item) => item.id === interval)?.label}</p>
           <h2 className={`mt-2 text-2xl font-semibold ${biasClass(briefing?.bias ?? 'neutral')}`}>
             {briefing?.headline ?? 'بانتظار السعر'}
@@ -369,17 +408,21 @@ export default function App() {
         </aside>
       </section>
 
-      {plan && <PlanCard plan={plan} />}
+      {plan && (
+        <div className="tab-read">
+          <PlanCard plan={plan} />
+        </div>
+      )}
 
-      <section className="mt-4 grid gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-line bg-panel p-4">
+      <section className="tab-read mt-4 grid gap-4 lg:grid-cols-2">
+        <article className="sheet rounded-2xl p-4">
           <h2 className="text-lg font-medium">قراءة الشمعة</h2>
           {selected ? (
             <div className="mt-3 flex gap-4">
               <MiniCandle candle={selected} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-muted">{candleTime(selected.time)} — توقيت دمشق</p>
-                <dl className="mt-2 grid grid-cols-4 gap-2 text-sm">
+                <dl className="ohlc mt-2 grid grid-cols-4 gap-2 text-sm">
                   <Level label="فتح" value={money(selected.open)} />
                   <Level label="أعلى" value={money(selected.high)} />
                   <Level label="أدنى" value={money(selected.low)} />
@@ -405,7 +448,7 @@ export default function App() {
           )}
         </article>
 
-        <article className="rounded-2xl border border-line bg-panel p-4">
+        <article className="sheet rounded-2xl p-4">
           <h2 className="text-lg font-medium">أنماط آخر الشموع</h2>
           {patterns.length === 0 ? (
             <p className="mt-3 text-sm text-muted">لا يوجد نمط كلاسيكي واضح في آخر 25 شمعة. هذا طبيعي في السوق العرضي.</p>
@@ -432,7 +475,7 @@ export default function App() {
         </article>
       </section>
 
-      <details className="mt-4 rounded-2xl border border-line bg-panel px-4 py-3 text-sm leading-7">
+      <details className="sheet tab-read mt-4 rounded-2xl px-4 py-3 text-sm leading-7">
         <summary className="cursor-pointer font-medium">كيف تقرأ شمعة الذهب قبل ما تعتمد نمطاً</summary>
         <div className="mt-2 grid gap-2 text-muted sm:grid-cols-3">
           <p>الجسم هو المسافة بين الافتتاح والإغلاق. جسم أخضر إغلاق أعلى، وجسم أحمر إغلاق أدنى.</p>
@@ -441,8 +484,8 @@ export default function App() {
         </div>
       </details>
 
-      <section className="mt-4 grid gap-4 lg:grid-cols-2">
-        <article className="rounded-2xl border border-line bg-panel p-4">
+      <section className="tab-news mt-4 grid gap-4 lg:grid-cols-2">
+        <article className="sheet rounded-2xl p-4">
           <div className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-gold" />
             <h2 className="text-lg font-medium">أخبار اقتصادية تهم الذهب</h2>
@@ -456,7 +499,7 @@ export default function App() {
           )}
         </article>
 
-        <article className="rounded-2xl border border-line bg-panel p-4">
+        <article className="sheet rounded-2xl p-4">
           <div className="flex items-center gap-2">
             <Newspaper className="h-5 w-5 text-gold" />
             <h2 className="text-lg font-medium">عناوين الذهب</h2>
@@ -480,15 +523,47 @@ export default function App() {
         </article>
       </section>
 
-      {briefing && <RsiBar value={briefing.snapshot.rsi} />}
+      {briefing && (
+        <div className="tab-chart">
+          <RsiBar value={briefing.snapshot.rsi} />
+        </div>
+      )}
 
-      <footer className="mt-6 border-t border-line pt-4 text-xs leading-6 text-muted">
+      <footer className="mt-6 border-t border-gold/20 pt-4 text-xs leading-6 text-muted">
         الشموع من عقد الذهب GC على COMEX لأنها أوضح سلسلة سعرية متاحة، وهي تتحرك مع أونصة الفوركس XAU/USD من غير أن
         تطابقها سنتاً بسنت. الأسعار للمساعدة على القراءة وقد تتأخر عن وسيطك. هذه ليست نصيحة استثمارية، والتداول بالرافعة
-        يمكن أن يخسّرك رأس المال.
+        يمكن أن يخسّرك رأس المال. على الجوال اختر «جوال»، أو اترك «تلقائي» وهو يبدّل وحده إذا الشاشة ضيقة.
       </footer>
+      <nav className="phone-nav" aria-label="أقسام الجوال">
+        {(
+          [
+            ['price', 'السعر', Coins],
+            ['chart', 'الشارت', ChartCandlestick],
+            ['read', 'القراءة', BookOpen],
+            ['news', 'الأخبار', Newspaper],
+          ] as const
+        ).map(([id, label, Icon]) => (
+          <button key={id} type="button" className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
+            <Icon className="h-5 w-5" />
+            {label}
+          </button>
+        ))}
+      </nav>
     </div>
   )
+}
+
+type LayoutMode = 'auto' | 'desk' | 'phone'
+type PhoneTab = 'price' | 'chart' | 'read' | 'news'
+
+function readLayout(): LayoutMode {
+  try {
+    const saved = localStorage.getItem('onssa-layout')
+    if (saved === 'desk' || saved === 'phone' || saved === 'auto') return saved
+  } catch {
+    // التخزين المحلي قد يكون ممنوعاً.
+  }
+  return 'auto'
 }
 
 function PlanCard({ plan }: { plan: TradePlan }) {
@@ -504,7 +579,7 @@ function PlanCard({ plan }: { plan: TradePlan }) {
     { n: '3', label: 'الهدف', value: money(plan.target), hint: 'مستوى ممكن، ليس وعداً' },
   ]
   return (
-    <section className="mt-4 rounded-3xl border border-line bg-panel p-4 sm:p-5">
+    <section className="sheet mt-4 rounded-3xl p-4 sm:p-5">
       <p className="text-xs text-gold">خطة المراقبة</p>
       <h2 className={`mt-1 text-xl font-semibold ${watching ? biasClass(plan.side === 'long' ? 'bullish' : 'bearish') : ''}`}>
         {plan.headline}
@@ -648,7 +723,7 @@ function EventList({ title, events, now }: { title: string; events: EcoEvent[]; 
 function RsiBar({ value }: { value: number | null }) {
   if (value == null) return null
   return (
-    <div className="mt-4 rounded-2xl border border-line bg-panel px-4 py-3">
+    <div className="sheet mt-4 rounded-2xl px-4 py-3">
       <div className="flex items-center justify-between text-sm">
         <span>مؤشر RSI</span>
         <span className="num">{value.toFixed(1)}</span>
