@@ -46,17 +46,17 @@ export function CandleChart({ candles, ema, sma, patterns, support, resistance, 
     const chart = createChart(element, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#16140f' },
-        textColor: '#cfc6b8',
+        background: { type: ColorType.Solid, color: '#10151f' },
+        textColor: '#d9d0c2',
         fontFamily: 'IBM Plex Sans Arabic, sans-serif',
       },
       grid: {
-        vertLines: { color: '#2a261e' },
-        horzLines: { color: '#2a261e' },
+        vertLines: { color: '#243049' },
+        horzLines: { color: '#243049' },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#3a3428' },
-      timeScale: { borderColor: '#3a3428', timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: '#33415f' },
+      timeScale: { borderColor: '#33415f', timeVisible: true, secondsVisible: false },
       localization: { locale: 'en-US' },
     })
     const series = chart.addCandlestickSeries({
@@ -67,7 +67,7 @@ export function CandleChart({ candles, ema, sma, patterns, support, resistance, 
       wickDownColor: '#f07167',
     })
     const emaSeries = chart.addLineSeries({
-      color: '#e4c27a',
+      color: '#f0c36a',
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -123,9 +123,9 @@ export function CandleChart({ candles, ema, sma, patterns, support, resistance, 
     const markers: SeriesMarker<UTCTimestamp>[] = patterns.slice(0, 3).map((pattern) => ({
       time: pattern.time as UTCTimestamp,
       position: pattern.direction === 'bullish' ? 'belowBar' : 'aboveBar',
-      color: pattern.direction === 'bullish' ? '#3dbe86' : pattern.direction === 'bearish' ? '#f07167' : '#e4c27a',
+      color: pattern.direction === 'bullish' ? '#3dbe86' : pattern.direction === 'bearish' ? '#ff7b72' : '#f0c36a',
       shape: pattern.direction === 'bullish' ? 'arrowUp' : pattern.direction === 'bearish' ? 'arrowDown' : 'circle',
-      text: pattern.name,
+      text: '',
     }))
     series.setMarkers(markers.reverse())
     if (supportRef.current) series.removePriceLine(supportRef.current)
@@ -156,5 +156,5 @@ export function CandleChart({ candles, ema, sma, patterns, support, resistance, 
     }
   }, [candles, ema, sma, patterns, support, resistance, interval])
 
-  return <div ref={wrapRef} className="h-[340px] w-full sm:h-[460px]" dir="ltr" />
+  return <div ref={wrapRef} className="chart-canvas h-[340px] w-full sm:h-[460px]" dir="ltr" />
 }

@@ -19,7 +19,7 @@ export interface Snapshot {
 export interface Briefing {
   bias: Direction
   headline: string
-  confidence: 'منخفضة' | 'متوسطة' | 'جيدة'
+  confidence: 'منخفضة' | 'متوسطة' | 'أوضح'
   points: string[]
   cautions: string[]
   snapshot: Snapshot
@@ -60,7 +60,12 @@ export function readMarket(candles: Candle[]): Snapshot {
   }
 }
 
-export function buildBriefing(candles: Candle[], patterns: PatternHit[], risks: UpcomingRisk[]): Briefing {
+export function buildBriefing(
+  candles: Candle[],
+  patterns: PatternHit[],
+  risks: UpcomingRisk[],
+  context?: { higher: Snapshot | null; higherLabel: string },
+): Briefing {
   const snapshot = readMarket(candles)
   const points = [trendText(snapshot.trend)]
   const cautions: string[] = []
@@ -122,9 +127,20 @@ export function buildBriefing(candles: Candle[], patterns: PatternHit[], risks: 
   }
 
   const bias: Direction = score >= 0.85 ? 'bullish' : score <= -0.85 ? 'bearish' : 'neutral'
-  const confidence = soon ? 'منخفضة' : Math.abs(score) >= 1.5 ? 'جيدة' : 'متوسطة'
+  const higher = context?.higher
+  const higherAgrees = !higher || higher.trend === 'neutral' || bias === 'neutral' || higher.trend === bias
+  if (higher && higher.trend !== 'neutral' && bias !== 'neutral' && higher.trend !== bias) {
+    cautions.unshift(
+      `الإطار الأعلى (${context?.higherLabel ?? 'الأكبر'}) عكس هذا الميل. قراءة الإطار الصغير وحدها لا تكفي.`,
+    )
+  }
+  const confidence = soon || !higherAgrees ? 'منخفضة' : Math.abs(score) >= 1.5 ? 'أوضح' : 'متوسطة'
   const biasText = bias === 'bullish' ? 'ميل صاعد' : bias === 'bearish' ? 'ميل هابط' : 'ميل متردد'
-  const headline = soon ? `${biasText}، لكن خبر الدولار قريب والقراءة الفنية أضعف` : biasText
+  const headline = soon
+    ? `${biasText}، لكن خبر الدولار قريب والقراءة الفنية أضعف`
+    : !higherAgrees
+      ? `${biasText} على هذا الإطار، والإطار الأعلى مخالف`
+      : biasText
 
   return { bias, headline, confidence, points, cautions, snapshot }
 }
