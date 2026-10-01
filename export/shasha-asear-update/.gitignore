@@ -1,0 +1,10 @@
+.DS_Store
+Thumbs.db
+*.ex5
+*.log
+relay.json
+node_modules
+www
+*.apk
+!ShashaAsear-debug.apk
+*.aab

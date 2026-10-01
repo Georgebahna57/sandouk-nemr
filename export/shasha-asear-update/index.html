@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070b16" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>شاشة أسعار</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <script>
+    (function () {
+      try {
+        var raw = JSON.parse(localStorage.getItem("shasha-asear-settings-v2") || "{}");
+        var map = { computer: 1, tv32: 1.36, tv41: 1.58, tv50: 1.82 };
+        var key = map[raw.screen] ? raw.screen : "computer";
+        document.documentElement.dataset.screen = key;
+        document.documentElement.style.setProperty("--board-scale", String(map[key]));
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root {
+      --bg: #070b16;
+      --card: rgba(2, 8, 23, 0.62);
+      --buy: #34d399;
+      --sell: #fbbf24;
+      --board-scale: 1;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: #f8fafc;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    }
+
+    body {
+      background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(245, 158, 11, 0.16), transparent 55%),
+        linear-gradient(180deg, #070b16 0%, #0b1224 45%, #050814 100%);
+    }
+
+    html[data-screen^="tv"],
+    html[data-screen^="tv"] body {
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .board {
+      zoom: var(--board-scale);
+      width: calc(100% / var(--board-scale));
+      min-height: calc(100dvh / var(--board-scale));
+      display: flex;
+      flex-direction: column;
+      padding: max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-top))
+        max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-right))
+        max(clamp(0.8rem, 2vw, 2rem), env(safe-area-inset-bottom))
+        max(clamp(1rem, 3vw, 3rem), env(safe-area-inset-left));
+    }
+
+    @supports not (zoom: 1) {
+      .board {
+        transform: scale(var(--board-scale));
+        transform-origin: top left;
+      }
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: clamp(0.8rem, 2vw, 1.8rem);
+    }
+
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 0.45rem;
+      margin-left: auto;
+    }
+
+    .kicker {
+      margin: 0;
+      color: rgba(253, 230, 138, 0.75);
+      font-size: clamp(0.75rem, 1.4vw, 1rem);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0.25rem 0 0;
+      font-size: clamp(2rem, 5vw, 4.2rem);
+      line-height: 0.95;
+      background: linear-gradient(to right, #fde68a, #fbbf24, #d97706);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .clock {
+      min-width: min(100%, 21rem);
+      padding: clamp(0.8rem, 1.7vw, 1.2rem) clamp(1rem, 2.2vw, 1.6rem) clamp(0.85rem, 1.6vw, 1.15rem);
+      text-align: right;
+      border-radius: clamp(1.1rem, 2vw, 1.7rem);
+      border: 1px solid rgba(245, 158, 11, 0.32);
+      background:
+        linear-gradient(180deg, rgba(253, 230, 138, 0.08), transparent 42%),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.78), rgba(2, 8, 23, 0.62));
+      box-shadow:
+        inset 0 1px 0 rgba(253, 230, 138, 0.16),
+        0 0 70px -28px rgba(245, 158, 11, 0.55);
+      backdrop-filter: blur(14px);
+    }
+
+    .clock-kicker {
+      margin: 0 0 0.35rem;
+      color: rgba(253, 230, 138, 0.7);
+      font-size: clamp(0.62rem, 1.1vw, 0.78rem);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .clock-face {
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      gap: 0.55rem;
+    }
+
+    .clock time {
+      display: flex;
+      align-items: baseline;
+      margin: 0;
+      font-size: clamp(1.9rem, 4.6vw, 3.2rem);
+      font-weight: 800;
+      line-height: 0.95;
+      letter-spacing: 0.06em;
+      font-variant-numeric: tabular-nums;
+      color: #fbbf24;
+    }
+
+    .clock time b {
+      font-weight: 800;
+      background: linear-gradient(to bottom, #fffbeb, #fde68a 55%, #f59e0b);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .clock time i {
+      font-style: normal;
+      padding: 0 0.04em;
+      color: #f59e0b;
+      animation: colon 1s steps(2, end) infinite;
+    }
+
+    @keyframes colon {
+      50% { opacity: 0.2; }
+    }
+
+    .clock-ampm {
+      margin-bottom: 0.28em;
+      padding: 0.18rem 0.48rem;
+      border-radius: 999px;
+      border: 1px solid rgba(251, 191, 36, 0.38);
+      background: rgba(245, 158, 11, 0.12);
+      color: #fde68a;
+      font-size: clamp(0.68rem, 1.15vw, 0.82rem);
+      font-weight: 800;
+      letter-spacing: 0.16em;
+    }
+
+    .clock-date {
+      margin: 0.7rem 0 0;
+      padding-top: 0.55rem;
+      border-top: 1px solid rgba(253, 230, 138, 0.2);
+      color: #f8fafc;
+      font-size: clamp(0.95rem, 1.8vw, 1.22rem);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .cards {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(0.8rem, 2vw, 1.6rem);
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+      border-radius: clamp(1.2rem, 2vw, 2rem);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: var(--card);
+      padding: clamp(1rem, 2vw, 1.8rem) clamp(1.1rem, 2.2vw, 2rem);
+      backdrop-filter: blur(10px);
+    }
+
+    .card.gold { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 80px -20px rgba(245, 158, 11, 0.5); }
+    .card.silver { border-color: rgba(226, 232, 240, 0.35); box-shadow: 0 0 80px -22px rgba(226, 232, 240, 0.35); }
+    .card.euro { border-color: rgba(56, 189, 248, 0.35); box-shadow: 0 0 80px -22px rgba(56, 189, 248, 0.4); }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: clamp(1.5rem, 3.2vw, 2.6rem);
+      line-height: 1;
+    }
+
+    .card.gold h2 { color: #fcd34d; }
+    .card.silver h2 { color: #e2e8f0; }
+    .card.euro h2 { color: #7dd3fc; }
+
+    .unit {
+      margin: 0.45rem 0 0;
+      color: #94a3b8;
+      font-size: clamp(0.7rem, 1.2vw, 0.95rem);
+    }
+
+    .spot {
+      margin-top: clamp(0.9rem, 2vw, 1.4rem);
+      padding: clamp(0.7rem, 1.4vw, 1rem);
+      border-radius: 1rem;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .spot-label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin: 0;
+      color: #94a3b8;
+      font-size: clamp(0.68rem, 1.1vw, 0.85rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .dot {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      background: #64748b;
+    }
+
+    .dot.live {
+      background: #34d399;
+      box-shadow: 0 0 10px #34d399;
+      animation: pulse 1.6s ease-out infinite;
+    }
+
+    .dot.stale { background: #f59e0b; }
+    .dot.off { background: #ef4444; }
+
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      70% { transform: scale(1.7); opacity: 0; }
+      100% { transform: scale(1.7); opacity: 0; }
+    }
+
+    .spot-price {
+      margin: 0.2rem 0 0;
+      font-size: clamp(1.8rem, 4.2vw, 3.3rem);
+      font-weight: 900;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sides {
+      margin-top: clamp(0.8rem, 1.8vw, 1.3rem);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(0.6rem, 1.4vw, 1.2rem);
+    }
+
+    .side {
+      min-width: 0;
+      border-radius: 1.1rem;
+      padding: clamp(0.7rem, 1.6vw, 1.2rem) clamp(0.6rem, 1.2vw, 1rem);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .side.buy { background: rgba(6, 78, 59, 0.35); border-color: rgba(16, 185, 129, 0.25); }
+    .side.sell { background: rgba(69, 26, 3, 0.35); border-color: rgba(245, 158, 11, 0.25); }
+
+    .side p {
+      margin: 0;
+      font-weight: 700;
+      font-size: clamp(0.8rem, 1.4vw, 1.15rem);
+    }
+
+    .buy p { color: var(--buy); }
+    .sell p { color: var(--sell); }
+
+    .price {
+      margin: 0.25rem 0 0;
+      font-size: clamp(1.4rem, 3.6vw, 2.8rem);
+      font-weight: 900;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.8rem;
+      margin-top: clamp(0.7rem, 1.6vw, 1.4rem);
+      color: #64748b;
+      font-size: clamp(0.7rem, 1.2vw, 0.95rem);
+    }
+
+    .top-actions button, .editor button {
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .top-actions button {
+      border: 1px solid #334155;
+      background: transparent;
+      color: #94a3b8;
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+    }
+
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.62);
+      z-index: 20;
+      padding: 1rem;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .overlay.open { display: flex; }
+
+    .editor {
+      width: min(560px, 100%);
+      max-height: 90dvh;
+      overflow: auto;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 1.2rem;
+      padding: 1rem;
+    }
+
+    .editor-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding-bottom: 0.55rem;
+      background: #0f172a;
+      border-bottom: 1px solid #334155;
+    }
+
+    .editor-top h3 { margin: 0; }
+    .editor-top .actions {
+      margin-top: 0;
+    }
+
+    .editor .hint { margin: 0 0 1rem; color: #94a3b8; font-size: 0.8rem; line-height: 1.45; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+
+    label {
+      display: block;
+      background: #020617;
+      border: 1px solid #334155;
+      border-radius: 0.75rem;
+      padding: 0.6rem 0.7rem;
+    }
+
+    label span {
+      display: block;
+      color: #94a3b8;
+      font-size: 0.72rem;
+      margin-bottom: 0.3rem;
+    }
+
+    input, select {
+      width: 100%;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 0.5rem;
+      padding: 0.4rem 0.5rem;
+      font: inherit;
+    }
+
+    .group {
+      border: 1px solid #334155;
+      border-radius: 0.9rem;
+      padding: 0.75rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .group h4 { margin: 0 0 0.25rem; font-size: 0.95rem; }
+    .group .sub { margin: 0 0 0.55rem; color: #64748b; font-size: 0.72rem; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .save {
+      background: #f59e0b;
+      color: #111827;
+      border: 0;
+      border-radius: 0.7rem;
+      padding: 0.55rem 0.9rem;
+      font-weight: 700;
+    }
+
+    .ghost {
+      background: transparent;
+      color: #cbd5e1;
+      border: 1px solid #475569;
+      border-radius: 0.7rem;
+      padding: 0.55rem 0.9rem;
+    }
+
+    .ok { color: #34d399; font-size: 0.8rem; min-height: 1.1rem; }
+
+    .spot-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 0.6rem;
+    }
+
+    .chg {
+      margin: 0 0 0.15rem;
+      font-size: clamp(0.75rem, 1.4vw, 1.05rem);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+
+    .chg.up { color: #34d399; }
+    .chg.down { color: #f87171; }
+
+    .ba {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.4rem;
+      margin-top: 0.45rem;
+      color: #94a3b8;
+      font-size: clamp(0.68rem, 1.1vw, 0.82rem);
+    }
+
+    .ba b {
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .spot-price, .price, .side {
+      transition: color 0.12s linear, background 0.12s linear;
+    }
+
+    .spot-price.up, .price.up { color: #34d399; }
+    .spot-price.down, .price.down { color: #f87171; }
+
+    .tick-up { animation: flash-up 0.38s ease-out; }
+    .tick-down { animation: flash-down 0.38s ease-out; }
+
+    @keyframes flash-up {
+      0% { background: rgba(52, 211, 153, 0.42); }
+      100% { background: transparent; }
+    }
+
+    @keyframes flash-down {
+      0% { background: rgba(248, 113, 113, 0.38); }
+      100% { background: transparent; }
+    }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-width: 0;
+    }
+
+    .live-tag {
+      flex: none;
+      border-radius: 999px;
+      padding: 0.18rem 0.55rem;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+    }
+
+    .live-tag.live {
+      color: #022c22;
+      background: #34d399;
+      box-shadow: 0 0 12px rgba(52, 211, 153, 0.55);
+    }
+
+    .live-tag.stale {
+      color: #111827;
+      background: #f59e0b;
+    }
+
+    .live-tag.off {
+      color: #e2e8f0;
+      background: #334155;
+    }
+
+    html[data-screen^="tv"] .cards {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    html[data-screen^="tv"] header {
+      align-items: center;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+
+    html[data-screen^="tv"] .clock {
+      text-align: right;
+    }
+
+    html[data-screen^="tv"] .clock-face {
+      justify-content: flex-end;
+    }
+
+    @media (max-width: 900px) {
+      html:not([data-screen^="tv"]) .cards { grid-template-columns: 1fr; }
+      html:not([data-screen^="tv"]) header { align-items: stretch; flex-direction: column; }
+      html:not([data-screen^="tv"]) .top-actions { margin-left: 0; justify-content: flex-start; }
+      html:not([data-screen^="tv"]) .clock { text-align: left; min-width: 0; }
+      html:not([data-screen^="tv"]) .clock-face { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="board">
+    <header>
+      <div>
+        <p class="kicker">شاشة أسعار حية</p>
+        <h1 id="title">المحل</h1>
+      </div>
+      <div class="top-actions">
+        <button type="button" id="edit-btn">إعدادات</button>
+        <button type="button" id="full-btn">ملء الشاشة</button>
+      </div>
+      <div class="clock">
+        <p class="clock-kicker">التوقيت المحلي</p>
+        <div class="clock-face">
+          <time id="clock" datetime="">
+            <b id="clock-h">--</b><i>:</i><b id="clock-m">--</b><i>:</i><b id="clock-s">--</b>
+          </time>
+          <span class="clock-ampm" id="clock-ampm">--</span>
+        </div>
+        <p class="clock-date" id="clock-date"></p>
+      </div>
+    </header>
+
+    <section class="cards">
+      <article class="card gold">
+        <div class="card-top">
+          <div>
+            <h2>ذهب</h2>
+            <p class="unit">دولار / أونصة</p>
+          </div>
+        </div>
+        <div class="spot">
+          <p class="spot-label"><span class="dot" id="gold-dot"></span> السعر المرجعي</p>
+          <div class="spot-row">
+            <div class="spot-price" id="gold-spot">—</div>
+            <div class="chg" id="gold-chg"></div>
+          </div>
+        </div>
+        <div class="sides">
+          <div class="side buy"><p>شراء</p><div class="price" id="gold-buy">—</div></div>
+          <div class="side sell"><p>بيع</p><div class="price" id="gold-sell">—</div></div>
+        </div>
+      </article>
+
+      <article class="card silver">
+        <div class="card-top">
+          <div>
+            <h2>فضة</h2>
+            <p class="unit">دولار / أونصة</p>
+          </div>
+        </div>
+        <div class="spot">
+          <p class="spot-label"><span class="dot" id="silver-dot"></span> السعر المرجعي</p>
+          <div class="spot-row">
+            <div class="spot-price" id="silver-spot">—</div>
+            <div class="chg" id="silver-chg"></div>
+          </div>
+        </div>
+        <div class="sides">
+          <div class="side buy"><p>شراء</p><div class="price" id="silver-buy">—</div></div>
+          <div class="side sell"><p>بيع</p><div class="price" id="silver-sell">—</div></div>
+        </div>
+      </article>
+
+      <article class="card euro">
+        <div class="card-top">
+          <div>
+            <h2>يورو</h2>
+            <p class="unit">دولار لكل يورو</p>
+          </div>
+        </div>
+        <div class="spot">
+          <p class="spot-label"><span class="dot" id="euro-dot"></span> السعر المرجعي</p>
+          <div class="spot-row">
+            <div class="spot-price" id="euro-spot">—</div>
+            <div class="chg" id="euro-chg"></div>
+          </div>
+        </div>
+        <div class="sides">
+          <div class="side buy"><p>شراء</p><div class="price" id="euro-buy">—</div></div>
+          <div class="side sell"><p>بيع</p><div class="price" id="euro-sell">—</div></div>
+        </div>
+      </article>
+    </section>
+
+    <footer>
+      <span class="status-line">
+        <b class="live-tag off" id="live-tag">OFF</b>
+        <span id="updated">Connecting to live market…</span>
+      </span>
+    </footer>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <form class="editor" id="form">
+      <div class="editor-top">
+        <h3>إعدادات</h3>
+        <div class="actions">
+          <button class="save" type="submit">حفظ</button>
+          <button class="ghost" type="button" id="close-btn">إغلاق</button>
+        </div>
+      </div>
+      <p class="hint">
+        المحل: MT5 + start-board. الموبايل/التلفزيون: ارفع relay-config.json على GitHub (راجع docs/RELAY-AR.md).
+        الشراء = bid الوسيط − الخصم. البيع = ask الوسيط + العلاوة. للمطابقة حرفياً ضع الخصم والعلاوة = 0.
+      </p>
+
+      <div class="row">
+        <label>
+          <span>اسم المحل</span>
+          <input id="f-title" type="text" />
+        </label>
+        <label>
+          <span>حجم الشاشة (تلفزيون)</span>
+          <select id="f-screen">
+            <option value="computer">كمبيوتر / هاتف</option>
+            <option value="tv32">تلفزيون 32</option>
+            <option value="tv41">تلفزيون 41</option>
+            <option value="tv50">تلفزيون 50+</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <label style="grid-column: 1 / -1">
+          <span>رابط مزامنة MT5 (اختياري — للهاتف/التلفزيون)</span>
+          <input id="f-cloud-feed" type="url" dir="ltr" placeholder="https://.../prices.json" autocomplete="off" />
+        </label>
+      </div>
+
+      <div class="group">
+        <h4>Gold</h4>
+        <p class="sub">USD per ounce, around the live spot</p>
+        <div class="row">
+          <label><span>Bid below live ($)</span><input id="f-gold-buy" type="text" inputmode="decimal" /></label>
+          <label><span>Ask above live ($)</span><input id="f-gold-sell" type="text" inputmode="decimal" /></label>
+        </div>
+      </div>
+      <div class="group">
+        <h4>Silver</h4>
+        <p class="sub">USD per ounce, around the live spot</p>
+        <div class="row">
+          <label><span>Bid below live ($)</span><input id="f-silver-buy" type="text" inputmode="decimal" /></label>
+          <label><span>Ask above live ($)</span><input id="f-silver-sell" type="text" inputmode="decimal" /></label>
+        </div>
+      </div>
+      <div class="group">
+        <h4>Euro</h4>
+        <p class="sub">USD per euro, around the live rate</p>
+        <div class="row">
+          <label><span>Bid below live ($)</span><input id="f-euro-buy" type="text" inputmode="decimal" /></label>
+          <label><span>Ask above live ($)</span><input id="f-euro-sell" type="text" inputmode="decimal" /></label>
+        </div>
+      </div>
+
+      <p class="ok" id="saved"></p>
+    </form>
+  </div>
+
+  <script>
+    const SETTINGS_KEY = "shasha-asear-settings-v2";
+    const SPOT_KEY = "shasha-asear-spot-v3";
+    const LOCAL = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+    const MT5_URLS = LOCAL
+      ? ["/prices.json", "http://127.0.0.1:8765/prices.json"]
+      : [];
+    const ASSETS = [
+      { key: "gold", max: 2, buyKey: "goldBuy", sellKey: "goldSell" },
+      { key: "silver", max: 2, buyKey: "silverBuy", sellKey: "silverSell" },
+      { key: "euro", max: 4, buyKey: "euroBuy", sellKey: "euroSell" }
+    ];
+    const defaults = {
+      title: "المحل",
+      goldBuy: 10,
+      goldSell: 15,
+      silverBuy: 0.3,
+      silverSell: 0.5,
+      euroBuy: 0.004,
+      euroSell: 0.006,
+      screen: "computer",
+      cloudFeedUrl: ""
+    };
+    const BROKER_SOURCES = { mt5: 1, "mt5-cloud": 1 };
+    const SCREEN_SCALE = {
+      computer: 1,
+      tv32: 1.36,
+      tv41: 1.58,
+      tv50: 1.82
+    };
+
+    function applyScreen(size) {
+      const key = SCREEN_SCALE[size] ? size : "computer";
+      document.documentElement.dataset.screen = key;
+      document.documentElement.style.setProperty("--board-scale", String(SCREEN_SCALE[key]));
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        return raw ? { ...defaults, ...JSON.parse(raw) } : { ...defaults };
+      } catch {
+        return { ...defaults };
+      }
+    }
+
+    function emptySpot() {
+      return {
+        gold: 0, goldBid: 0, goldAsk: 0,
+        silver: 0, silverBid: 0, silverAsk: 0,
+        euro: 0, euroBid: 0, euroAsk: 0,
+        at: null, receivedAt: 0, status: "off", source: null
+      };
+    }
+
+    function loadSpot() {
+      try {
+        const raw = localStorage.getItem(SPOT_KEY);
+        return raw ? { ...emptySpot(), ...JSON.parse(raw) } : emptySpot();
+      } catch {
+        return emptySpot();
+      }
+    }
+
+    function parseNum(raw) {
+      const v = Number(String(raw).replace(/,/g, "").trim());
+      return v && isFinite(v) && v >= 0 ? v : 0;
+    }
+
+    function money(n, max) {
+      const v = Number(n);
+      if (!v || !isFinite(v) || v <= 0) return "—";
+      return v.toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: max
+      });
+    }
+
+    function num(v) {
+      const n = Number(v);
+      return n > 0 && isFinite(n) ? n : 0;
+    }
+
+    function flash(el, dir) {
+      if (!el || !dir) return;
+      el.classList.remove("tick-up", "tick-down", "up", "down");
+      void el.offsetWidth;
+      el.classList.add(dir > 0 ? "tick-up" : "tick-down", dir > 0 ? "up" : "down");
+      clearTimeout(el._tickTimer);
+      el._tickTimer = setTimeout(() => el.classList.remove("up", "down"), 650);
+    }
+
+    function dirOf(next, prev) {
+      if (!(next > 0) || !(prev > 0)) return 0;
+      if (next > prev) return 1;
+      if (next < prev) return -1;
+      return 0;
+    }
+
+    let settings = loadSettings();
+    applyScreen(settings.screen);
+    let spot = loadSpot();
+    let persistTimer = 0;
+    let inFlight = false;
+    let lastTickAt = 0;
+    let lastBrokerAt = 0;
+    let feedSource = null;
+    let rafId = 0;
+    let painted = { gold: spot.gold, silver: spot.silver, euro: spot.euro };
+    let bybitStarted = false;
+    let marketFallbackStarted = false;
+    let inFlightCloud = false;
+    let bundledCloudFeedUrl = "";
+    let allowMarketFallback = true;
+
+    function persistSoon() {
+      clearTimeout(persistTimer);
+      persistTimer = setTimeout(() => {
+        try { localStorage.setItem(SPOT_KEY, JSON.stringify(spot)); } catch (_) {}
+      }, 1500);
+    }
+
+    function liveStatus() {
+      if (spot.receivedAt && Date.now() - spot.receivedAt < 3500) return "live";
+      if (spot.gold || spot.silver || spot.euro) return "stale";
+      return "off";
+    }
+
+    function renderStatus() {
+      const status = liveStatus();
+      spot.status = status;
+      for (const asset of ASSETS) {
+        document.getElementById(asset.key + "-dot").className = "dot " + status;
+      }
+      const tag = document.getElementById("live-tag");
+      tag.className = "live-tag " + status;
+      tag.textContent = status === "live" ? "مباشر" : status === "stale" ? "متأخر" : "غير متصل";
+      const when = spot.at
+        ? new Date(spot.at).toLocaleTimeString("ar", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+        : null;
+      let source = "سوق عام (Binance)";
+      if (spot.source === "mt5") source = "MetaTrader 5 — المحل";
+      else if (spot.source === "mt5-cloud") source = "MetaTrader 5 — موبايل/تلفزيون";
+      if (BROKER_SOURCES[spot.source] && spot.mt5Symbols) {
+        const s = spot.mt5Symbols;
+        const parts = [];
+        if (s.gold) parts.push(s.gold);
+        if (s.silver) parts.push(s.silver);
+        if (s.euro) parts.push(s.euro);
+        if (parts.length) source += " · " + parts.join(" · ");
+      }
+      document.getElementById("updated").textContent = {
+        live: source + (when ? " · " + when : ""),
+        stale: (when ? "آخر تحديث " + when + " · " : "") + "إعادة الاتصال…",
+        off: LOCAL
+          ? "انتظار MT5 — شغّل ShopPriceBridge على شارت"
+          : (hasCloudFeed()
+            ? "انتظار أسعار المحل من السحابة…"
+            : "جاري الاتصال بالسوق…")
+      }[status];
+    }
+
+    function setText(id, text) {
+      const el = document.getElementById(id);
+      if (el.textContent !== text) el.textContent = text;
+    }
+
+    function renderAsset(asset, prev) {
+      const mid = spot[asset.key];
+      const bid = spot[asset.key + "Bid"] || mid;
+      const ask = spot[asset.key + "Ask"] || mid;
+      const buy = (bid || mid) - settings[asset.buyKey];
+      const sell = (ask || mid) + settings[asset.sellKey];
+      const prevMid = prev ? prev[asset.key] : 0;
+      const d = dirOf(mid, prevMid);
+
+      setText(asset.key + "-spot", money(mid, asset.max));
+      setText(asset.key + "-buy", money(buy, asset.max));
+      setText(asset.key + "-sell", money(sell, asset.max));
+
+      const chg = document.getElementById(asset.key + "-chg");
+      if (d && prevMid) {
+        const diff = mid - prevMid;
+        const pct = (diff / prevMid) * 100;
+        chg.textContent = (diff > 0 ? "▲ +" : "▼ ") + diff.toFixed(asset.max === 4 ? 4 : 2) +
+          "  (" + (pct > 0 ? "+" : "") + pct.toFixed(3) + "%)";
+        chg.className = "chg " + (d > 0 ? "up" : "down");
+      } else if (!chg.textContent) {
+        chg.textContent = "";
+      }
+
+      if (d) {
+        flash(document.getElementById(asset.key + "-spot"), d);
+        flash(document.getElementById(asset.key + "-buy"), d);
+        flash(document.getElementById(asset.key + "-sell"), d);
+      }
+    }
+
+    function render(prev) {
+      document.getElementById("title").textContent = settings.title || "المحل";
+      for (const asset of ASSETS) renderAsset(asset, prev);
+      renderStatus();
+    }
+
+    function applyTick(next) {
+      const merged = { ...spot, receivedAt: Date.now(), status: "live" };
+      if (next.at) merged.at = next.at;
+      if (next.source) merged.source = next.source;
+      if (next.mt5Symbols) merged.mt5Symbols = next.mt5Symbols;
+      for (const asset of ASSETS) {
+        const key = asset.key;
+        if (!(next[key] > 0)) continue;
+        merged[key] = next[key];
+        merged[key + "Bid"] = next[key + "Bid"] > 0 ? next[key + "Bid"] : next[key];
+        merged[key + "Ask"] = next[key + "Ask"] > 0 ? next[key + "Ask"] : next[key];
+      }
+      spot = merged;
+      persistSoon();
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        const prev = painted;
+        painted = { gold: spot.gold, silver: spot.silver, euro: spot.euro };
+        render(prev);
+      });
+    }
+
+    function fillForm() {
+      document.getElementById("f-title").value = settings.title || "";
+      document.getElementById("f-gold-buy").value = settings.goldBuy;
+      document.getElementById("f-gold-sell").value = settings.goldSell;
+      document.getElementById("f-silver-buy").value = settings.silverBuy;
+      document.getElementById("f-silver-sell").value = settings.silverSell;
+      document.getElementById("f-euro-buy").value = settings.euroBuy;
+      document.getElementById("f-euro-sell").value = settings.euroSell;
+      document.getElementById("f-screen").value = SCREEN_SCALE[settings.screen] ? settings.screen : "computer";
+      document.getElementById("f-cloud-feed").value = settings.cloudFeedUrl || "";
+    }
+
+    function cloudFeedUrl() {
+      return (settings.cloudFeedUrl || bundledCloudFeedUrl || "").trim();
+    }
+
+    function hasCloudFeed() {
+      return !!cloudFeedUrl();
+    }
+
+    async function loadCloudConfig() {
+      try {
+        const res = await fetch("./relay-config.json", { cache: "no-store" });
+        if (!res.ok) return;
+        const c = await res.json();
+        if (c.feedUrl) bundledCloudFeedUrl = String(c.feedUrl).trim();
+        if (c.allowMarketFallback === false) allowMarketFallback = false;
+      } catch (_) {}
+    }
+
+    function normalizeCloudPayload(data) {
+      if (Array.isArray(data) && data[0] && data[0].payload) return data[0].payload;
+      return data;
+    }
+
+    async function fetchCloudRelay() {
+      const url = cloudFeedUrl();
+      if (!url) return null;
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return null;
+        const data = normalizeCloudPayload(await res.json());
+        return quoteFromPayload(data, "mt5-cloud");
+      } catch (_) {
+        return null;
+      }
+    }
+
+    async function pumpCloud() {
+      if (!hasCloudFeed() || inFlightCloud) return false;
+      inFlightCloud = true;
+      try {
+        const quote = await fetchCloudRelay();
+        if (quote) {
+          acceptTick("mt5-cloud", quote);
+          return true;
+        }
+      } finally {
+        inFlightCloud = false;
+      }
+      return false;
+    }
+
+    function startMarketFallback() {
+      if (marketFallbackStarted) return;
+      marketFallbackStarted = true;
+      startLiveSockets();
+      pumpRest();
+      setInterval(pumpRest, 400);
+      setInterval(() => {
+        if (lastBrokerAt && Date.now() - lastBrokerAt < 10000) return;
+        if (Date.now() - lastTickAt > 2500) startBybit();
+      }, 1500);
+    }
+
+    function startRemoteFeeds() {
+      if (hasCloudFeed()) {
+        pumpCloud();
+        setInterval(pumpCloud, 450);
+        if (allowMarketFallback) {
+          setTimeout(() => {
+            if (!lastBrokerAt || Date.now() - lastBrokerAt > 12000) startMarketFallback();
+          }, 3000);
+          setInterval(() => {
+            if (lastBrokerAt && Date.now() - lastBrokerAt < 12000) return;
+            if (!marketFallbackStarted) startMarketFallback();
+          }, 5000);
+        }
+      } else {
+        startMarketFallback();
+      }
+    }
+
+    function pad2(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function tickClock() {
+      const now = new Date();
+      let hour = now.getHours();
+      const ampm = hour >= 12 ? "PM" : "AM";
+      hour = hour % 12 || 12;
+      document.getElementById("clock").dateTime = now.toISOString();
+      document.getElementById("clock-h").textContent = pad2(hour);
+      document.getElementById("clock-m").textContent = pad2(now.getMinutes());
+      document.getElementById("clock-s").textContent = pad2(now.getSeconds());
+      document.getElementById("clock-ampm").textContent = ampm;
+      const weekday = now.toLocaleDateString("ar", { weekday: "long" });
+      const date = now.toLocaleDateString("ar", {
+        day: "numeric", month: "long", year: "numeric"
+      });
+      document.getElementById("clock-date").textContent = weekday + "  ·  " + date;
+    }
+
+    function quoteFromPayload(data, source) {
+      const gold = num(data.gold);
+      const silver = num(data.silver);
+      const euro = num(data.euro);
+      if (!(gold || silver || euro)) return null;
+      const out = {
+        gold, silver, euro,
+        goldBid: num(data.goldBid) || gold,
+        goldAsk: num(data.goldAsk) || gold,
+        silverBid: num(data.silverBid) || silver,
+        silverAsk: num(data.silverAsk) || silver,
+        euroBid: num(data.euroBid) || euro,
+        euroAsk: num(data.euroAsk) || euro,
+        at: data.at || new Date().toISOString(),
+        source
+      };
+      if (data.symbols && typeof data.symbols === "object") {
+        out.mt5Symbols = {
+          gold: String(data.symbols.gold || ""),
+          silver: String(data.symbols.silver || ""),
+          euro: String(data.symbols.euro || "")
+        };
+      }
+      return out;
+    }
+
+    const SYM = { XAUUSDT: "gold", XAGUSDT: "silver", EURUSDT: "euro" };
+
+    function acceptTick(source, partial) {
+      const now = Date.now();
+      if (BROKER_SOURCES[source]) {
+        feedSource = source;
+        lastTickAt = now;
+        lastBrokerAt = now;
+        applyTick({ ...partial, source });
+        return;
+      }
+      if (LOCAL) return;
+      if (lastBrokerAt && now - lastBrokerAt < 8000) return;
+      if (feedSource && feedSource !== source && now - lastTickAt < 2500) return;
+      feedSource = source;
+      lastTickAt = now;
+      applyTick({ ...partial, source });
+    }
+
+    function tickBook(symbol, bid, ask, source) {
+      const key = SYM[symbol];
+      if (!key || !(bid > 0) || !(ask > 0)) return;
+      acceptTick(source, {
+        [key]: (bid + ask) / 2,
+        [key + "Bid"]: bid,
+        [key + "Ask"]: ask,
+        at: new Date().toISOString(),
+        source
+      });
+    }
+
+    function openStream(url, onMessage, onOpen) {
+      let ws = null;
+      let delay = 400;
+      let stopped = false;
+
+      function connect() {
+        if (stopped) return;
+        try { ws = new WebSocket(url); } catch (_) { schedule(); return; }
+        const mine = ws;
+        ws.onopen = () => {
+          delay = 400;
+          if (onOpen) onOpen(mine);
+        };
+        ws.onmessage = (ev) => {
+          if (ws !== mine) return;
+          onMessage(ev.data);
+        };
+        ws.onclose = () => schedule();
+        ws.onerror = () => { try { mine.close(); } catch (_) {} };
+      }
+
+      function schedule() {
+        if (stopped) return;
+        const wait = delay;
+        delay = Math.min(Math.round(delay * 1.7), 8000);
+        setTimeout(connect, wait);
+      }
+
+      connect();
+      return () => { stopped = true; try { ws && ws.close(); } catch (_) {} };
+    }
+
+    function handleBinance(raw) {
+      let msg;
+      try { msg = JSON.parse(raw); } catch (_) { return; }
+      const d = msg.data || msg;
+      const sym = String(d.s || "");
+      const index = num(d.i);
+      if (index) {
+        tickBook(sym, index, index, "binance");
+        return;
+      }
+      tickBook(sym, num(d.b), num(d.a), "binance");
+    }
+
+    function handleBybit(raw) {
+      let msg;
+      try { msg = JSON.parse(raw); } catch (_) { return; }
+      const topic = String(msg.topic || "");
+      const data = msg.data;
+      if (!data) return;
+      const index = num(data.indexPrice);
+      if (index) {
+        tickBook(String(data.symbol || ""), index, index, "bybit");
+        return;
+      }
+      if (topic.indexOf("orderbook.1.") === 0) {
+        const bid = num(data.b && data.b[0] && data.b[0][0]);
+        const ask = num(data.a && data.a[0] && data.a[0][0]);
+        tickBook(String(data.s || topic.slice("orderbook.1.".length)), bid, ask, "bybit");
+      }
+    }
+
+    function startLiveSockets() {
+      openStream(
+        "wss://fstream.binance.com/stream?streams=xauusdt@markPrice@1s/xagusdt@markPrice@1s",
+        handleBinance
+      );
+      openStream("wss://stream.binance.com:9443/ws/eurusdt@bookTicker", handleBinance);
+    }
+
+    function startBybit() {
+      if (bybitStarted) return;
+      bybitStarted = true;
+      openStream("wss://stream.bybit.com/v5/public/linear", handleBybit, (ws) => {
+        ws.send(JSON.stringify({
+          op: "subscribe",
+          args: ["tickers.XAUUSDT", "tickers.XAGUSDT"]
+        }));
+      });
+    }
+
+    async function fetchMt5() {
+      for (const url of MT5_URLS) {
+        try {
+          const res = await fetch(url, { cache: "no-store" });
+          if (!res.ok) continue;
+          const quote = quoteFromPayload(await res.json(), "mt5");
+          if (quote) return quote;
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    async function fetchJson(url) {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error("http " + res.status);
+      return res.json();
+    }
+
+    function quoteFromBook(gold, silver, euro, source) {
+      const gBid = num(gold && gold.bidPrice);
+      const gAsk = num(gold && gold.askPrice);
+      const sBid = num(silver && silver.bidPrice);
+      const sAsk = num(silver && silver.askPrice);
+      const eBid = num(euro && euro.bidPrice);
+      const eAsk = num(euro && euro.askPrice);
+      return quoteFromPayload({
+        gold: gBid && gAsk ? (gBid + gAsk) / 2 : gBid,
+        silver: sBid && sAsk ? (sBid + sAsk) / 2 : sBid,
+        euro: eBid && eAsk ? (eBid + eAsk) / 2 : eBid,
+        goldBid: gBid, goldAsk: gAsk,
+        silverBid: sBid, silverAsk: sAsk,
+        euroBid: eBid, euroAsk: eAsk,
+        at: new Date().toISOString()
+      }, source);
+    }
+
+    async function fetchFastRest() {
+      const [gold, silver, euro] = await Promise.all([
+        fetchJson("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=XAUUSDT"),
+        fetchJson("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=XAGUSDT"),
+        fetchJson("https://api.binance.com/api/v3/ticker/bookTicker?symbol=EURUSDT")
+      ]);
+      const goldPx = num(gold && gold.indexPrice);
+      const silverPx = num(silver && silver.indexPrice);
+      return quoteFromBook(
+        { bidPrice: goldPx, askPrice: goldPx },
+        { bidPrice: silverPx, askPrice: silverPx },
+        euro,
+        "binance"
+      );
+    }
+
+    async function fetchSlowWeb() {
+      try {
+        const [gold, silver, fx] = await Promise.all([
+          fetchJson("https://api.gold-api.com/price/XAU"),
+          fetchJson("https://api.gold-api.com/price/XAG"),
+          fetchJson("https://api.binance.com/api/v3/ticker/bookTicker?symbol=EURUSDT").catch(() => null)
+        ]);
+        const goldPx = num(gold && gold.price);
+        const silverPx = num(silver && silver.price);
+        const euroBid = num(fx && fx.bidPrice);
+        const euroAsk = num(fx && fx.askPrice);
+        const euroPx = euroBid && euroAsk ? (euroBid + euroAsk) / 2 : num(fx && fx.bidPrice);
+        if (goldPx || silverPx || euroPx) {
+          return quoteFromPayload({
+            gold: goldPx,
+            silver: silverPx,
+            euro: euroPx,
+            goldBid: goldPx,
+            goldAsk: goldPx,
+            silverBid: silverPx,
+            silverAsk: silverPx,
+            euroBid: euroBid || euroPx,
+            euroAsk: euroAsk || euroPx,
+            at: (gold && gold.updatedAt) || new Date().toISOString()
+          }, "web");
+        }
+      } catch (_) {}
+
+      const data = await fetchJson("https://xaus.com/api/v1/spot");
+      const gold = num(data.spot_usd_oz);
+      const silver = num(data.silver_usd_oz);
+      const eurPerUsd = num(data.fx_rates && data.fx_rates.EUR);
+      const euro = eurPerUsd > 0 ? 1 / eurPerUsd : 0;
+      return quoteFromPayload({
+        gold, silver, euro,
+        at: data.updated_at || new Date().toISOString()
+      }, "web");
+    }
+
+    async function pumpRest() {
+      if (Date.now() - lastTickAt < 700) return;
+      try {
+        const quote = await fetchFastRest();
+        if (quote) acceptTick("binance", quote);
+        else renderStatus();
+      } catch (_) {
+        startBybit();
+        try {
+          const quote = await fetchSlowWeb();
+          if (quote) acceptTick("web", quote);
+          else renderStatus();
+        } catch (__) {
+          renderStatus();
+        }
+      }
+    }
+
+    async function pumpMt5() {
+      if (inFlight || !LOCAL) return;
+      inFlight = true;
+      try {
+        const quote = await fetchMt5();
+        if (quote) acceptTick("mt5", quote);
+        else renderStatus();
+      } finally {
+        inFlight = false;
+      }
+    }
+
+    function loopMt5() {
+      pumpMt5();
+      setTimeout(loopMt5, lastBrokerAt && Date.now() - lastBrokerAt < 4000 ? 80 : 250);
+    }
+
+    render();
+    tickClock();
+    setInterval(tickClock, 250);
+    setInterval(renderStatus, 400);
+
+    loadCloudConfig().finally(() => {
+      if (LOCAL) loopMt5();
+      else startRemoteFeeds();
+    });
+
+    const overlay = document.getElementById("overlay");
+    document.getElementById("edit-btn").onclick = () => {
+      fillForm();
+      document.getElementById("saved").textContent = "";
+      overlay.classList.add("open");
+    };
+    document.getElementById("close-btn").onclick = () => {
+      applyScreen(settings.screen);
+      overlay.classList.remove("open");
+    };
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        applyScreen(settings.screen);
+        overlay.classList.remove("open");
+      }
+    });
+    document.getElementById("f-screen").onchange = () => {
+      applyScreen(document.getElementById("f-screen").value);
+    };
+
+    document.getElementById("form").onsubmit = (e) => {
+      e.preventDefault();
+      settings = {
+        title: document.getElementById("f-title").value.trim() || "Shop",
+        goldBuy: parseNum(document.getElementById("f-gold-buy").value),
+        goldSell: parseNum(document.getElementById("f-gold-sell").value),
+        silverBuy: parseNum(document.getElementById("f-silver-buy").value),
+        silverSell: parseNum(document.getElementById("f-silver-sell").value),
+        euroBuy: parseNum(document.getElementById("f-euro-buy").value),
+        euroSell: parseNum(document.getElementById("f-euro-sell").value),
+        screen: document.getElementById("f-screen").value,
+        cloudFeedUrl: document.getElementById("f-cloud-feed").value.trim()
+      };
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      applyScreen(settings.screen);
+      render();
+      document.getElementById("saved").textContent = "تم الحفظ";
+      if (!LOCAL && settings.cloudFeedUrl) pumpCloud();
+    };
+
+    document.getElementById("full-btn").onclick = async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch (_) {}
+    };
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js?v=11").catch(() => {});
+    }
+  </script>
+</body>
+</html>

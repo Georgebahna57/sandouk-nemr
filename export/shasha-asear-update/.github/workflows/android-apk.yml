@@ -1,0 +1,49 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - sw.js
+      - manifest.json
+      - package.json
+      - package-lock.json
+      - capacitor.config.json
+      - scripts/**
+      - android/**
+      - .github/workflows/android-apk.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - name: Build APK
+        run: |
+          chmod +x android/gradlew
+          printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
+          npm ci
+          npm run android:apk
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Upload the Android APK so the board can be installed from GitHub.
+          file_pattern: ShashaAsear-debug.apk
+          disable_globbing: true
